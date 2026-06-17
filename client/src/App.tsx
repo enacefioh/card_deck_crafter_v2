@@ -44,6 +44,8 @@ export default function App() {
     sangradoMm: 2,
     bordeCorteMm: 0,
     bordeCorteColor: "#000000",
+    modoAjuste: "cover",
+    reducirArteAlBorde: false,
   });
 
   const [generarReversos, setGenerarReversos] = useState<boolean>(false);
@@ -531,13 +533,47 @@ export default function App() {
               </div>
               <div className="input-field">
                 <label>Borde Corte (mm)</label>
-                <input
-                  type="number"
-                  value={cardConfig.bordeCorteMm}
-                  onChange={(e) => setCardConfig((prev) => ({ ...prev, bordeCorteMm: Number(e.target.value) }))}
-                />
+                <div style={{ display: "flex", gap: "6px" }}>
+                  <input
+                    type="number"
+                    style={{ flex: 1 }}
+                    value={cardConfig.bordeCorteMm}
+                    onChange={(e) => setCardConfig((prev) => ({ ...prev, bordeCorteMm: Number(e.target.value) }))}
+                  />
+                  {cardConfig.bordeCorteMm > 0 && (
+                    <input
+                      type="color"
+                      value={cardConfig.bordeCorteColor}
+                      onChange={(e) => setCardConfig((prev) => ({ ...prev, bordeCorteColor: e.target.value }))}
+                      style={{ width: "36px", height: "36px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
+                      title="Color del borde de corte"
+                    />
+                  )}
+                </div>
               </div>
             </div>
+
+            <div className="input-field" style={{ marginTop: "10px" }}>
+              <label>Ajuste de Ilustración</label>
+              <select
+                value={cardConfig.modoAjuste || "cover"}
+                onChange={(e) => setCardConfig((prev) => ({ ...prev, modoAjuste: e.target.value as any }))}
+              >
+                <option value="cover">Recortar para rellenar (Cover)</option>
+                <option value="contain">Ajustar sin recortar (Contain)</option>
+              </select>
+            </div>
+
+            {cardConfig.bordeCorteMm > 0 && (
+              <label className="checkbox-field" style={{ marginTop: "8px" }}>
+                <input
+                  type="checkbox"
+                  checked={cardConfig.reducirArteAlBorde || false}
+                  onChange={(e) => setCardConfig((prev) => ({ ...prev, reducirArteAlBorde: e.target.checked }))}
+                />
+                <span className="checkbox-label">Ajustar imagen al borde (No solapar)</span>
+              </label>
+            )}
           </section>
 
           {/* Opciones de Reverso */}
@@ -765,18 +801,34 @@ export default function App() {
                           }}
                         >
                           {/* Renderizar Imagen con Sangrado */}
-                          <div
-                            className="card-image-render"
-                            style={{
-                              left: `${-slot.sangradoMm * zoomFactor}px`,
-                              top: `${-slot.sangradoMm * zoomFactor}px`,
-                              width: `${(slot.anchoMm + 2 * slot.sangradoMm) * zoomFactor}px`,
-                              height: `${(slot.altoMm + 2 * slot.sangradoMm) * zoomFactor}px`,
-                              backgroundImage: slot.imagenSrc ? `url(${slot.imagenSrc})` : "none",
-                            }}
-                          >
-                            {!slot.imagenSrc && "Ilustración"}
-                          </div>
+                          {(() => {
+                            const borderMm = slot.bordeCorteMm;
+                            const noOverlap = cardConfig.reducirArteAlBorde && borderMm > 0;
+                            
+                            const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
+                            const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
+                            const imgWidth = noOverlap ? (slot.anchoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
+                            const imgHeight = noOverlap ? (slot.altoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
+                            const fitMode = cardConfig.modoAjuste || "cover";
+
+                            return (
+                              <div
+                                className="card-image-render"
+                                style={{
+                                  left: `${imgLeft * zoomFactor}px`,
+                                  top: `${imgTop * zoomFactor}px`,
+                                  width: `${imgWidth * zoomFactor}px`,
+                                  height: `${imgHeight * zoomFactor}px`,
+                                  backgroundImage: slot.imagenSrc ? `url(${slot.imagenSrc})` : "none",
+                                  backgroundSize: fitMode,
+                                  backgroundRepeat: "no-repeat",
+                                  backgroundPosition: "center",
+                                }}
+                              >
+                                {!slot.imagenSrc && "Ilustración"}
+                              </div>
+                            );
+                          })()}
 
                           {/* Borde interior de color fijo si aplica */}
                           {slot.bordeCorteMm > 0 && (
@@ -854,18 +906,34 @@ export default function App() {
                             }}
                           >
                             {/* Renderizar Imagen con Sangrado */}
-                            <div
-                              className="card-image-render"
-                              style={{
-                                left: `${-slot.sangradoMm * zoomFactor}px`,
-                                top: `${-slot.sangradoMm * zoomFactor}px`,
-                                width: `${(slot.anchoMm + 2 * slot.sangradoMm) * zoomFactor}px`,
-                                height: `${(slot.altoMm + 2 * slot.sangradoMm) * zoomFactor}px`,
-                                backgroundImage: slot.imagenSrc ? `url(${slot.imagenSrc})` : "none",
-                              }}
-                            >
-                              {!slot.imagenSrc && "Reverso"}
-                            </div>
+                            {(() => {
+                              const borderMm = slot.bordeCorteMm;
+                              const noOverlap = cardConfig.reducirArteAlBorde && borderMm > 0;
+                              
+                              const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
+                              const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
+                              const imgWidth = noOverlap ? (slot.anchoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
+                              const imgHeight = noOverlap ? (slot.altoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
+                              const fitMode = cardConfig.modoAjuste || "cover";
+
+                              return (
+                                <div
+                                  className="card-image-render"
+                                  style={{
+                                    left: `${imgLeft * zoomFactor}px`,
+                                    top: `${imgTop * zoomFactor}px`,
+                                    width: `${imgWidth * zoomFactor}px`,
+                                    height: `${imgHeight * zoomFactor}px`,
+                                    backgroundImage: slot.imagenSrc ? `url(${slot.imagenSrc})` : "none",
+                                    backgroundSize: fitMode,
+                                    backgroundRepeat: "no-repeat",
+                                    backgroundPosition: "center",
+                                  }}
+                                >
+                                  {!slot.imagenSrc && "Reverso"}
+                                </div>
+                              );
+                            })()}
 
                             {/* Borde interior de color fijo si aplica */}
                             {slot.bordeCorteMm > 0 && (

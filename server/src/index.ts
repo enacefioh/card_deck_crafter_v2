@@ -30,7 +30,7 @@ fs.ensureDirSync(EXPORTS_DIR);
 const upload = multer({ dest: UPLOADS_DIR });
 
 // Función para mapear la distribución y generar HTML
-function generarHtmlImpresion(canvasConfig: CanvasConfig, paginasFrontales: any[], paginasTraseras: any[], tempDir: string): string {
+function generarHtmlImpresion(canvasConfig: CanvasConfig, cardConfig: any, paginasFrontales: any[], paginasTraseras: any[], tempDir: string): string {
   const wMm = canvasConfig.anchoMm;
   const hMm = canvasConfig.altoMm;
   
@@ -50,7 +50,8 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, paginasFrontales: any[
   const renderSlots = (slots: any[]) => {
     return slots.map((slot: any) => {
       const imgPath = resolverAssetPath(slot.imagenSrc);
-      const bgImgStyle = imgPath ? `background-image: url('${imgPath}');` : "";
+      const fitMode = cardConfig.modoAjuste || "cover";
+      const bgImgStyle = imgPath ? `background-image: url('${imgPath}'); background-size: ${fitMode}; background-repeat: no-repeat; background-position: center;` : "";
       
       const width = slot.anchoMm;
       const height = slot.altoMm;
@@ -58,7 +59,19 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, paginasFrontales: any[
       const y = slot.yMm;
       const sangrado = slot.sangradoMm;
       const borderMm = slot.bordeCorteMm;
-      const borderColor = slot.bordeCorteColor;
+      const borderColor = slot.bordeCorteColor || "#000000";
+
+      let imgLeft = -sangrado;
+      let imgTop = -sangrado;
+      let imgWidth = width + 2 * sangrado;
+      let imgHeight = height + 2 * sangrado;
+
+      if (cardConfig.reducirArteAlBorde && borderMm > 0) {
+        imgLeft = borderMm - sangrado;
+        imgTop = borderMm - sangrado;
+        imgWidth = width - 2 * borderMm + 2 * sangrado;
+        imgHeight = height - 2 * borderMm + 2 * sangrado;
+      }
 
       let marksHtml = "";
       if (canvasConfig.marcasCorteEsquinas) {
@@ -79,7 +92,7 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, paginasFrontales: any[
 
       return `
         <div class="card-slot" style="left: ${x}mm; top: ${y}mm; width: ${width}mm; height: ${height}mm;">
-          <div class="card-image-render" style="left: ${-sangrado}mm; top: ${-sangrado}mm; width: ${width + 2 * sangrado}mm; height: ${height + 2 * sangrado}mm; ${bgImgStyle}"></div>
+          <div class="card-image-render" style="left: ${imgLeft}mm; top: ${imgTop}mm; width: ${imgWidth}mm; height: ${imgHeight}mm; ${bgImgStyle}"></div>
           ${borderHtml}
           ${marksHtml}
         </div>
@@ -266,7 +279,7 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
     );
 
     // 5. Generar el HTML de impresión y guardarlo como archivo físico temporal para que Chromium lo acceda de forma nativa sin restricciones de seguridad
-    const html = generarHtmlImpresion(proyecto.canvasConfig, paginasFrontales, paginasTraseras, tempDir);
+    const html = generarHtmlImpresion(proyecto.canvasConfig, proyecto.cardConfig, paginasFrontales, paginasTraseras, tempDir);
     const htmlPath = path.join(tempDir, "print.html");
     await fs.writeFile(htmlPath, html, "utf8");
 

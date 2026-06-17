@@ -19,6 +19,8 @@ export interface CardConfig {
   sangradoMm: number;
   bordeCorteMm: number;
   bordeCorteColor: string;
+  modoAjuste?: "cover" | "contain";
+  reducirArteAlBorde?: boolean;
 }
 
 export interface Carta {
