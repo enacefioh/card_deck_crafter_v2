@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
-import { calcularDistribucion } from "./core/layoutEngine";
-import type { CanvasConfig, CardConfig, Carta } from "./core/layoutEngine";
+import { calcularDistribucion } from "shared";
+import type { CanvasConfig, CardConfig, Carta } from "shared";
+import JSZip from "jszip";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -176,6 +177,120 @@ export default function App() {
 
   const eliminarCarta = (id: string) => {
     setCartas((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  // --- Exportación a PDF vía Servidor Local ---
+  const [exportandoPdf, setExportandoPdf] = useState<boolean>(false);
+
+  const handleExportarPdf = async () => {
+    if (cartas.length === 0) return;
+    
+    try {
+      setExportandoPdf(true);
+      const zip = new JSZip();
+      const assetsFolder = zip.folder("assets")!;
+      const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
+
+      // Helper para descargar blob y meterlo en el zip
+      const addBlobToZip = async (blobUrl: string, baseName: string): Promise<string> => {
+        if (imagenMap.has(blobUrl)) {
+          return imagenMap.get(blobUrl)!;
+        }
+
+        try {
+          const res = await fetch(blobUrl);
+          const blob = await res.blob();
+          
+          let extension = "png";
+          if (blob.type === "image/jpeg") extension = "jpg";
+          else if (blob.type === "image/webp") extension = "webp";
+          else if (blob.type === "image/gif") extension = "gif";
+          
+          const filename = `${baseName}_${imagenMap.size}.${extension}`;
+          assetsFolder.file(filename, blob);
+          
+          const assetPath = `asset://${filename}`;
+          imagenMap.set(blobUrl, assetPath);
+          return assetPath;
+        } catch (err) {
+          console.error("Error al procesar recurso de imagen:", blobUrl, err);
+          return "";
+        }
+      };
+
+      // 1. Empaquetar cartas frontales y traseras individuales
+      const processedCards = [];
+      for (const card of cartas) {
+        const imagenFrontalPath = await addBlobToZip(card.imagenFrontal, "frontal");
+        let imagenTraseraPath = null;
+        if (card.imagenTrasera) {
+          imagenTraseraPath = await addBlobToZip(card.imagenTrasera, "trasera");
+        }
+        processedCards.push({
+          id: card.id,
+          nombre: card.nombre,
+          imagenFrontal: imagenFrontalPath,
+          imagenTrasera: imagenTraseraPath,
+          cantidad: card.cantidad,
+        });
+      }
+
+      // 2. Empaquetar trasera común si existe
+      let commonBackPath = null;
+      if (imagenTraseraComun) {
+        commonBackPath = await addBlobToZip(imagenTraseraComun, "trasera_comun");
+      }
+
+      // 3. Crear project.json
+      const proyecto = {
+        version: "2.0.0",
+        meta: {
+          nombre: "Exportación CDC2",
+          fechaCreacion: new Date().toISOString(),
+          fechaModificacion: new Date().toISOString(),
+        },
+        canvasConfig,
+        cardConfig,
+        modoTraseras: generarReversos ? (imagenTraseraComun ? "comun" : "individual") : "ninguno",
+        imagenTraseraComun: commonBackPath,
+        cards: processedCards,
+      };
+
+      zip.file("project.json", JSON.stringify(proyecto, null, 2));
+
+      // 4. Generar el archivo ZIP
+      const zipContentBlob = await zip.generateAsync({ type: "blob" });
+
+      // 5. Enviar al endpoint de exportación
+      const formData = new FormData();
+      formData.append("archivoProyecto", zipContentBlob, "proyecto.cdc2");
+
+      const response = await fetch("/api/exportar/pdf", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Error en el servidor al generar el PDF.");
+      }
+
+      // 6. Descargar el archivo PDF retornado
+      const pdfBlob = await response.blob();
+      const downloadUrl = URL.createObjectURL(pdfBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `baraja_${Date.now()}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+    } catch (error: any) {
+      alert(`Error al generar el PDF: ${error.message || error}`);
+    } finally {
+      setExportandoPdf(false);
+    }
   };
 
   // --- Computar Distribución de Páginas ---
@@ -507,18 +622,30 @@ export default function App() {
           <div className="toolbar-info">
             Hojas: {paginasFrontales.length} {generarReversos ? `(Frontal) + ${paginasTraseras.length} (Reverso)` : ""}
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <label style={{ margin: 0, fontSize: "11px" }}>Zoom del Lienzo</label>
-            <input
-              type="range"
-              min="1.0"
-              max="4.5"
-              step="0.1"
-              value={zoomFactor}
-              onChange={(e) => setZoomFactor(Number(e.target.value))}
-              style={{ width: "120px", margin: 0 }}
-            />
-            <span style={{ fontSize: "12px", fontFamily: "monospace" }}>{zoomFactor.toFixed(1)}x</span>
+          
+          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+            <button
+              onClick={handleExportarPdf}
+              disabled={exportandoPdf || cartas.length === 0}
+              className={`btn-primary ${exportandoPdf ? "loading" : ""}`}
+              style={{ padding: "6px 12px", fontSize: "12px", margin: 0, minWidth: "120px" }}
+            >
+              {exportandoPdf ? "⏳ Generando PDF..." : "📥 Exportar PDF"}
+            </button>
+            
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", borderLeft: "1px solid rgba(255,255,255,0.1)", paddingLeft: "10px" }}>
+              <label style={{ margin: 0, fontSize: "11px" }}>Zoom del Lienzo</label>
+              <input
+                type="range"
+                min="1.0"
+                max="4.5"
+                step="0.1"
+                value={zoomFactor}
+                onChange={(e) => setZoomFactor(Number(e.target.value))}
+                style={{ width: "120px", margin: 0 }}
+              />
+              <span style={{ fontSize: "12px", fontFamily: "monospace" }}>{zoomFactor.toFixed(1)}x</span>
+            </div>
           </div>
         </div>
 

@@ -1,73 +1,72 @@
-# React + TypeScript + Vite
+# Card Deck Crafter v2 (cdc2)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+¡Bienvenido a **Card Deck Crafter v2**! Una herramienta modular de maquetación y diseño de cartas para prototipado rápido de juegos de mesa. Permite organizar y distribuir cartas de manera óptima para impresión en hojas físicas (A4, A3 o formatos personalizados), garantizando la alineación de caras traseras (espejado) y respetando marcas de corte y sangrados.
 
-Currently, two official plugins are available:
+![Vista Previa del Maquetador](developer/media/screenshot.png)
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🚀 Guía rápida para Usuarios (No Desarrolladores)
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Si solo deseas ejecutar la aplicación en tu computadora local para maquetar tus barajas, sigue estos sencillos pasos:
 
-## Expanding the ESLint configuration
+### 1. Requisitos Previos
+*   Debes tener instalado **Node.js** (versión 18 o superior). Si no lo tienes, puedes descargarlo de forma gratuita para Windows, Mac o Linux desde la [página oficial de Node.js](https://nodejs.org/).
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### 2. Descargar el Proyecto
+1.  Descarga el código del repositorio en formato ZIP haciendo clic en el botón verde **Code** -> **Download ZIP** en la parte superior de esta página de GitHub.
+2.  Extrae el archivo ZIP en una carpeta de tu ordenador.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### 3. Instalar y Arrancar
+1.  Abre una consola, terminal o símbolo del sistema (cmd) en la carpeta donde has extraído los archivos.
+2.  Ejecuta el siguiente comando para instalar las librerías necesarias (solo debes hacerlo la primera vez):
+    ```bash
+    npm install
+    ```
+3.  Una vez instalado, ejecuta el comando para iniciar el editor:
+    ```bash
+    npm run dev
+    ```
+4.  ¡Listo! Abre tu navegador en la siguiente dirección:
+    👉 **http://localhost:5173/**
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+*(Nota: Para exportar a PDF de alta resolución, también necesitarás tener el servidor de exportación activo ejecutando `npm run server:dev` en otra terminal, una vez que esté completamente configurado).*
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## 🛠️ Guía para Desarrolladores
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+El proyecto está estructurado como un Monorrepositorio utilizando **NPM Workspaces** para separar el cliente (React), el servidor (Express + Puppeteer) y la lógica matemática compartida de maquetación.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+### Estructura de Directorios
+
+*   [`/client`](file:///c:/Users/victo/proyectos/cdc2/client): Aplicación web SPA desarrollada en React, Vite y TypeScript.
+*   [`/server`](file:///c:/Users/victo/proyectos/cdc2/server): Servidor backend en Node.js que utiliza Puppeteer para la generación headless de PDFs en alta resolución.
+*   [`/shared`](file:///c:/Users/victo/proyectos/cdc2/shared): Biblioteca común que contiene el motor matemático de distribución de slots y cálculo de simetrías de reversos.
+*   [`/developer`](file:///c:/Users/victo/proyectos/cdc2/developer): Documentación técnica del proyecto, especificaciones de requisitos (SRS) y directrices de desarrollo (Skills).
+
+### Comandos de Desarrollo en la Raíz
+
+Para ejecutar o compilar cualquier espacio de trabajo desde la raíz del monorepo, puedes usar los siguientes scripts:
+
+*   **Arrancar el editor visual (Frontend)**:
+    ```bash
+    npm run client:dev
+    ```
+*   **Arrancar el servidor de exportación (Backend)** (en desarrollo):
+    ```bash
+    npm run server:dev
+    ```
+*   **Compilar el editor para producción**:
+    ```bash
+    npm run client:build
+    ```
+*   **Ejecutar pruebas unitarias automatizadas**:
+    ```bash
+    npm run test
+    ```
+
+### Lógica Compartida y Tests
+El motor matemático de maquetación cuenta con una suite de pruebas para validar la distribución y simetría. Puedes verlas en [`shared/layoutEngine.test.ts`](file:///c:/Users/victo/proyectos/cdc2/shared/layoutEngine.test.ts).
+
+Para más detalles de la arquitectura, revisa la documentación en la carpeta [`/developer`](file:///c:/Users/victo/proyectos/cdc2/developer).

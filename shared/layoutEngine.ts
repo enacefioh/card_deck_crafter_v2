@@ -45,8 +45,8 @@ export interface ProyectoCDC2 {
 
 export interface LayoutSlot {
   cartaId: string;
-  xMm: number; // Posición horizontal del corte final de la carta (relativo al lienzo)
-  yMm: number; // Posición vertical del corte final de la carta (relativo al lienzo)
+  xMm: number;
+  yMm: number;
   anchoMm: number;
   altoMm: number;
   imagenSrc: string | null;
@@ -61,10 +61,6 @@ export interface LayoutPage {
   slots: LayoutSlot[];
 }
 
-/**
- * Función pura que calcula la distribución exacta de las cartas en el lienzo de impresión.
- * Genera páginas frontales y traseras correspondientes con alineación simétrica.
- */
 export function calcularDistribucion(
   canvas: CanvasConfig,
   card: CardConfig,
@@ -75,7 +71,6 @@ export function calcularDistribucion(
   const paginasFrontales: LayoutPage[] = [];
   const paginasTraseras: LayoutPage[] = [];
 
-  // 1. Calcular el área útil de la página física
   const anchoUtil = canvas.anchoMm - (canvas.margenLeftMm + canvas.margenRightMm);
   const altoUtil = canvas.altoMm - (canvas.margenTopMm + canvas.margenBottomMm);
 
@@ -83,7 +78,6 @@ export function calcularDistribucion(
     return { paginasFrontales, paginasTraseras };
   }
 
-  // 2. Calcular cuántas columnas y filas caben por página de forma matemática
   const columnas = Math.floor((anchoUtil + card.espaciadoXMm) / (card.anchoMm + card.espaciadoXMm));
   const filas = Math.floor((altoUtil + card.espaciadoYMm) / (card.altoMm + card.espaciadoYMm));
 
@@ -93,7 +87,6 @@ export function calcularDistribucion(
 
   const cartasPorPagina = columnas * filas;
 
-  // 3. Crear la lista plana de cartas multiplicadas por su cantidad
   const listaCartasPlanas: Carta[] = [];
   for (const carta of cartas) {
     for (let i = 0; i < carta.cantidad; i++) {
@@ -105,7 +98,6 @@ export function calcularDistribucion(
     return { paginasFrontales, paginasTraseras };
   }
 
-  // 4. Calcular el centrado del bloque de cartas dentro del área útil de la hoja
   const anchoGrid = columnas * card.anchoMm + (columnas - 1) * card.espaciadoXMm;
   const altoGrid = filas * card.altoMm + (filas - 1) * card.espaciadoYMm;
   const sobranteX = anchoUtil - anchoGrid;
@@ -114,14 +106,12 @@ export function calcularDistribucion(
   const startX = canvas.margenLeftMm + sobranteX / 2;
   const startY = canvas.margenTopMm + sobranteY / 2;
 
-  // 5. Agrupar cartas en páginas frontales
   const numPaginas = Math.ceil(listaCartasPlanas.length / cartasPorPagina);
 
   for (let p = 0; p < numPaginas; p++) {
     const slotsFrontales: LayoutSlot[] = [];
     const slotsTraseros: LayoutSlot[] = [];
 
-    // Llenar slots para la página frontal p
     for (let f = 0; f < filas; f++) {
       for (let c = 0; c < columnas; c++) {
         const indexCarta = p * cartasPorPagina + f * columnas + c;
@@ -131,7 +121,6 @@ export function calcularDistribucion(
 
         const carta = listaCartasPlanas[indexCarta];
 
-        // Coordenadas frontales para la ranura (c, f)
         const xMmFrontal = startX + c * (card.anchoMm + card.espaciadoXMm);
         const yMm = startY + f * (card.altoMm + card.espaciadoYMm);
 
@@ -147,9 +136,7 @@ export function calcularDistribucion(
           bordeCorteColor: card.bordeCorteColor,
         });
 
-        // 6. Si hay traseras, calcular la posición de su reverso correspondiente
         if (modoTraseras !== "ninguno") {
-          // El orden de las columnas se invierte horizontalmente: c' = columnas - 1 - c
           const xMmTrasera = startX + (columnas - 1 - c) * (card.anchoMm + card.espaciadoXMm);
 
           let imagenSrcTrasera: string | null = null;
@@ -181,7 +168,6 @@ export function calcularDistribucion(
     });
 
     if (modoTraseras !== "ninguno" && slotsTraseros.length > 0) {
-      // Ordenar slots traseros de forma espacial (de izquierda a derecha por fila)
       const slotsTraserosOrdenados = [...slotsTraseros].sort((a, b) => {
         if (Math.abs(a.yMm - b.yMm) > 0.01) {
           return a.yMm - b.yMm;
