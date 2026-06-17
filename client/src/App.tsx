@@ -41,10 +41,10 @@ export default function App() {
     altoMm: 88.9,
     espaciadoXMm: 0,
     espaciadoYMm: 0,
-    sangradoMm: 2,
+    sangradoMm: 0,
     bordeCorteMm: 0,
     bordeCorteColor: "#000000",
-    modoAjuste: "cover",
+    modoAjuste: "contain",
     reducirArteAlBorde: false,
   });
 
