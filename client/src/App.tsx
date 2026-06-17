@@ -128,9 +128,27 @@ export default function App() {
     setCartas((prev) => [...prev, ...nuevasCartas]);
   };
 
+  const procesarTraseraComun = (file: File) => {
+    setImagenTraseraComun(URL.createObjectURL(file));
+  };
+
+  const procesarTraseraBloque = (files: File[]) => {
+    setCartas((prev) => {
+      return prev.map((carta, index) => {
+        if (index < files.length) {
+          return {
+            ...carta,
+            imagenTrasera: URL.createObjectURL(files[index]),
+          };
+        }
+        return carta;
+      });
+    });
+  };
+
   const handleTraseraComunUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setImagenTraseraComun(URL.createObjectURL(e.target.files[0]));
+      procesarTraseraComun(e.target.files[0]);
     }
   };
 
@@ -147,18 +165,51 @@ export default function App() {
     if (!e.target.files) return;
     const files = Array.from(e.target.files).filter(file => file.type.startsWith("image/"));
     if (files.length === 0) return;
+    procesarTraseraBloque(files);
+  };
 
-    setCartas((prev) => {
-      return prev.map((carta, index) => {
-        if (index < files.length) {
-          return {
-            ...carta,
-            imagenTrasera: URL.createObjectURL(files[index]),
-          };
-        }
-        return carta;
-      });
-    });
+  // --- Manejadores Drag & Drop para Traseras (SRS-004) ---
+  const [dragOverComun, setDragOverComun] = useState<boolean>(false);
+  const [dragOverBloque, setDragOverBloque] = useState<boolean>(false);
+
+  const handleDragOverComun = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverComun(true);
+  };
+
+  const handleDragLeaveComun = () => {
+    setDragOverComun(false);
+  };
+
+  const handleDropComun = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverComun(false);
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+      const file = e.dataTransfer.files[0];
+      if (file.type.startsWith("image/")) {
+        procesarTraseraComun(file);
+      }
+    }
+  };
+
+  const handleDragOverBloque = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverBloque(true);
+  };
+
+  const handleDragLeaveBloque = () => {
+    setDragOverBloque(false);
+  };
+
+  const handleDropBloque = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverBloque(false);
+    if (e.dataTransfer.files) {
+      const files = Array.from(e.dataTransfer.files).filter(file => file.type.startsWith("image/"));
+      if (files.length > 0) {
+        procesarTraseraBloque(files);
+      }
+    }
   };
 
   const eliminarTraseraIndividual = (id: string) => {
@@ -503,16 +554,51 @@ export default function App() {
             </label>
 
             {generarReversos && (
-              <div className="input-field" style={{ marginTop: "8px" }}>
-                <label>Trasera Común (Por Defecto)</label>
-                <input type="file" accept="image/*" onChange={handleTraseraComunUpload} />
-                {imagenTraseraComun && (
-                  <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
-                    <div className="card-thumb" style={{ backgroundImage: `url(${imagenTraseraComun})`, width: "32px", height: "42px", margin: 0 }} />
-                    <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Imagen común cargada</span>
+              <>
+                <div className="input-field" style={{ marginTop: "8px" }}>
+                  <label>Trasera Común (Por Defecto)</label>
+                  <label
+                    className={`sidebar-dropzone ${dragOverComun ? "drag-active" : ""}`}
+                    onDragOver={handleDragOverComun}
+                    onDragLeave={handleDragLeaveComun}
+                    onDrop={handleDropComun}
+                  >
+                    <span className="sidebar-dropzone-icon">📥</span>
+                    <p className="sidebar-dropzone-text">Soltar o hacer clic</p>
+                    <input type="file" accept="image/*" onChange={handleTraseraComunUpload} style={{ display: "none" }} />
+                  </label>
+                  {imagenTraseraComun && (
+                    <div style={{ display: "flex", alignItems: "center", gap: "10px", marginTop: "8px" }}>
+                      <div className="card-thumb" style={{ backgroundImage: `url(${imagenTraseraComun})`, width: "32px", height: "42px", margin: 0 }} />
+                      <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>Común cargada</span>
+                      <button
+                        className="btn-icon btn-danger"
+                        style={{ width: "16px", height: "16px", fontSize: "9px", marginLeft: "auto" }}
+                        onClick={() => setImagenTraseraComun(null)}
+                        title="Eliminar trasera común"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {cartas.length > 0 && (
+                  <div className="input-field" style={{ marginTop: "12px" }}>
+                    <label>Importar Traseras en Lote</label>
+                    <label
+                      className={`sidebar-dropzone ${dragOverBloque ? "drag-active" : ""}`}
+                      onDragOver={handleDragOverBloque}
+                      onDragLeave={handleDragLeaveBloque}
+                      onDrop={handleDropBloque}
+                    >
+                      <span className="sidebar-dropzone-icon">🔄</span>
+                      <p className="sidebar-dropzone-text">Soltar lote o hacer clic</p>
+                      <input type="file" multiple accept="image/*" onChange={handleTraseraImportBloque} style={{ display: "none" }} />
+                    </label>
                   </div>
                 )}
-              </div>
+              </>
             )}
           </section>
 
@@ -552,14 +638,7 @@ export default function App() {
               <input type="file" multiple accept="image/*" onChange={handleImageImport} style={{ display: "none" }} />
             </label>
 
-            {generarReversos && cartas.length > 0 && (
-              <div style={{ marginTop: "10px" }}>
-                <label className="btn-primary" style={{ display: "block", cursor: "pointer", fontSize: "12px", padding: "8px", textTransform: "none", letterSpacing: 0, boxShadow: "none" }}>
-                  🔄 Importar Traseras en Bloque
-                  <input type="file" multiple accept="image/*" onChange={handleTraseraImportBloque} style={{ display: "none" }} />
-                </label>
-              </div>
-            )}
+            {/* El cargador de traseras en lote se ha integrado en el menú superior de Caras Traseras */}
 
             {cartas.length > 0 && (
               <div className="card-list">
