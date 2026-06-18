@@ -195,6 +195,20 @@
   justify-content: center;
   align-items: center;
   overflow: visible; /* Permite ver el sangrado */
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.card-slot:hover {
+  outline: 2px dashed rgba(139, 92, 246, 0.5);
+  outline-offset: -2px;
+}
+
+.card-slot.selected {
+  outline: 3px solid var(--accent-primary) !important;
+  outline-offset: -3px;
+  box-shadow: 0 0 15px rgba(139, 92, 246, 0.6) !important;
+  z-index: 5;
 }
 
 /* Imagen de la carta con sangrado */
@@ -478,4 +492,75 @@
   border-color: var(--accent-primary) !important;
   box-shadow: 0 0 15px rgba(139, 92, 246, 0.45) !important;
 }
+
+/* --- Selección y Edición Avanzada (SRS-009) --- */
+.card-item {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.card-item.selected {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.25) !important;
+  background-color: rgba(139, 92, 246, 0.04) !important;
+}
+
+.card-checkbox {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.card-selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background-color: rgba(255, 255, 255, 0.02);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 4px;
+  margin-bottom: 12px;
+}
+
+.toolbar-btn {
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-primary);
+  border-radius: 6px;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  font-size: 14px;
+  padding: 0;
+}
+
+.toolbar-btn:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.toolbar-btn:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.toolbar-btn.btn-danger:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.12);
+  border-color: rgba(239, 68, 68, 0.25);
+  color: #f87171;
+}
+
+.toolbar-separator {
+  width: 1px;
+  height: 16px;
+  background-color: var(--border-color);
+  margin: 0 2px;
+}
+
 

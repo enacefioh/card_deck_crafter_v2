@@ -28,3 +28,54 @@ export function validarYParsearProyecto(jsonText: string): any {
 
   return proyecto;
 }
+
+export function moverCartas(cartas: any[], selectedIds: string[], direccion: "arriba" | "abajo"): any[] {
+  if (selectedIds.length === 0) return cartas;
+
+  // Obtener índices de los elementos seleccionados
+  const indices = selectedIds
+    .map(id => cartas.findIndex(c => c.id === id))
+    .filter(idx => idx !== -1)
+    .sort((a, b) => a - b);
+
+  if (indices.length === 0) return cartas;
+
+  // Verificar si la selección es contigua
+  const esContiguo = indices[indices.length - 1] - indices[0] + 1 === indices.length;
+  if (!esContiguo) return cartas;
+
+  const resultado = [...cartas];
+
+  if (direccion === "arriba") {
+    if (indices[0] === 0) return cartas; // Ya está al principio
+
+    const insertIdx = indices[0] - 1;
+    const itemsAMover = resultado.splice(indices[0], indices.length);
+    resultado.splice(insertIdx, 0, ...itemsAMover);
+  } else {
+    if (indices[indices.length - 1] === cartas.length - 1) return cartas; // Ya está al final
+
+    const insertIdx = indices[0] + 1;
+    const itemsAMover = resultado.splice(indices[0], indices.length);
+    resultado.splice(insertIdx, 0, ...itemsAMover);
+  }
+
+  return resultado;
+}
+
+export function duplicarCartas(cartas: any[], selectedIds: string[]): any[] {
+  const resultado: any[] = [];
+  for (const carta of cartas) {
+    resultado.push(carta);
+    if (selectedIds.includes(carta.id)) {
+      const copia = {
+        ...carta,
+        id: `${carta.id}_copia_${Math.random().toString(36).substring(2, 9)}`,
+        nombre: `${carta.nombre} (Copia)`
+      };
+      resultado.push(copia);
+    }
+  }
+  return resultado;
+}
+

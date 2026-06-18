@@ -9,6 +9,7 @@ interface MenuBarProps {
   onExportarPdf: () => void;
   exportandoPdf: boolean;
   cartasCount: number;
+  paginasCount: number;
   zoomFactor: number;
   setZoomFactor: (zoom: number | ((prev: number) => number)) => void;
   lineasCorteContinuas: boolean;
@@ -17,6 +18,18 @@ interface MenuBarProps {
   setMarcasCorteEsquinas: (val: boolean | ((prev: boolean) => boolean)) => void;
   onFocusLienzoConfig: () => void;
   onFocusCartaConfig: () => void;
+
+  // Acciones de Selección
+  selectedCount: number;
+  puedeMoverArriba: boolean;
+  puedeMoverAbajo: boolean;
+  onSelectAll: () => void;
+  onDeselectAll: () => void;
+  onInvertSelection: () => void;
+  onDuplicarSeleccion: () => void;
+  onEliminarSeleccion: () => void;
+  onMoverSeleccionArriba: () => void;
+  onMoverSeleccionAbajo: () => void;
 }
 
 export default function MenuBar({
@@ -27,6 +40,7 @@ export default function MenuBar({
   onExportarPdf,
   exportandoPdf,
   cartasCount,
+  paginasCount,
   zoomFactor,
   setZoomFactor,
   lineasCorteContinuas,
@@ -35,6 +49,16 @@ export default function MenuBar({
   setMarcasCorteEsquinas,
   onFocusLienzoConfig,
   onFocusCartaConfig,
+  selectedCount,
+  puedeMoverArriba,
+  puedeMoverAbajo,
+  onSelectAll,
+  onDeselectAll,
+  onInvertSelection,
+  onDuplicarSeleccion,
+  onEliminarSeleccion,
+  onMoverSeleccionArriba,
+  onMoverSeleccionAbajo,
 }: MenuBarProps) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
@@ -138,6 +162,30 @@ export default function MenuBar({
           </button>
           {activeDropdown === "edicion" && (
             <div className="menu-dropdown">
+              <button className="menu-item" onClick={() => handleAction(onSelectAll)} disabled={cartasCount === 0}>
+                <span className="menu-item-icon">☑️</span> Seleccionar Todo <span className="menu-item-shortcut">Ctrl+A</span>
+              </button>
+              <button className="menu-item" onClick={() => handleAction(onDeselectAll)} disabled={selectedCount === 0}>
+                <span className="menu-item-icon">⬜</span> Deseleccionar Todo <span className="menu-item-shortcut">Esc</span>
+              </button>
+              <button className="menu-item" onClick={() => handleAction(onInvertSelection)} disabled={cartasCount === 0}>
+                <span className="menu-item-icon">🔄</span> Invertir Selección <span className="menu-item-shortcut">Ctrl+I</span>
+              </button>
+              <div className="menu-separator" />
+              <button className="menu-item" onClick={() => handleAction(onDuplicarSeleccion)} disabled={selectedCount === 0}>
+                <span className="menu-item-icon">👥</span> Duplicar Selección <span className="menu-item-shortcut">Ctrl+D</span>
+              </button>
+              <button className="menu-item" onClick={() => handleAction(onEliminarSeleccion)} disabled={selectedCount === 0}>
+                <span className="menu-item-icon">🗑️</span> Eliminar Selección <span className="menu-item-shortcut">Supr</span>
+              </button>
+              <div className="menu-separator" />
+              <button className="menu-item" onClick={() => handleAction(onMoverSeleccionArriba)} disabled={!puedeMoverArriba}>
+                <span className="menu-item-icon">⬆️</span> Mover Selección Arriba <span className="menu-item-shortcut">Alt+↑</span>
+              </button>
+              <button className="menu-item" onClick={() => handleAction(onMoverSeleccionAbajo)} disabled={!puedeMoverAbajo}>
+                <span className="menu-item-icon">⬇️</span> Mover Selección Abajo <span className="menu-item-shortcut">Alt+↓</span>
+              </button>
+              <div className="menu-separator" />
               <button className="menu-item" onClick={() => handleAction(onFocusLienzoConfig)}>
                 <span className="menu-item-icon">⚙️</span> Configurar Hoja / Lienzo
               </button>
@@ -166,7 +214,7 @@ export default function MenuBar({
                 }
                 disabled={zoomFactor >= 4.5}
               >
-                <span className="menu-item-icon">➕</span> Acercar Zoom
+                <span className="menu-item-icon">➕</span> Acercar Zoom <span className="menu-item-shortcut">Alt+Plus</span>
               </button>
               <button
                 className="menu-item"
@@ -175,7 +223,7 @@ export default function MenuBar({
                 }
                 disabled={zoomFactor <= 1.0}
               >
-                <span className="menu-item-icon">➖</span> Alejar Zoom
+                <span className="menu-item-icon">➖</span> Alejar Zoom <span className="menu-item-shortcut">Alt+Minus</span>
               </button>
               <div className="menu-separator" />
               <button
@@ -198,9 +246,11 @@ export default function MenuBar({
       </nav>
 
       <div className="menu-bar-status">
+        <span className="status-badge info-badge">Hojas: {paginasCount}</span>
         <span className="status-badge">Cartas: {cartasCount}</span>
         <span className="status-badge info-badge">Zoom: {zoomFactor.toFixed(1)}x</span>
       </div>
     </div>
   );
 }
+

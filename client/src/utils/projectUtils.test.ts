@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validarYParsearProyecto } from "./projectUtils";
+import { validarYParsearProyecto, moverCartas, duplicarCartas } from "./projectUtils";
 
 describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
   const proyectoValido = {
@@ -59,3 +59,65 @@ describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
     );
   });
 });
+
+describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
+  const cartas = [
+    { id: "A", nombre: "Carta A" },
+    { id: "B", nombre: "Carta B" },
+    { id: "C", nombre: "Carta C" },
+    { id: "D", nombre: "Carta D" }
+  ];
+
+  describe("moverCartas", () => {
+    it("debe mover un bloque contiguio hacia arriba", () => {
+      const resultado = moverCartas(cartas, ["B", "C"], "arriba");
+      expect(resultado.map(c => c.id)).toEqual(["B", "C", "A", "D"]);
+    });
+
+    it("debe mover un bloque contiguio hacia abajo", () => {
+      const resultado = moverCartas(cartas, ["B", "C"], "abajo");
+      expect(resultado.map(c => c.id)).toEqual(["A", "D", "B", "C"]);
+    });
+
+    it("no debe hacer nada si el bloque ya está en el límite superior al mover arriba", () => {
+      const resultado = moverCartas(cartas, ["A", "B"], "arriba");
+      expect(resultado.map(c => c.id)).toEqual(["A", "B", "C", "D"]);
+    });
+
+    it("no debe hacer nada si el bloque ya está en el límite inferior al mover abajo", () => {
+      const resultado = moverCartas(cartas, ["C", "D"], "abajo");
+      expect(resultado.map(c => c.id)).toEqual(["A", "B", "C", "D"]);
+    });
+
+    it("no debe hacer nada si el bloque no es contiguo", () => {
+      const resultado = moverCartas(cartas, ["A", "C"], "arriba");
+      expect(resultado.map(c => c.id)).toEqual(["A", "B", "C", "D"]);
+    });
+
+    it("debe mover una sola carta hacia arriba", () => {
+      const resultado = moverCartas(cartas, ["C"], "arriba");
+      expect(resultado.map(c => c.id)).toEqual(["A", "C", "B", "D"]);
+    });
+
+    it("debe mover una sola carta hacia abajo", () => {
+      const resultado = moverCartas(cartas, ["B"], "abajo");
+      expect(resultado.map(c => c.id)).toEqual(["A", "C", "B", "D"]);
+    });
+  });
+
+  describe("duplicarCartas", () => {
+    it("debe duplicar secuencialmente las cartas seleccionadas e insertarlas después de cada origen", () => {
+      const resultado = duplicarCartas(cartas, ["A", "C"]);
+      expect(resultado.length).toBe(6);
+      expect(resultado[0].id).toBe("A");
+      expect(resultado[1].id).toContain("A_copia_");
+      expect(resultado[1].nombre).toBe("Carta A (Copia)");
+      expect(resultado[2].id).toBe("B");
+      expect(resultado[3].id).toBe("C");
+      expect(resultado[4].id).toContain("C_copia_");
+      expect(resultado[4].nombre).toBe("Carta C (Copia)");
+      expect(resultado[5].id).toBe("D");
+    });
+  });
+});
+

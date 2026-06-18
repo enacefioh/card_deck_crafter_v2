@@ -1,9 +1,10 @@
-import React, { useState, useMemo, useRef } from "react";
+import React, { useState, useMemo, useRef, useEffect } from "react";
 import { calcularDistribucion } from "shared";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
-import { validarYParsearProyecto } from "./utils/projectUtils";
+import { validarYParsearProyecto, moverCartas, duplicarCartas } from "./utils/projectUtils";
+import DetailModal from "./DetailModal";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -59,6 +60,9 @@ export default function App() {
   const [generarReversos, setGenerarReversos] = useState<boolean>(false);
   const [imagenTraseraComun, setImagenTraseraComun] = useState<string | null>(null);
   const [cartas, setCartas] = useState<Carta[]>([]);
+  const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [inspectingCardId, setInspectingCardId] = useState<string | null>(null);
+  const fileInputReversoLoteRef = useRef<HTMLInputElement>(null);
   const [zoomFactor, setZoomFactor] = useState<number>(2.5); // px por mm
 
   // --- Manejador de Lienzo reactivo ---
@@ -237,7 +241,10 @@ export default function App() {
   };
 
   const eliminarCarta = (id: string) => {
-    setCartas((prev) => prev.filter((c) => c.id !== id));
+    if (window.confirm("¿Estás seguro de que deseas eliminar esta carta?")) {
+      setCartas((prev) => prev.filter((c) => c.id !== id));
+      setSelectedCardIds((prev) => prev.filter((x) => x !== id));
+    }
   };
 
   // --- Generar ZIP del Proyecto (CDC2) ---
@@ -545,6 +552,162 @@ export default function App() {
     };
   }, [paginasFrontales, canvasConfig.lineasCorteContinuas]);
 
+  // --- Lógica de Selección y Acciones Avanzadas ---
+  const handleUpdateCartaNombre = (id: string, nuevoNombre: string) => {
+    setCartas((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, nombre: nuevoNombre } : c))
+    );
+  };
+
+  const handleWorkspaceClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (
+      target.classList.contains("workspace") ||
+      target.classList.contains("virtual-page-container") ||
+      target.classList.contains("page-wrapper") ||
+      target.classList.contains("virtual-page")
+    ) {
+      handleDeselectAll();
+    }
+  };
+
+  const handleSelectAll = () => {
+    setSelectedCardIds(cartas.map((c) => c.id));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedCardIds([]);
+  };
+
+  const handleInvertSelection = () => {
+    setSelectedCardIds((prev) => {
+      const allIds = cartas.map((c) => c.id);
+      return allIds.filter((id) => !prev.includes(id));
+    });
+  };
+
+  const handleToggleSelectCard = (id: string, isMulti: boolean) => {
+    setSelectedCardIds((prev) => {
+      if (isMulti) {
+        if (prev.includes(id)) {
+          return prev.filter((x) => x !== id);
+        } else {
+          return [...prev, id];
+        }
+      } else {
+        return [id];
+      }
+    });
+  };
+
+
+  const handleEliminarSeleccion = () => {
+    if (selectedCardIds.length === 0) return;
+    const mensaje = selectedCardIds.length === 1
+      ? "¿Estás seguro de que deseas eliminar la carta seleccionada?"
+      : `¿Estás seguro de que deseas eliminar las ${selectedCardIds.length} cartas seleccionadas?`;
+    
+    if (window.confirm(mensaje)) {
+      setCartas((prev) => prev.filter((c) => !selectedCardIds.includes(c.id)));
+      setSelectedCardIds([]);
+    }
+  };
+
+  const handleDuplicarSeleccion = () => {
+    setCartas((prev) => duplicarCartas(prev, selectedCardIds));
+  };
+
+  const handleMoverSeleccion = (direccion: "arriba" | "abajo") => {
+    setCartas((prev) => moverCartas(prev, selectedCardIds, direccion));
+  };
+
+  const handleReversoLoteUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    setCartas((prev) =>
+      prev.map((c) =>
+        selectedCardIds.includes(c.id) ? { ...c, imagenTrasera: url } : c
+      )
+    );
+    e.target.value = "";
+  };
+
+  const indicesSeleccionados = useMemo(() => {
+    return selectedCardIds
+      .map((id) => cartas.findIndex((c) => c.id === id))
+      .filter((idx) => idx !== -1)
+      .sort((a, b) => a - b);
+  }, [selectedCardIds, cartas]);
+
+  const esSeleccionContigua = useMemo(() => {
+    if (indicesSeleccionados.length === 0) return false;
+    return indicesSeleccionados[indicesSeleccionados.length - 1] - indicesSeleccionados[0] + 1 === indicesSeleccionados.length;
+  }, [indicesSeleccionados]);
+
+  const puedeMoverArriba = useMemo(() => {
+    return esSeleccionContigua && indicesSeleccionados[0] > 0;
+  }, [esSeleccionContigua, indicesSeleccionados]);
+
+  const puedeMoverAbajo = useMemo(() => {
+    return esSeleccionContigua && indicesSeleccionados[indicesSeleccionados.length - 1] < cartas.length - 1;
+  }, [esSeleccionContigua, indicesSeleccionados, cartas.length]);
+
+  // --- Atajos de Teclado Globales ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (activeEl) {
+        const tagName = activeEl.tagName.toLowerCase();
+        if (
+          tagName === "input" ||
+          tagName === "textarea" ||
+          tagName === "select" ||
+          activeEl.getAttribute("contenteditable") === "true"
+        ) {
+          return;
+        }
+      }
+
+      const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+      const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
+
+      if (ctrlKey && e.key.toLowerCase() === "a") {
+        e.preventDefault();
+        handleSelectAll();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        handleDeselectAll();
+      } else if (ctrlKey && e.key.toLowerCase() === "i") {
+        e.preventDefault();
+        handleInvertSelection();
+      } else if (ctrlKey && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        handleDuplicarSeleccion();
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (selectedCardIds.length > 0) {
+          e.preventDefault();
+          handleEliminarSeleccion();
+        }
+      } else if (e.altKey && e.key === "ArrowUp") {
+        if (puedeMoverArriba) {
+          e.preventDefault();
+          handleMoverSeleccion("arriba");
+        }
+      } else if (e.altKey && e.key === "ArrowDown") {
+        if (puedeMoverAbajo) {
+          e.preventDefault();
+          handleMoverSeleccion("abajo");
+        }
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [cartas, selectedCardIds, puedeMoverArriba, puedeMoverAbajo]);
+
   return (
     <div className="app-layout">
       <MenuBar
@@ -555,6 +718,7 @@ export default function App() {
         onExportarPdf={handleExportarPdf}
         exportandoPdf={exportandoPdf}
         cartasCount={cartas.length}
+        paginasCount={paginasFrontales.length}
         zoomFactor={zoomFactor}
         setZoomFactor={setZoomFactor}
         lineasCorteContinuas={canvasConfig.lineasCorteContinuas}
@@ -573,15 +737,20 @@ export default function App() {
         }}
         onFocusLienzoConfig={focusLienzoConfig}
         onFocusCartaConfig={focusCartaConfig}
+        selectedCount={selectedCardIds.length}
+        puedeMoverArriba={puedeMoverArriba}
+        puedeMoverAbajo={puedeMoverAbajo}
+        onSelectAll={handleSelectAll}
+        onDeselectAll={handleDeselectAll}
+        onInvertSelection={handleInvertSelection}
+        onDuplicarSeleccion={handleDuplicarSeleccion}
+        onEliminarSeleccion={handleEliminarSeleccion}
+        onMoverSeleccionArriba={() => handleMoverSeleccion("arriba")}
+        onMoverSeleccionAbajo={() => handleMoverSeleccion("abajo")}
       />
       <div className="app-container">
       {/* --- PANEL DE CONTROL LATERAL --- */}
       <aside className="sidebar">
-        <header className="sidebar-header">
-          <h1>Card Deck Crafter v2</h1>
-          <p>Motor de Maquetación y Lienzo Dinámico</p>
-        </header>
-
         <div className="sidebar-content">
           {/* Ajustes del Lienzo (Lienzo / Canvas) */}
           <section className="config-group" ref={sectionLienzoRef}>
@@ -865,94 +1034,219 @@ export default function App() {
               <p className="dropzone-text">Arrastra o haz clic para añadir caras frontales</p>
               <input ref={fileInputImagenesRef} type="file" multiple accept="image/*" onChange={handleImageImport} style={{ display: "none" }} />
             </label>
-
-            {/* El cargador de traseras en lote se ha integrado en el menú superior de Caras Traseras */}
-
-            {cartas.length > 0 && (
-              <div className="card-list">
-                {cartas.map((carta) => (
-                  <div key={carta.id} className="card-item">
-                    <div className="card-thumb" style={{ backgroundImage: `url(${carta.imagenFrontal})` }} />
-                    <div className="card-info">
-                      <div className="card-name">{carta.nombre}</div>
-                      
-                      {generarReversos && (
-                        <div style={{ marginTop: "4px", borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "4px" }}>
-                          <span style={{ fontSize: "10px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>
-                            Reverso: {carta.imagenTrasera ? "Individual 👤" : "Por Defecto 👥"}
-                          </span>
-                          
-                          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                            <label style={{ margin: 0, cursor: "pointer", fontSize: "9px", backgroundColor: "var(--bg-main)", border: "1px solid var(--border-color)", padding: "2px 6px", borderRadius: "3px" }}>
-                              Subir
-                              <input
-                                type="file"
-                                accept="image/*"
-                                style={{ display: "none" }}
-                                onChange={(e) => handleTraseraIndividualUpload(carta.id, e)}
-                              />
-                            </label>
-                            
-                            {carta.imagenTrasera && (
-                              <button
-                                className="btn-icon btn-danger"
-                                style={{ width: "16px", height: "16px", fontSize: "9px" }}
-                                onClick={() => eliminarTraseraIndividual(carta.id)}
-                                title="Volver a reverso común"
-                              >
-                                ✕
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="card-controls">
-                      <button className="btn-icon" onClick={() => modificarCantidad(carta.id, -1)}>-</button>
-                      <span className="quantity-badge">{carta.cantidad}</span>
-                      <button className="btn-icon" onClick={() => modificarCantidad(carta.id, 1)}>+</button>
-                      <button className="btn-icon btn-danger" onClick={() => eliminarCarta(carta.id)}>✕</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </section>
+
+          {/* Editor de Propiedades Contextual */}
+          {cartas.length > 0 && (
+            <section className="config-group">
+              <h3 className="config-group-title">Propiedades de Selección</h3>
+              {selectedCardIds.length === 0 ? (
+                <div style={{ textAlign: "center", padding: "16px", color: "var(--text-secondary)", fontSize: "13px" }}>
+                  Haz clic en cualquier carta de las páginas para editar sus propiedades.
+                </div>
+              ) : selectedCardIds.length === 1 ? (() => {
+                const selectedCarta = cartas.find((c) => c.id === selectedCardIds[0]);
+                if (!selectedCarta) return null;
+                return (
+                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                    <div className="input-field">
+                      <label>Nombre de la Carta</label>
+                      <input
+                        type="text"
+                        value={selectedCarta.nombre}
+                        onChange={(e) => handleUpdateCartaNombre(selectedCarta.id, e.target.value)}
+                      />
+                    </div>
+                    
+                    <div className="input-field">
+                      <label>Cantidad en Baraja</label>
+                      <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                        <button className="btn-icon" onClick={() => modificarCantidad(selectedCarta.id, -1)}>-</button>
+                        <span className="quantity-badge" style={{ flex: 1 }}>{selectedCarta.cantidad}</span>
+                        <button className="btn-icon" onClick={() => modificarCantidad(selectedCarta.id, 1)}>+</button>
+                      </div>
+                    </div>
+
+                    {generarReversos && (
+                      <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "12px" }}>
+                        <span style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "6px" }}>
+                          Reverso: {selectedCarta.imagenTrasera ? "Individual 👤" : "Por Defecto 👥"}
+                        </span>
+                        
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                          <label style={{ margin: 0, cursor: "pointer", fontSize: "11px", backgroundColor: "var(--bg-main)", border: "1px solid var(--border-color)", padding: "4px 12px", borderRadius: "6px", flex: 1, textAlign: "center" }}>
+                            Subir Reverso
+                            <input
+                              type="file"
+                              accept="image/*"
+                              style={{ display: "none" }}
+                              onChange={(e) => handleTraseraIndividualUpload(selectedCarta.id, e)}
+                            />
+                          </label>
+                          
+                          {selectedCarta.imagenTrasera && (
+                            <button
+                              className="btn-icon btn-danger"
+                              style={{ width: "28px", height: "28px", padding: 0, margin: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "6px" }}
+                              onClick={() => eliminarTraseraIndividual(selectedCarta.id)}
+                              title="Volver a reverso común"
+                            >
+                              ✕
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    <button
+                      className="btn-primary btn-danger"
+                      style={{ marginTop: "12px" }}
+                      onClick={() => eliminarCarta(selectedCarta.id)}
+                    >
+                      Eliminar Carta
+                    </button>
+                  </div>
+                );
+              })() : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: "600", color: "var(--accent-primary)" }}>
+                    {selectedCardIds.length} cartas seleccionadas
+                  </div>
+                  
+                  {generarReversos && (
+                    <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "12px" }}>
+                      <button
+                        className="btn-primary"
+                        onClick={() => fileInputReversoLoteRef.current?.click()}
+                      >
+                        Asignar Reverso en Lote
+                      </button>
+                      <input
+                        type="file"
+                        ref={fileInputReversoLoteRef}
+                        style={{ display: "none" }}
+                        accept="image/*"
+                        onChange={handleReversoLoteUpload}
+                      />
+                    </div>
+                  )}
+
+                  <button
+                    className="btn-primary btn-danger"
+                    style={{ marginTop: "12px" }}
+                    onClick={handleEliminarSeleccion}
+                  >
+                    Eliminar Selección
+                  </button>
+                </div>
+              )}
+            </section>
+          )}
         </div>
       </aside>
 
       {/* --- VISOR DEL WORKSPACE (LIENZO) --- */}
-      <main className="workspace">
+      <main className="workspace" onClick={handleWorkspaceClick}>
         {/* Barra de Herramientas de Visualización */}
         <div className="workspace-toolbar">
-          <div className="toolbar-info">
-            Hojas: {paginasFrontales.length} {generarReversos ? `(Frontal) + ${paginasTraseras.length} (Reverso)` : ""}
-          </div>
-          
-          <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
-            <button
-              onClick={handleExportarPdf}
-              disabled={exportandoPdf || cartas.length === 0}
-              className={`btn-primary ${exportandoPdf ? "loading" : ""}`}
-              style={{ padding: "6px 12px", fontSize: "12px", margin: 0, minWidth: "120px" }}
-            >
-              {exportandoPdf ? "⏳ Generando PDF..." : "📥 Exportar PDF"}
-            </button>
-            
-            <div style={{ display: "flex", alignItems: "center", gap: "10px", borderLeft: "1px solid rgba(255,255,255,0.1)", paddingLeft: "10px" }}>
-              <label style={{ margin: 0, fontSize: "11px" }}>Zoom del Lienzo</label>
-              <input
-                type="range"
-                min="1.0"
-                max="4.5"
-                step="0.1"
-                value={zoomFactor}
-                onChange={(e) => setZoomFactor(Number(e.target.value))}
-                style={{ width: "120px", margin: 0 }}
-              />
-              <span style={{ fontSize: "12px", fontFamily: "monospace" }}>{zoomFactor.toFixed(1)}x</span>
+          {/* BARRA DE ACCIONES DE SELECCIÓN CON ICONOS */}
+          {cartas.length > 0 && (
+            <div className="card-selection-toolbar" style={{ margin: 0, border: "none", backgroundColor: "transparent", padding: 0 }}>
+              <button
+                type="button"
+                className="toolbar-btn"
+                onClick={handleSelectAll}
+                title="Seleccionar todas las cartas"
+              >
+                ☑️
+              </button>
+              <button
+                type="button"
+                className="toolbar-btn"
+                onClick={handleDeselectAll}
+                disabled={selectedCardIds.length === 0}
+                title="Deseleccionar todas"
+              >
+                ⬜
+              </button>
+              <button
+                type="button"
+                className="toolbar-btn"
+                onClick={handleInvertSelection}
+                title="Invertir selección"
+              >
+                🔄
+              </button>
+
+              <span className="toolbar-separator" />
+
+              <button
+                type="button"
+                className="toolbar-btn"
+                onClick={() => {
+                  if (selectedCardIds.length === 1) {
+                    setInspectingCardId(selectedCardIds[0]);
+                  }
+                }}
+                disabled={selectedCardIds.length !== 1}
+                title="Ver detalle de la carta seleccionada"
+              >
+                👁️
+              </button>
+              <button
+                type="button"
+                className="toolbar-btn"
+                onClick={handleDuplicarSeleccion}
+                disabled={selectedCardIds.length === 0}
+                title="Duplicar cartas seleccionadas"
+              >
+                📋
+              </button>
+              <button
+                type="button"
+                className="toolbar-btn btn-danger"
+                onClick={handleEliminarSeleccion}
+                disabled={selectedCardIds.length === 0}
+                title="Eliminar cartas seleccionadas"
+              >
+                🗑️
+              </button>
+
+              <span className="toolbar-separator" />
+
+              <button
+                type="button"
+                className="toolbar-btn"
+                onClick={() => handleMoverSeleccion("arriba")}
+                disabled={!puedeMoverArriba}
+                title="Mover selección arriba"
+              >
+                ⬆️
+              </button>
+              <button
+                type="button"
+                className="toolbar-btn"
+                onClick={() => handleMoverSeleccion("abajo")}
+                disabled={!puedeMoverAbajo}
+                title="Mover selección abajo"
+              >
+                ⬇️
+              </button>
             </div>
+          )}
+
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginLeft: "auto" }}>
+            <label style={{ margin: 0, fontSize: "11px" }}>Zoom del Lienzo</label>
+            <input
+              type="range"
+              min="1.0"
+              max="4.5"
+              step="0.1"
+              value={zoomFactor}
+              onChange={(e) => setZoomFactor(Number(e.target.value))}
+              style={{ width: "120px", margin: 0 }}
+            />
+            <span style={{ fontSize: "12px", fontFamily: "monospace" }}>{zoomFactor.toFixed(1)}x</span>
           </div>
         </div>
 
@@ -984,7 +1278,12 @@ export default function App() {
                       {paginaFrontal.slots.map((slot, sIndex) => (
                         <div
                           key={`slot-f-${pIndex}-${sIndex}`}
-                          className="card-slot"
+                          className={`card-slot ${selectedCardIds.includes(slot.cartaId) ? "selected" : ""}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
+                            handleToggleSelectCard(slot.cartaId, isMulti);
+                          }}
                           style={{
                             left: `${slot.xMm * zoomFactor}px`,
                             top: `${slot.yMm * zoomFactor}px`,
@@ -1089,7 +1388,12 @@ export default function App() {
                         {paginaTrasera.slots.map((slot, sIndex) => (
                           <div
                             key={`slot-t-${pIndex}-${sIndex}`}
-                            className="card-slot"
+                            className={`card-slot ${selectedCardIds.includes(slot.cartaId) ? "selected" : ""}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
+                              handleToggleSelectCard(slot.cartaId, isMulti);
+                            }}
                             style={{
                               left: `${slot.xMm * zoomFactor}px`,
                               top: `${slot.yMm * zoomFactor}px`,
@@ -1192,6 +1496,16 @@ export default function App() {
         onChange={handleCargarProyectoFileChange}
         style={{ display: "none" }}
       />
+      {inspectingCardId && cartas.find((c) => c.id === inspectingCardId) && (
+        <DetailModal
+          carta={cartas.find((c) => c.id === inspectingCardId)!}
+          generarReversos={generarReversos}
+          imagenTraseraComun={imagenTraseraComun}
+          canvasConfig={canvasConfig}
+          cardConfig={cardConfig}
+          onClose={() => setInspectingCardId(null)}
+        />
+      )}
     </div>
     </div>
   );
