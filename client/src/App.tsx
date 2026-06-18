@@ -1,7 +1,8 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef } from "react";
 import { calcularDistribucion } from "shared";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
 import JSZip from "jszip";
+import MenuBar from "./MenuBar";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -20,6 +21,12 @@ const PREAJUSTES_HOJAS = {
 };
 
 export default function App() {
+  // --- Refs para Enfoque y Triggers ---
+  const sectionLienzoRef = useRef<HTMLDivElement>(null);
+  const sectionCartaRef = useRef<HTMLDivElement>(null);
+  const fileInputProyectoRef = useRef<HTMLInputElement>(null);
+  const fileInputImagenesRef = useRef<HTMLInputElement>(null);
+
   // --- Estados de Configuración ---
   const [canvasType, setCanvasType] = useState<"A4" | "A3" | "Custom">("A4");
   const [canvasConfig, setCanvasConfig] = useState<CanvasConfig>({
@@ -232,6 +239,77 @@ export default function App() {
     setCartas((prev) => prev.filter((c) => c.id !== id));
   };
 
+  // --- Generar ZIP del Proyecto (CDC2) ---
+  const generarProyectoZip = async (): Promise<Blob> => {
+    const zip = new JSZip();
+    const assetsFolder = zip.folder("assets")!;
+    const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
+
+    const addBlobToZip = async (blobUrl: string, baseName: string): Promise<string> => {
+      if (imagenMap.has(blobUrl)) {
+        return imagenMap.get(blobUrl)!;
+      }
+
+      try {
+        const res = await fetch(blobUrl);
+        const blob = await res.blob();
+        
+        let extension = "png";
+        if (blob.type === "image/jpeg") extension = "jpg";
+        else if (blob.type === "image/webp") extension = "webp";
+        else if (blob.type === "image/gif") extension = "gif";
+        
+        const filename = `${baseName}_${imagenMap.size}.${extension}`;
+        assetsFolder.file(filename, blob);
+        
+        const assetPath = `asset://${filename}`;
+        imagenMap.set(blobUrl, assetPath);
+        return assetPath;
+      } catch (err) {
+        console.error("Error al procesar recurso de imagen:", blobUrl, err);
+        return "";
+      }
+    };
+
+    const processedCards = [];
+    for (const card of cartas) {
+      const imagenFrontalPath = await addBlobToZip(card.imagenFrontal, "frontal");
+      let imagenTraseraPath = null;
+      if (card.imagenTrasera) {
+        imagenTraseraPath = await addBlobToZip(card.imagenTrasera, "trasera");
+      }
+      processedCards.push({
+        id: card.id,
+        nombre: card.nombre,
+        imagenFrontal: imagenFrontalPath,
+        imagenTrasera: imagenTraseraPath,
+        cantidad: card.cantidad,
+      });
+    }
+
+    let commonBackPath = null;
+    if (imagenTraseraComun) {
+      commonBackPath = await addBlobToZip(imagenTraseraComun, "trasera_comun");
+    }
+
+    const proyecto = {
+      version: "2.0.0",
+      meta: {
+        nombre: "Exportación CDC2",
+        fechaCreacion: new Date().toISOString(),
+        fechaModificacion: new Date().toISOString(),
+      },
+      canvasConfig,
+      cardConfig,
+      modoTraseras: generarReversos ? (imagenTraseraComun ? "comun" : "individual") : "ninguno",
+      imagenTraseraComun: commonBackPath,
+      cards: processedCards,
+    };
+
+    zip.file("project.json", JSON.stringify(proyecto, null, 2));
+    return await zip.generateAsync({ type: "blob" });
+  };
+
   // --- Exportación a PDF vía Servidor Local ---
   const [exportandoPdf, setExportandoPdf] = useState<boolean>(false);
 
@@ -240,81 +318,8 @@ export default function App() {
     
     try {
       setExportandoPdf(true);
-      const zip = new JSZip();
-      const assetsFolder = zip.folder("assets")!;
-      const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
+      const zipContentBlob = await generarProyectoZip();
 
-      // Helper para descargar blob y meterlo en el zip
-      const addBlobToZip = async (blobUrl: string, baseName: string): Promise<string> => {
-        if (imagenMap.has(blobUrl)) {
-          return imagenMap.get(blobUrl)!;
-        }
-
-        try {
-          const res = await fetch(blobUrl);
-          const blob = await res.blob();
-          
-          let extension = "png";
-          if (blob.type === "image/jpeg") extension = "jpg";
-          else if (blob.type === "image/webp") extension = "webp";
-          else if (blob.type === "image/gif") extension = "gif";
-          
-          const filename = `${baseName}_${imagenMap.size}.${extension}`;
-          assetsFolder.file(filename, blob);
-          
-          const assetPath = `asset://${filename}`;
-          imagenMap.set(blobUrl, assetPath);
-          return assetPath;
-        } catch (err) {
-          console.error("Error al procesar recurso de imagen:", blobUrl, err);
-          return "";
-        }
-      };
-
-      // 1. Empaquetar cartas frontales y traseras individuales
-      const processedCards = [];
-      for (const card of cartas) {
-        const imagenFrontalPath = await addBlobToZip(card.imagenFrontal, "frontal");
-        let imagenTraseraPath = null;
-        if (card.imagenTrasera) {
-          imagenTraseraPath = await addBlobToZip(card.imagenTrasera, "trasera");
-        }
-        processedCards.push({
-          id: card.id,
-          nombre: card.nombre,
-          imagenFrontal: imagenFrontalPath,
-          imagenTrasera: imagenTraseraPath,
-          cantidad: card.cantidad,
-        });
-      }
-
-      // 2. Empaquetar trasera común si existe
-      let commonBackPath = null;
-      if (imagenTraseraComun) {
-        commonBackPath = await addBlobToZip(imagenTraseraComun, "trasera_comun");
-      }
-
-      // 3. Crear project.json
-      const proyecto = {
-        version: "2.0.0",
-        meta: {
-          nombre: "Exportación CDC2",
-          fechaCreacion: new Date().toISOString(),
-          fechaModificacion: new Date().toISOString(),
-        },
-        canvasConfig,
-        cardConfig,
-        modoTraseras: generarReversos ? (imagenTraseraComun ? "comun" : "individual") : "ninguno",
-        imagenTraseraComun: commonBackPath,
-        cards: processedCards,
-      };
-
-      zip.file("project.json", JSON.stringify(proyecto, null, 2));
-
-      // 4. Generar el archivo ZIP
-      const zipContentBlob = await zip.generateAsync({ type: "blob" });
-
-      // 5. Enviar al endpoint de exportación
       const formData = new FormData();
       formData.append("archivoProyecto", zipContentBlob, "proyecto.cdc2");
 
@@ -328,7 +333,6 @@ export default function App() {
         throw new Error(errorText || "Error en el servidor al generar el PDF.");
       }
 
-      // 6. Descargar el archivo PDF retornado
       const pdfBlob = await response.blob();
       const downloadUrl = URL.createObjectURL(pdfBlob);
       const link = document.createElement("a");
@@ -344,6 +348,165 @@ export default function App() {
     } finally {
       setExportandoPdf(false);
     }
+  };
+
+  // --- Guardar Proyecto Localmente (.cdc2) ---
+  const handleGuardarProyecto = async () => {
+    if (cartas.length === 0) return;
+    try {
+      const zipContentBlob = await generarProyectoZip();
+      const downloadUrl = URL.createObjectURL(zipContentBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `proyecto_cdc2_${Date.now()}.cdc2`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+    } catch (error: any) {
+      alert(`Error al guardar el proyecto: ${error.message || error}`);
+    }
+  };
+
+  // --- Cargar Proyecto Local (.cdc2) ---
+  const handleCargarProyecto = async (file: File) => {
+    try {
+      const zip = await JSZip.loadAsync(file);
+      
+      const projectFile = zip.file("project.json");
+      if (!projectFile) {
+        throw new Error("El archivo no contiene un project.json válido.");
+      }
+      
+      const projectJsonText = await projectFile.async("text");
+      const proyecto = JSON.parse(projectJsonText);
+
+      // Limpiar URLs de objeto anteriores
+      cartas.forEach((c) => {
+        URL.revokeObjectURL(c.imagenFrontal);
+        if (c.imagenTrasera) URL.revokeObjectURL(c.imagenTrasera);
+      });
+      if (imagenTraseraComun) {
+        URL.revokeObjectURL(imagenTraseraComun);
+      }
+
+      const cacheBlobUrls = new Map<string, string>();
+
+      const resolverAssetBlob = async (assetPath: string | null): Promise<string | null> => {
+        if (!assetPath) return null;
+        if (cacheBlobUrls.has(assetPath)) {
+          return cacheBlobUrls.get(assetPath)!;
+        }
+
+        const filename = assetPath.replace("asset://", "");
+        const zipImgFile = zip.file(`assets/${filename}`);
+        if (!zipImgFile) {
+          console.error(`No se encontró el asset ${filename} en el ZIP`);
+          return null;
+        }
+
+        const blob = await zipImgFile.async("blob");
+        const objectUrl = URL.createObjectURL(blob);
+        cacheBlobUrls.set(assetPath, objectUrl);
+        return objectUrl;
+      };
+
+      const nuevasCartas: Carta[] = [];
+      for (const card of proyecto.cards) {
+        const frontalUrl = await resolverAssetBlob(card.imagenFrontal);
+        if (!frontalUrl) continue;
+
+        const traseraUrl = await resolverAssetBlob(card.imagenTrasera);
+
+        nuevasCartas.push({
+          id: card.id || `${Date.now()}-${Math.random()}`,
+          nombre: card.nombre,
+          imagenFrontal: frontalUrl,
+          imagenTrasera: traseraUrl,
+          cantidad: card.cantidad || 1,
+        });
+      }
+
+      const nuevaTraseraComunUrl = await resolverAssetBlob(proyecto.imagenTraseraComun);
+
+      setCanvasConfig(proyecto.canvasConfig);
+      setCardConfig(proyecto.cardConfig);
+      setImagenTraseraComun(nuevaTraseraComunUrl);
+      setGenerarReversos(proyecto.modoTraseras !== "ninguno");
+      setCartas(nuevasCartas);
+
+      setCanvasType(proyecto.canvasConfig.tipo || "Custom");
+      setCardPreset("custom");
+
+      alert("Proyecto cargado correctamente.");
+    } catch (err: any) {
+      alert(`Error al cargar el proyecto: ${err.message || err}`);
+    }
+  };
+
+  const handleCargarProyectoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleCargarProyecto(e.target.files[0]);
+    }
+    e.target.value = "";
+  };
+
+  // --- Nuevo Proyecto (Reset) ---
+  const handleNuevoProyecto = () => {
+    if (window.confirm("¿Seguro que deseas empezar un nuevo proyecto? Se borrarán todos los cambios no guardados.")) {
+      cartas.forEach((c) => {
+        URL.revokeObjectURL(c.imagenFrontal);
+        if (c.imagenTrasera) URL.revokeObjectURL(c.imagenTrasera);
+      });
+      if (imagenTraseraComun) {
+        URL.revokeObjectURL(imagenTraseraComun);
+      }
+
+      setCartas([]);
+      setImagenTraseraComun(null);
+      setGenerarReversos(false);
+      setCanvasType("A4");
+      setCanvasConfig({
+        tipo: "A4",
+        anchoMm: 210,
+        altoMm: 297,
+        orientacion: "vertical",
+        margenTopMm: 8,
+        margenBottomMm: 8,
+        margenLeftMm: 8,
+        margenRightMm: 8,
+        lineasCorteContinuas: true,
+        marcasCorteEsquinas: true,
+      });
+      setCardPreset("standard");
+      setCardConfig({
+        anchoMm: 63.5,
+        altoMm: 88.9,
+        espaciadoXMm: 0,
+        espaciadoYMm: 0,
+        sangradoMm: 0,
+        bordeCorteMm: 0,
+        bordeCorteColor: "#000000",
+        modoAjuste: "contain",
+        reducirArteAlBorde: false,
+      });
+    }
+  };
+
+  const focusLienzoConfig = () => {
+    sectionLienzoRef.current?.scrollIntoView({ behavior: "smooth" });
+    sectionLienzoRef.current?.classList.add("config-group-glow");
+    setTimeout(() => {
+      sectionLienzoRef.current?.classList.remove("config-group-glow");
+    }, 1500);
+  };
+
+  const focusCartaConfig = () => {
+    sectionCartaRef.current?.scrollIntoView({ behavior: "smooth" });
+    sectionCartaRef.current?.classList.add("config-group-glow");
+    setTimeout(() => {
+      sectionCartaRef.current?.classList.remove("config-group-glow");
+    }, 1500);
   };
 
   // --- Computar Distribución de Páginas ---
@@ -382,7 +545,35 @@ export default function App() {
   }, [paginasFrontales, canvasConfig.lineasCorteContinuas]);
 
   return (
-    <div className="app-container">
+    <div className="app-layout">
+      <MenuBar
+        onNuevoProyecto={handleNuevoProyecto}
+        onCargarProyectoClick={() => fileInputProyectoRef.current?.click()}
+        onGuardarProyecto={handleGuardarProyecto}
+        onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
+        onExportarPdf={handleExportarPdf}
+        exportandoPdf={exportandoPdf}
+        cartasCount={cartas.length}
+        zoomFactor={zoomFactor}
+        setZoomFactor={setZoomFactor}
+        lineasCorteContinuas={canvasConfig.lineasCorteContinuas}
+        setLineasCorteContinuas={(val) => {
+          setCanvasConfig((prev) => ({
+            ...prev,
+            lineasCorteContinuas: typeof val === "function" ? val(prev.lineasCorteContinuas) : val
+          }));
+        }}
+        marcasCorteEsquinas={canvasConfig.marcasCorteEsquinas}
+        setMarcasCorteEsquinas={(val) => {
+          setCanvasConfig((prev) => ({
+            ...prev,
+            marcasCorteEsquinas: typeof val === "function" ? val(prev.marcasCorteEsquinas) : val
+          }));
+        }}
+        onFocusLienzoConfig={focusLienzoConfig}
+        onFocusCartaConfig={focusCartaConfig}
+      />
+      <div className="app-container">
       {/* --- PANEL DE CONTROL LATERAL --- */}
       <aside className="sidebar">
         <header className="sidebar-header">
@@ -392,7 +583,7 @@ export default function App() {
 
         <div className="sidebar-content">
           {/* Ajustes del Lienzo (Lienzo / Canvas) */}
-          <section className="config-group">
+          <section className="config-group" ref={sectionLienzoRef}>
             <h3 className="config-group-title">Ajustes de Página</h3>
             
             <div className="input-field">
@@ -469,7 +660,7 @@ export default function App() {
           </section>
 
           {/* Ajustes de las Cartas */}
-          <section className="config-group">
+          <section className="config-group" ref={sectionCartaRef}>
             <h3 className="config-group-title">Dimensiones de Carta</h3>
 
             <div className="input-field">
@@ -671,7 +862,7 @@ export default function App() {
             >
               <span className="dropzone-icon">📥</span>
               <p className="dropzone-text">Arrastra o haz clic para añadir caras frontales</p>
-              <input type="file" multiple accept="image/*" onChange={handleImageImport} style={{ display: "none" }} />
+              <input ref={fileInputImagenesRef} type="file" multiple accept="image/*" onChange={handleImageImport} style={{ display: "none" }} />
             </label>
 
             {/* El cargador de traseras en lote se ha integrado en el menú superior de Caras Traseras */}
@@ -993,6 +1184,14 @@ export default function App() {
           </div>
         )}
       </main>
+      <input
+        ref={fileInputProyectoRef}
+        type="file"
+        accept=".cdc2"
+        onChange={handleCargarProyectoFileChange}
+        style={{ display: "none" }}
+      />
+    </div>
     </div>
   );
 }
