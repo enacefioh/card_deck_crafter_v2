@@ -1,0 +1,61 @@
+import { describe, it, expect } from "vitest";
+import { validarYParsearProyecto } from "./projectUtils";
+
+describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
+  const proyectoValido = {
+    version: "2.0.0",
+    canvasConfig: { tipo: "A4", anchoMm: 210, altoMm: 297 },
+    cardConfig: { anchoMm: 63.5, altoMm: 88.9 },
+    cards: [
+      { id: "1", nombre: "Carta 1", cantidad: 1, imagenFrontal: "asset://frontal_0.png" }
+    ]
+  };
+
+  it("debe parsear correctamente un JSON válido con la versión 2.0.0", () => {
+    const jsonStr = JSON.stringify(proyectoValido);
+    const parsed = validarYParsearProyecto(jsonStr);
+    expect(parsed.version).toBe("2.0.0");
+    expect(parsed.cards.length).toBe(1);
+  });
+
+  it("debe lanzar un error si el JSON está vacío", () => {
+    expect(() => validarYParsearProyecto("")).toThrow("El archivo de configuración JSON está vacío");
+    expect(() => validarYParsearProyecto("   ")).toThrow("El archivo de configuración JSON está vacío");
+  });
+
+  it("debe lanzar un error si el formato del JSON es inválido", () => {
+    expect(() => validarYParsearProyecto("{ invalid json }")).toThrow("El archivo no contiene un JSON válido");
+  });
+
+  it("debe lanzar un error si la versión no es 2.0.0", () => {
+    const proyectoVersionIncorrecta = { ...proyectoValido, version: "1.0.0" };
+    expect(() => validarYParsearProyecto(JSON.stringify(proyectoVersionIncorrecta))).toThrow(
+      "Versión de proyecto no soportada"
+    );
+  });
+
+  it("debe lanzar un error si falta canvasConfig", () => {
+    const proyectoSinCanvas = { ...proyectoValido };
+    // @ts-ignore
+    delete proyectoSinCanvas.canvasConfig;
+    expect(() => validarYParsearProyecto(JSON.stringify(proyectoSinCanvas))).toThrow(
+      "Falta la configuración del lienzo"
+    );
+  });
+
+  it("debe lanzar un error si falta cardConfig", () => {
+    const proyectoSinCard = { ...proyectoValido };
+    // @ts-ignore
+    delete proyectoSinCard.cardConfig;
+    expect(() => validarYParsearProyecto(JSON.stringify(proyectoSinCard))).toThrow(
+      "Falta la configuración de la carta"
+    );
+  });
+
+  it("debe lanzar un error si la sección cards no es una lista", () => {
+    const proyectoCardsInvalidas = { ...proyectoValido, cards: "not-an-array" };
+    expect(() => validarYParsearProyecto(JSON.stringify(proyectoCardsInvalidas))).toThrow(
+      "La sección de cartas (cards) debe ser una lista"
+    );
+  });
+});

@@ -3,6 +3,7 @@ import { calcularDistribucion } from "shared";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
+import { validarYParsearProyecto } from "./utils/projectUtils";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -379,7 +380,7 @@ export default function App() {
       }
       
       const projectJsonText = await projectFile.async("text");
-      const proyecto = JSON.parse(projectJsonText);
+      const proyecto = validarYParsearProyecto(projectJsonText);
 
       // Limpiar URLs de objeto anteriores
       cartas.forEach((c) => {
