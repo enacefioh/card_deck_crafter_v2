@@ -79,3 +79,26 @@ export function duplicarCartas(cartas: any[], selectedIds: string[]): any[] {
   return resultado;
 }
 
+export function insertarCartaDesdePlantilla(
+  cartas: any[],
+  nuevaCarta: any,
+  selectedIds: string[]
+): any[] {
+  const resultado = [...cartas];
+  if (selectedIds.length > 0) {
+    let maxIdx = -1;
+    for (const id of selectedIds) {
+      const idx = cartas.findIndex(c => c.id === id);
+      if (idx > maxIdx) {
+        maxIdx = idx;
+      }
+    }
+    if (maxIdx !== -1) {
+      resultado.splice(maxIdx + 1, 0, nuevaCarta);
+      return resultado;
+    }
+  }
+  resultado.push(nuevaCarta);
+  return resultado;
+}
+

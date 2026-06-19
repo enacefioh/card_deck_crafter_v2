@@ -1,0 +1,64 @@
+{
+  "id": "simple",
+  "nombre": "Plantilla Simple",
+  "anchoMm": 63.5,
+  "altoMm": 88.9,
+  "camposConfig": [
+    {
+      "clave": "titulo",
+      "nombreLegible": "Título",
+      "tipo": "text",
+      "valorDefecto": "Título de la carta"
+    },
+    {
+      "clave": "texto",
+      "nombreLegible": "Texto",
+      "tipo": "text",
+      "valorDefecto": "Texto de la carta"
+    }
+  ],
+  "capas": [
+    {
+      "id": "background",
+      "nombre": "Fondo Blanco",
+      "tipo": "background",
+      "xMm": 0,
+      "yMm": 0,
+      "anchoMm": 63.5,
+      "altoMm": 88.9,
+      "colorFill": "#ffffff"
+    },
+    {
+      "id": "titulo",
+      "nombre": "Título de la Carta",
+      "tipo": "text",
+      "xMm": 5,
+      "yMm": 5,
+      "anchoMm": 53.5,
+      "altoMm": 8,
+      "contenidoRaw": "{{titulo}}",
+      "fontFamily": "sans-serif",
+      "fontSizePt": 14,
+      "color": "#000000",
+      "alineacion": "center",
+      "bold": true,
+      "italic": false
+    },
+    {
+      "id": "texto",
+      "nombre": "Texto de la Carta",
+      "tipo": "text",
+      "xMm": 5,
+      "yMm": 15,
+      "anchoMm": 53.5,
+      "altoMm": 68.9,
+      "contenidoRaw": "{{texto}}",
+      "fontFamily": "sans-serif",
+      "fontSizePt": 10,
+      "color": "#333333",
+      "alineacion": "left",
+      "bold": false,
+      "italic": false
+    }
+  ]
+}

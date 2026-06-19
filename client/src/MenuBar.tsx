@@ -30,6 +30,7 @@ interface MenuBarProps {
   onEliminarSeleccion: () => void;
   onMoverSeleccionArriba: () => void;
   onMoverSeleccionAbajo: () => void;
+  onAddCardFromTemplate: () => void;
 }
 
 export default function MenuBar({
@@ -59,6 +60,7 @@ export default function MenuBar({
   onEliminarSeleccion,
   onMoverSeleccionArriba,
   onMoverSeleccionAbajo,
+  onAddCardFromTemplate,
 }: MenuBarProps) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
@@ -184,6 +186,10 @@ export default function MenuBar({
               </button>
               <button className="menu-item" onClick={() => handleAction(onMoverSeleccionAbajo)} disabled={!puedeMoverAbajo}>
                 <span className="menu-item-icon">⬇️</span> Mover Selección Abajo <span className="menu-item-shortcut">Alt+↓</span>
+              </button>
+              <div className="menu-separator" />
+              <button className="menu-item" onClick={() => handleAction(onAddCardFromTemplate)}>
+                <span className="menu-item-icon">✨</span> Añadir Carta desde Plantilla...
               </button>
               <div className="menu-separator" />
               <button className="menu-item" onClick={() => handleAction(onFocusLienzoConfig)}>

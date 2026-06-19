@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { validarYParsearProyecto, moverCartas, duplicarCartas } from "./projectUtils";
+import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla } from "./projectUtils";
 
 describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
   const proyectoValido = {
@@ -117,6 +117,32 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(resultado[4].id).toContain("C_copia_");
       expect(resultado[4].nombre).toBe("Carta C (Copia)");
       expect(resultado[5].id).toBe("D");
+    });
+  });
+
+  describe("insertarCartaDesdePlantilla", () => {
+    const cartasTest = [
+      { id: "A", nombre: "Carta A" },
+      { id: "B", nombre: "Carta B" },
+      { id: "C", nombre: "Carta C" }
+    ];
+
+    it("debe insertar la nueva carta al final si no hay selección", () => {
+      const nueva = { id: "N", nombre: "Nueva" };
+      const resultado = insertarCartaDesdePlantilla(cartasTest, nueva, []);
+      expect(resultado.map(c => c.id)).toEqual(["A", "B", "C", "N"]);
+    });
+
+    it("debe insertar la nueva carta justo después de la carta seleccionada", () => {
+      const nueva = { id: "N", nombre: "Nueva" };
+      const resultado = insertarCartaDesdePlantilla(cartasTest, nueva, ["B"]);
+      expect(resultado.map(c => c.id)).toEqual(["A", "B", "N", "C"]);
+    });
+
+    it("debe insertar la nueva carta después de la última seleccionada en caso de selección múltiple", () => {
+      const nueva = { id: "N", nombre: "Nueva" };
+      const resultado = insertarCartaDesdePlantilla(cartasTest, nueva, ["A", "B"]);
+      expect(resultado.map(c => c.id)).toEqual(["A", "B", "N", "C"]);
     });
   });
 });

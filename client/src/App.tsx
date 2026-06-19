@@ -3,7 +3,7 @@ import { calcularDistribucion } from "shared";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
-import { validarYParsearProyecto, moverCartas, duplicarCartas } from "./utils/projectUtils";
+import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla } from "./utils/projectUtils";
 import DetailModal from "./DetailModal";
 import "./App.css";
 
@@ -21,6 +21,16 @@ const PREAJUSTES_HOJAS = {
   A3: { ancho: 297, alto: 420 },
   custom: { ancho: 210, alto: 297 },
 };
+
+function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
+  let texto = capa.contenidoRaw || "";
+  if (valoresCampos) {
+    Object.entries(valoresCampos).forEach(([key, val]) => {
+      texto = texto.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"), val);
+    });
+  }
+  return texto;
+}
 
 export default function App() {
   // --- Refs para Enfoque y Triggers ---
@@ -64,6 +74,43 @@ export default function App() {
   const [inspectingCardId, setInspectingCardId] = useState<string | null>(null);
   const fileInputReversoLoteRef = useRef<HTMLInputElement>(null);
   const [zoomFactor, setZoomFactor] = useState<number>(2.5); // px por mm
+
+  // --- Estados de Plantillas y Módulos (SRS-006) ---
+  const [activeTemplates, setActiveTemplates] = useState<any[]>([]);
+  const [templatesMap, setTemplatesMap] = useState<Record<string, any>>({});
+  const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
+
+  // --- Carga de Plantillas al inicio ---
+  useEffect(() => {
+    async function loadDefaultTemplates() {
+      try {
+        const res = await fetch("/modules/default/module.json");
+        if (!res.ok) throw new Error("No se pudo cargar el archivo module.json del módulo default");
+        const moduleData = await res.json();
+        
+        const loadedTemplates: any[] = [];
+        const loadedTemplatesMap: Record<string, any> = {};
+
+        for (const tRef of moduleData.plantillas || []) {
+          try {
+            const tRes = await fetch(`/modules/default/${tRef.archivo}`);
+            if (!tRes.ok) throw new Error(`No se pudo cargar la plantilla: ${tRef.id}`);
+            const tData = await tRes.json();
+            loadedTemplates.push(tData);
+            loadedTemplatesMap[tRef.id] = tData;
+          } catch (err) {
+            console.error("Error cargando plantilla:", err);
+          }
+        }
+
+        setActiveTemplates(loadedTemplates);
+        setTemplatesMap(loadedTemplatesMap);
+      } catch (err) {
+        console.error("Error al inicializar el módulo por defecto:", err);
+      }
+    }
+    loadDefaultTemplates();
+  }, []);
 
   // --- Manejador de Lienzo reactivo ---
   const handleCanvasPresetChange = (tipo: "A4" | "A3" | "Custom") => {
@@ -281,7 +328,10 @@ export default function App() {
 
     const processedCards = [];
     for (const card of cartas) {
-      const imagenFrontalPath = await addBlobToZip(card.imagenFrontal, "frontal");
+      let imagenFrontalPath = undefined;
+      if (card.imagenFrontal) {
+        imagenFrontalPath = await addBlobToZip(card.imagenFrontal, "frontal");
+      }
       let imagenTraseraPath = null;
       if (card.imagenTrasera) {
         imagenTraseraPath = await addBlobToZip(card.imagenTrasera, "trasera");
@@ -292,6 +342,8 @@ export default function App() {
         imagenFrontal: imagenFrontalPath,
         imagenTrasera: imagenTraseraPath,
         cantidad: card.cantidad,
+        plantillaId: card.plantillaId,
+        valoresCampos: card.valoresCampos,
       });
     }
 
@@ -391,7 +443,7 @@ export default function App() {
 
       // Limpiar URLs de objeto anteriores
       cartas.forEach((c) => {
-        URL.revokeObjectURL(c.imagenFrontal);
+        if (c.imagenFrontal) URL.revokeObjectURL(c.imagenFrontal);
         if (c.imagenTrasera) URL.revokeObjectURL(c.imagenTrasera);
       });
       if (imagenTraseraComun) {
@@ -421,8 +473,15 @@ export default function App() {
 
       const nuevasCartas: Carta[] = [];
       for (const card of proyecto.cards) {
-        const frontalUrl = await resolverAssetBlob(card.imagenFrontal);
-        if (!frontalUrl) continue;
+        let frontalUrl: string | undefined = undefined;
+        if (card.imagenFrontal) {
+          const res = await resolverAssetBlob(card.imagenFrontal);
+          if (res) frontalUrl = res;
+        }
+
+        if (!frontalUrl && !card.plantillaId) {
+          continue;
+        }
 
         const traseraUrl = await resolverAssetBlob(card.imagenTrasera);
 
@@ -432,6 +491,8 @@ export default function App() {
           imagenFrontal: frontalUrl,
           imagenTrasera: traseraUrl,
           cantidad: card.cantidad || 1,
+          plantillaId: card.plantillaId,
+          valoresCampos: card.valoresCampos,
         });
       }
 
@@ -459,11 +520,46 @@ export default function App() {
     e.target.value = "";
   };
 
+  // --- Añadir Carta desde Plantilla (SRS-006) ---
+  const handleAñadirCartaDesdePlantilla = (plantilla: any) => {
+    const nuevaCarta: Carta = {
+      id: `carta_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      nombre: plantilla.nombre,
+      cantidad: 1,
+      imagenTrasera: null,
+      plantillaId: plantilla.id,
+      valoresCampos: {},
+    };
+
+    if (plantilla.camposConfig) {
+      plantilla.camposConfig.forEach((campo: any) => {
+        nuevaCarta.valoresCampos![campo.clave] = campo.valorDefecto || "";
+      });
+    }
+
+    setCartas((prev) => insertarCartaDesdePlantilla(prev, nuevaCarta, selectedCardIds));
+    setSelectedCardIds([nuevaCarta.id]);
+    setShowTemplateModal(false);
+  };
+
+  // Cerrar modal de plantilla al presionar Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && showTemplateModal) {
+        setShowTemplateModal(false);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [showTemplateModal]);
+
   // --- Nuevo Proyecto (Reset) ---
   const handleNuevoProyecto = () => {
     if (window.confirm("¿Seguro que deseas empezar un nuevo proyecto? Se borrarán todos los cambios no guardados.")) {
       cartas.forEach((c) => {
-        URL.revokeObjectURL(c.imagenFrontal);
+        if (c.imagenFrontal) URL.revokeObjectURL(c.imagenFrontal);
         if (c.imagenTrasera) URL.revokeObjectURL(c.imagenTrasera);
       });
       if (imagenTraseraComun) {
@@ -747,6 +843,7 @@ export default function App() {
         onEliminarSeleccion={handleEliminarSeleccion}
         onMoverSeleccionArriba={() => handleMoverSeleccion("arriba")}
         onMoverSeleccionAbajo={() => handleMoverSeleccion("abajo")}
+        onAddCardFromTemplate={() => setShowTemplateModal(true)}
       />
       <div className="app-container">
       {/* --- PANEL DE CONTROL LATERAL --- */}
@@ -1022,7 +1119,6 @@ export default function App() {
             </label>
           </section>
 
-          {/* Importador de Imágenes */}
           <section className="config-group">
             <h3 className="config-group-title">Importar Cartas</h3>
             <label
@@ -1034,6 +1130,13 @@ export default function App() {
               <p className="dropzone-text">Arrastra o haz clic para añadir caras frontales</p>
               <input ref={fileInputImagenesRef} type="file" multiple accept="image/*" onChange={handleImageImport} style={{ display: "none" }} />
             </label>
+            <button
+              className="btn-secondary"
+              style={{ marginTop: "12px", width: "100%", padding: "10px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
+              onClick={() => setShowTemplateModal(true)}
+            >
+              <span>✨</span> Añadir Carta desde Plantilla
+            </button>
           </section>
 
           {/* Editor de Propiedades Contextual */}
@@ -1293,32 +1396,104 @@ export default function App() {
                         >
                           {/* Renderizar Imagen con Sangrado */}
                           {(() => {
-                            const borderMm = slot.bordeCorteMm;
-                            const noOverlap = cardConfig.reducirArteAlBorde && borderMm > 0;
-                            
-                            const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
-                            const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
-                            const imgWidth = noOverlap ? (slot.anchoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
-                            const imgHeight = noOverlap ? (slot.altoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
-                            const fitMode = cardConfig.modoAjuste || "cover";
+                            const cardData = cartas.find((c) => c.id === slot.cartaId);
+                            if (cardData?.plantillaId) {
+                              const plantilla = templatesMap[cardData.plantillaId];
+                              return plantilla ? (
+                                <div
+                                  className="card-template-render"
+                                  style={{
+                                    position: "absolute",
+                                    left: 0,
+                                    top: 0,
+                                    width: "100%",
+                                    height: "100%",
+                                    overflow: "hidden",
+                                    backgroundColor: "#ffffff",
+                                  }}
+                                >
+                                  {plantilla.capas.map((capa: any) => {
+                                    const style: React.CSSProperties = {
+                                      position: "absolute",
+                                      left: `${capa.xMm * zoomFactor}px`,
+                                      top: `${capa.yMm * zoomFactor}px`,
+                                      width: `${capa.anchoMm * zoomFactor}px`,
+                                      height: `${capa.altoMm * zoomFactor}px`,
+                                      pointerEvents: "none",
+                                    };
 
-                            return (
-                              <div
-                                className="card-image-render"
-                                style={{
-                                  left: `${imgLeft * zoomFactor}px`,
-                                  top: `${imgTop * zoomFactor}px`,
-                                  width: `${imgWidth * zoomFactor}px`,
-                                  height: `${imgHeight * zoomFactor}px`,
-                                  backgroundImage: slot.imagenSrc ? `url(${slot.imagenSrc})` : "none",
-                                  backgroundSize: fitMode,
-                                  backgroundRepeat: "no-repeat",
-                                  backgroundPosition: "center",
-                                }}
-                              >
-                                {!slot.imagenSrc && "Ilustración"}
-                              </div>
-                            );
+                                    if (capa.tipo === "background") {
+                                      return (
+                                        <div
+                                          key={capa.id}
+                                          style={{
+                                            ...style,
+                                            backgroundColor: capa.colorFill || "#ffffff",
+                                          }}
+                                        />
+                                      );
+                                    }
+
+                                    if (capa.tipo === "text") {
+                                      const textoInterp = renderizarTextoCapa(capa, cardData.valoresCampos);
+                                      const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * zoomFactor;
+                                      return (
+                                        <div
+                                          key={capa.id}
+                                          style={{
+                                            ...style,
+                                            fontFamily: capa.fontFamily || "sans-serif",
+                                            fontSize: `${fontSizePx}px`,
+                                            color: capa.color || "#000000",
+                                            textAlign: (capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left") as any,
+                                            fontWeight: capa.bold ? "bold" : "normal",
+                                            fontStyle: capa.italic ? "italic" : "normal",
+                                            whiteSpace: "pre-wrap",
+                                            wordBreak: "break-word",
+                                            lineHeight: 1.2,
+                                          }}
+                                        >
+                                          {textoInterp}
+                                        </div>
+                                      );
+                                    }
+
+                                    return null;
+                                  })}
+                                </div>
+                              ) : (
+                                <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#ffebee", color: "#c62828", fontSize: "12px" }}>
+                                  Cargando plantilla...
+                                </div>
+                              );
+                            } else {
+                              const borderMm = slot.bordeCorteMm;
+                              const noOverlap = cardConfig.reducirArteAlBorde && borderMm > 0;
+                              
+                              const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
+                              const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
+                              const imgWidth = noOverlap ? (slot.anchoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
+                              const imgHeight = noOverlap ? (slot.altoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
+                              const fitMode = cardConfig.modoAjuste || "cover";
+
+                              return (
+                                <div
+                                  className="card-image-render"
+                                  style={{
+                                    left: `${imgLeft * zoomFactor}px`,
+                                    top: `${imgTop * zoomFactor}px`,
+                                    width: `${imgWidth * zoomFactor}px`,
+                                    height: `${imgHeight * zoomFactor}px`,
+                                    backgroundImage: slot.imagenSrc ? `url(${slot.imagenSrc})` : "none",
+                                    backgroundSize: fitMode,
+                                    backgroundRepeat: "no-repeat",
+                                    backgroundPosition: "center",
+                                  }}
+                                >
+                                  {!slot.imagenSrc && "Ilustración"}
+                                </div>
+                              );
+                            }
                           })()}
 
                           {/* Borde interior de color fijo si aplica */}
@@ -1504,7 +1679,52 @@ export default function App() {
           canvasConfig={canvasConfig}
           cardConfig={cardConfig}
           onClose={() => setInspectingCardId(null)}
+          templatesMap={templatesMap}
         />
+      )}
+      {showTemplateModal && (
+        <div className="template-modal-backdrop" onClick={() => setShowTemplateModal(false)}>
+          <div className="template-modal-container" onClick={(e) => e.stopPropagation()}>
+            <header className="template-modal-header">
+              <h2>Añadir Carta desde Plantilla</h2>
+              <button className="template-modal-close" onClick={() => setShowTemplateModal(false)} title="Cerrar modal">
+                ✕
+              </button>
+            </header>
+            <div className="template-modal-body">
+              <p className="template-modal-info">Selecciona una de las plantillas disponibles del módulo activo:</p>
+              {activeTemplates.length === 0 ? (
+                <div className="template-modal-empty">
+                  No hay plantillas cargadas. Por favor, asegúrate de que el módulo por defecto está correctamente configurado.
+                </div>
+              ) : (
+                <div className="template-list">
+                  {activeTemplates.map((plantilla) => (
+                    <div
+                      key={plantilla.id}
+                      className="template-card-item"
+                      onClick={() => handleAñadirCartaDesdePlantilla(plantilla)}
+                    >
+                      <div className="template-icon">📄</div>
+                      <div className="template-details">
+                        <span className="template-name">{plantilla.nombre}</span>
+                        <span className="template-desc">
+                          {plantilla.anchoMm} x {plantilla.altoMm} mm ({plantilla.capas?.length || 0} capas)
+                        </span>
+                      </div>
+                      <button className="btn-add-template">Añadir</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <footer className="template-modal-footer">
+              <button className="btn-secondary" onClick={() => setShowTemplateModal(false)}>
+                Cancelar
+              </button>
+            </footer>
+          </div>
+        </div>
       )}
     </div>
     </div>

@@ -2,6 +2,16 @@ import { useEffect } from "react";
 import "./DetailModal.css";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
 
+function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
+  let texto = capa.contenidoRaw || "";
+  if (valoresCampos) {
+    Object.entries(valoresCampos).forEach(([key, val]) => {
+      texto = texto.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"), val);
+    });
+  }
+  return texto;
+}
+
 interface DetailModalProps {
   carta: Carta;
   generarReversos: boolean;
@@ -9,6 +19,7 @@ interface DetailModalProps {
   canvasConfig: CanvasConfig;
   cardConfig: CardConfig;
   onClose: () => void;
+  templatesMap?: Record<string, any>;
 }
 
 export default function DetailModal({
@@ -18,6 +29,7 @@ export default function DetailModal({
   canvasConfig,
   cardConfig,
   onClose,
+  templatesMap = {},
 }: DetailModalProps) {
   // Cerrar al presionar Escape
   useEffect(() => {
@@ -52,12 +64,100 @@ export default function DetailModal({
               <div
                 className="preview-image"
                 style={{
-                  backgroundImage: `url(${carta.imagenFrontal})`,
+                  position: "relative",
                   width: `${cardConfig.anchoMm * 2.5}px`,
                   height: `${cardConfig.altoMm * 2.5}px`,
                   border: `${cardConfig.bordeCorteMm > 0 ? cardConfig.bordeCorteMm * 2.5 : 1}px solid ${cardConfig.bordeCorteColor || "#000"}`,
+                  overflow: "hidden",
+                  backgroundColor: "#ffffff",
                 }}
-              />
+              >
+                {carta.plantillaId ? (
+                  (() => {
+                    const plantilla = templatesMap[carta.plantillaId];
+                    return plantilla ? (
+                      <div
+                        className="card-template-render"
+                        style={{
+                          position: "absolute",
+                          left: 0,
+                          top: 0,
+                          width: "100%",
+                          height: "100%",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {plantilla.capas.map((capa: any) => {
+                          const style: React.CSSProperties = {
+                            position: "absolute",
+                            left: `${capa.xMm * 2.5}px`,
+                            top: `${capa.yMm * 2.5}px`,
+                            width: `${capa.anchoMm * 2.5}px`,
+                            height: `${capa.altoMm * 2.5}px`,
+                            pointerEvents: "none",
+                          };
+
+                          if (capa.tipo === "background") {
+                            return (
+                              <div
+                                key={capa.id}
+                                style={{
+                                  ...style,
+                                  backgroundColor: capa.colorFill || "#ffffff",
+                                }}
+                              />
+                            );
+                          }
+
+                          if (capa.tipo === "text") {
+                            const textoInterp = renderizarTextoCapa(capa, carta.valoresCampos);
+                            const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * 2.5;
+                            return (
+                              <div
+                                key={capa.id}
+                                style={{
+                                  ...style,
+                                  fontFamily: capa.fontFamily || "sans-serif",
+                                  fontSize: `${fontSizePx}px`,
+                                  color: capa.color || "#000000",
+                                  textAlign: (capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left") as any,
+                                  fontWeight: capa.bold ? "bold" : "normal",
+                                  fontStyle: capa.italic ? "italic" : "normal",
+                                  whiteSpace: "pre-wrap",
+                                  wordBreak: "break-word",
+                                  lineHeight: 1.2,
+                                }}
+                              >
+                                {textoInterp}
+                              </div>
+                            );
+                          }
+
+                          return null;
+                        })}
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", color: "#c62828" }}>
+                        Cargando plantilla...
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      width: "100%",
+                      height: "100%",
+                      backgroundImage: `url(${carta.imagenFrontal})`,
+                      backgroundSize: cardConfig.modoAjuste || "cover",
+                      backgroundRepeat: "no-repeat",
+                      backgroundPosition: "center",
+                    }}
+                  />
+                )}
+              </div>
             </div>
 
             {generarReversos && (

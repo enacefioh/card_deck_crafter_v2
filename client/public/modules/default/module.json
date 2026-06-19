@@ -1,0 +1,12 @@
+{
+  "id": "default",
+  "nombre": "Módulo por Defecto",
+  "version": "1.0.0",
+  "plantillas": [
+    {
+      "id": "simple",
+      "nombre": "Plantilla Simple",
+      "archivo": "templates/simple.json"
+    }
+  ]
+}

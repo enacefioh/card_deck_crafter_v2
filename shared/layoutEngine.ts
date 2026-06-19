@@ -26,9 +26,11 @@ export interface CardConfig {
 export interface Carta {
   id: string;
   nombre: string;
-  imagenFrontal: string;
+  imagenFrontal?: string;
   imagenTrasera: string | null;
   cantidad: number;
+  plantillaId?: string;
+  valoresCampos?: Record<string, string>;
 }
 
 export interface ProyectoCDC2 {
@@ -132,7 +134,7 @@ export function calcularDistribucion(
           yMm,
           anchoMm: card.anchoMm,
           altoMm: card.altoMm,
-          imagenSrc: carta.imagenFrontal,
+          imagenSrc: carta.imagenFrontal || null,
           sangradoMm: card.sangradoMm,
           bordeCorteMm: card.bordeCorteMm,
           bordeCorteColor: card.bordeCorteColor,
