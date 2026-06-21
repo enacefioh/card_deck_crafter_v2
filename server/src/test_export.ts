@@ -47,9 +47,57 @@ async function testExport() {
         nombre: "Carta de Prueba 1",
         imagenFrontal: null,
         imagenTrasera: null,
-        cantidad: 2
+        cantidad: 2,
+        plantillaId: "plantilla-1",
+        valoresCampos: {
+          titulo: "Título de la carta de prueba",
+          descripcion: "Este es el texto de la carta de prueba. Debería ser lo suficientemente largo como para envolver líneas y probar la correcta escala y solapamiento de las fuentes de texto en el PDF generado."
+        }
       }
-    ]
+    ],
+    templates: {
+      "plantilla-1": {
+        id: "plantilla-1",
+        nombre: "Plantilla de Prueba",
+        capas: [
+          {
+            id: "capa-bg",
+            tipo: "background",
+            colorFill: "#f0f4f8"
+          },
+          {
+            id: "capa-titulo",
+            tipo: "text",
+            xMm: 5,
+            yMm: 10,
+            anchoMm: 53.5,
+            altoMm: 15,
+            fontFamily: "Arial",
+            fontSizePt: 16,
+            alineacion: "center",
+            bold: true,
+            italic: false,
+            color: "#1e293b",
+            contenidoRaw: "{{titulo}}"
+          },
+          {
+            id: "capa-desc",
+            tipo: "text",
+            xMm: 5,
+            yMm: 30,
+            anchoMm: 53.5,
+            altoMm: 45,
+            fontFamily: "Arial",
+            fontSizePt: 12,
+            alineacion: "left",
+            bold: false,
+            italic: false,
+            color: "#334155",
+            contenidoRaw: "{{descripcion}}"
+          }
+        ]
+      }
+    }
   };
 
   zip.addFile("project.json", Buffer.from(JSON.stringify(proyectoPrueba, null, 2)), "UTF-8");

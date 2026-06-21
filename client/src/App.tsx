@@ -42,7 +42,7 @@ export default function App() {
 
   // --- Estados de Configuración ---
   const [canvasType, setCanvasType] = useState<"A4" | "A3" | "Custom">("A4");
-  const [canvasConfig, setCanvasConfig] = useState<CanvasConfig>({
+  const [canvasConfig, setCanvasConfigInternal] = useState<CanvasConfig>({
     tipo: "A4",
     anchoMm: 210,
     altoMm: 297,
@@ -56,7 +56,7 @@ export default function App() {
   });
 
   const [cardPreset, setCardPreset] = useState<keyof typeof PREAJUSTES_CARTAS>("standard");
-  const [cardConfig, setCardConfig] = useState<CardConfig>({
+  const [cardConfig, setCardConfigInternal] = useState<CardConfig>({
     anchoMm: 63.5,
     altoMm: 88.9,
     espaciadoXMm: 0,
@@ -68,9 +68,9 @@ export default function App() {
     reducirArteAlBorde: false,
   });
 
-  const [generarReversos, setGenerarReversos] = useState<boolean>(false);
-  const [imagenTraseraComun, setImagenTraseraComun] = useState<string | null>(null);
-  const [cartas, setCartas] = useState<Carta[]>([]);
+  const [generarReversos, setGenerarReversosInternal] = useState<boolean>(false);
+  const [imagenTraseraComun, setImagenTraseraComunInternal] = useState<string | null>(null);
+  const [cartas, setCartasInternal] = useState<Carta[]>([]);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [inspectingCardId, setInspectingCardId] = useState<string | null>(null);
   const fileInputReversoLoteRef = useRef<HTMLInputElement>(null);
@@ -84,16 +84,32 @@ export default function App() {
 
   // --- Estado de cambios sin guardar (IsDirty) ---
   const [isDirty, setIsDirty] = useState<boolean>(false);
-  const skipNextDirtyRef = useRef<boolean>(true);
 
-  // Monitorizar cambios en estados clave para marcar como modificado
-  useEffect(() => {
-    if (skipNextDirtyRef.current) {
-      skipNextDirtyRef.current = false;
-      return;
-    }
+  // Wrappers para marcar como modificado (isDirty = true) al realizar acciones desde la UI
+  const setCanvasConfig = (value: React.SetStateAction<CanvasConfig>) => {
+    setCanvasConfigInternal(value);
     setIsDirty(true);
-  }, [cartas, canvasConfig, cardConfig, generarReversos, imagenTraseraComun]);
+  };
+
+  const setCardConfig = (value: React.SetStateAction<CardConfig>) => {
+    setCardConfigInternal(value);
+    setIsDirty(true);
+  };
+
+  const setGenerarReversos = (value: React.SetStateAction<boolean>) => {
+    setGenerarReversosInternal(value);
+    setIsDirty(true);
+  };
+
+  const setImagenTraseraComun = (value: React.SetStateAction<string | null>) => {
+    setImagenTraseraComunInternal(value);
+    setIsDirty(true);
+  };
+
+  const setCartas = (value: React.SetStateAction<Carta[]>) => {
+    setCartasInternal(value);
+    setIsDirty(true);
+  };
 
   // Alerta de confirmación al salir/recargar la página
   useEffect(() => {
@@ -396,6 +412,7 @@ export default function App() {
       modoTraseras: generarReversos ? (imagenTraseraComun ? "comun" : "individual") : "ninguno",
       imagenTraseraComun: commonBackPath,
       cards: processedCards,
+      templates: templatesMap,
     };
 
     zip.file("project.json", JSON.stringify(proyecto, null, 2));
@@ -463,7 +480,6 @@ export default function App() {
 
   // --- Cargar Proyecto Local (.cdc2) ---
   const handleCargarProyecto = async (file: File) => {
-    skipNextDirtyRef.current = true;
     try {
       const zip = await JSZip.loadAsync(file);
       
@@ -533,11 +549,11 @@ export default function App() {
 
       const nuevaTraseraComunUrl = await resolverAssetBlob(proyecto.imagenTraseraComun);
 
-      setCanvasConfig(proyecto.canvasConfig);
-      setCardConfig(proyecto.cardConfig);
-      setImagenTraseraComun(nuevaTraseraComunUrl);
-      setGenerarReversos(proyecto.modoTraseras !== "ninguno");
-      setCartas(nuevasCartas);
+      setCanvasConfigInternal(proyecto.canvasConfig);
+      setCardConfigInternal(proyecto.cardConfig);
+      setImagenTraseraComunInternal(nuevaTraseraComunUrl);
+      setGenerarReversosInternal(proyecto.modoTraseras !== "ninguno");
+      setCartasInternal(nuevasCartas);
 
       setCanvasType(proyecto.canvasConfig.tipo || "Custom");
       setCardPreset("custom");
@@ -594,7 +610,6 @@ export default function App() {
   // --- Nuevo Proyecto (Reset) ---
   const handleNuevoProyecto = () => {
     if (window.confirm("¿Seguro que deseas empezar un nuevo proyecto? Se borrarán todos los cambios no guardados.")) {
-      skipNextDirtyRef.current = true;
       cartas.forEach((c) => {
         if (c.imagenFrontal) URL.revokeObjectURL(c.imagenFrontal);
         if (c.imagenTrasera) URL.revokeObjectURL(c.imagenTrasera);
@@ -603,11 +618,11 @@ export default function App() {
         URL.revokeObjectURL(imagenTraseraComun);
       }
 
-      setCartas([]);
-      setImagenTraseraComun(null);
-      setGenerarReversos(false);
+      setCartasInternal([]);
+      setImagenTraseraComunInternal(null);
+      setGenerarReversosInternal(false);
       setCanvasType("A4");
-      setCanvasConfig({
+      setCanvasConfigInternal({
         tipo: "A4",
         anchoMm: 210,
         altoMm: 297,
@@ -620,7 +635,7 @@ export default function App() {
         marcasCorteEsquinas: true,
       });
       setCardPreset("standard");
-      setCardConfig({
+      setCardConfigInternal({
         anchoMm: 63.5,
         altoMm: 88.9,
         espaciadoXMm: 0,

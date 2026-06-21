@@ -7,8 +7,8 @@ import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
-import { calcularDistribucion } from "../../shared/layoutEngine";
-import type { CanvasConfig, ProyectoCDC2 } from "../../shared/layoutEngine";
+import { calcularDistribucion } from "shared";
+import type { CanvasConfig, ProyectoCDC2, Carta } from "shared";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -29,11 +29,33 @@ fs.ensureDirSync(EXPORTS_DIR);
 
 const upload = multer({ dest: UPLOADS_DIR });
 
+function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
+  let texto = capa.contenidoRaw || "";
+  if (valoresCampos) {
+    Object.entries(valoresCampos).forEach(([key, val]) => {
+      texto = texto.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"), val);
+    });
+  }
+  return texto;
+}
+
 // Función para mapear la distribución y generar HTML
-function generarHtmlImpresion(canvasConfig: CanvasConfig, cardConfig: any, paginasFrontales: any[], paginasTraseras: any[], tempDir: string): string {
+function generarHtmlImpresion(
+  canvasConfig: CanvasConfig,
+  cardConfig: any,
+  paginasFrontales: any[],
+  paginasTraseras: any[],
+  tempDir: string,
+  proyecto: ProyectoCDC2
+): string {
   const wMm = canvasConfig.anchoMm;
   const hMm = canvasConfig.altoMm;
   
+  // Constante de conversión a píxeles virtuales (basado en 96 DPI estándar)
+  const MM_TO_PX = 3.779527559;
+  const wPx = wMm * MM_TO_PX;
+  const hPx = hMm * MM_TO_PX;
+
   const resolverAssetPath = (src: string | null) => {
     if (!src) return "";
     if (src.startsWith("asset://")) {
@@ -49,10 +71,6 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, cardConfig: any, pagin
 
   const renderSlots = (slots: any[]) => {
     return slots.map((slot: any) => {
-      const imgPath = resolverAssetPath(slot.imagenSrc);
-      const fitMode = cardConfig.modoAjuste || "cover";
-      const bgImgStyle = imgPath ? `background-image: url('${imgPath}'); background-size: ${fitMode}; background-repeat: no-repeat; background-position: center;` : "";
-      
       const width = slot.anchoMm;
       const height = slot.altoMm;
       const x = slot.xMm;
@@ -86,13 +104,61 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, cardConfig: any, pagin
       let borderHtml = "";
       if (borderMm > 0) {
         borderHtml = `
-          <div class="card-border-cut" style="border-width: ${borderMm}mm; border-color: ${borderColor}; border-style: solid;"></div>
+          <div class="card-border-cut" style="border-width: ${borderMm * MM_TO_PX}px; border-color: ${borderColor}; border-style: solid;"></div>
         `;
       }
 
+      // Buscar si es una carta de plantilla
+      const cardData = proyecto.cards.find((c: Carta) => c.id === slot.cartaId);
+      if (cardData && cardData.plantillaId && proyecto.templates && proyecto.templates[cardData.plantillaId]) {
+        const plantilla = proyecto.templates[cardData.plantillaId];
+        
+        const layersHtml = plantilla.capas.map((capa: any) => {
+          if (capa.tipo === "background") {
+            const colorFill = cardData.capasOverrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
+            return `
+              <div style="position: absolute; left: 0px; top: 0px; width: ${imgWidth * MM_TO_PX}px; height: ${imgHeight * MM_TO_PX}px; background-color: ${colorFill}; pointer-events: none;"></div>
+            `;
+          }
+          
+          if (capa.tipo === "text") {
+            const textoInterp = renderizarTextoCapa(capa, cardData.valoresCampos);
+            const fontSizePt = capa.fontSizePt || 12;
+            const align = capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left";
+            const weight = capa.bold ? "bold" : "normal";
+            const styleOpt = capa.italic ? "italic" : "normal";
+            
+            // Desplazamiento por sangrado
+            const xPos = capa.xMm - imgLeft;
+            const yPos = capa.yMm - imgTop;
+            
+            // Mismo cálculo exacto de escala que en el frontend
+            const fontSizePx = fontSizePt * 0.352778 * MM_TO_PX;
+            return `<div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${capa.anchoMm * MM_TO_PX}px; height: ${capa.altoMm * MM_TO_PX}px; font-family: ${capa.fontFamily === 'sans-serif' || !capa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : capa.fontFamily}; font-size: ${fontSizePx}px; color: ${capa.color || '#000000'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; padding: 2px; pointer-events: none;">${textoInterp}</div>`;
+          }
+          
+          return "";
+        }).join("\n");
+
+        return `
+          <div class="card-slot" style="left: ${x * MM_TO_PX}px; top: ${y * MM_TO_PX}px; width: ${width * MM_TO_PX}px; height: ${height * MM_TO_PX}px;">
+            <div class="card-template-render-wrapper" style="position: absolute; left: ${imgLeft * MM_TO_PX}px; top: ${imgTop * MM_TO_PX}px; width: ${imgWidth * MM_TO_PX}px; height: ${imgHeight * MM_TO_PX}px; overflow: hidden; background-color: #ffffff;">
+              ${layersHtml}
+            </div>
+            ${borderHtml}
+            ${marksHtml}
+          </div>
+        `;
+      }
+
+      // Si no es plantilla, renderizar imagen normal
+      const imgPath = resolverAssetPath(slot.imagenSrc);
+      const fitMode = cardConfig.modoAjuste || "cover";
+      const bgImgStyle = imgPath ? `background-image: url('${imgPath}'); background-size: ${fitMode}; background-repeat: no-repeat; background-position: center;` : "";
+
       return `
-        <div class="card-slot" style="left: ${x}mm; top: ${y}mm; width: ${width}mm; height: ${height}mm;">
-          <div class="card-image-render" style="left: ${imgLeft}mm; top: ${imgTop}mm; width: ${imgWidth}mm; height: ${imgHeight}mm; ${bgImgStyle}"></div>
+        <div class="card-slot" style="left: ${x * MM_TO_PX}px; top: ${y * MM_TO_PX}px; width: ${width * MM_TO_PX}px; height: ${height * MM_TO_PX}px;">
+          <div class="card-image-render" style="left: ${imgLeft * MM_TO_PX}px; top: ${imgTop * MM_TO_PX}px; width: ${imgWidth * MM_TO_PX}px; height: ${imgHeight * MM_TO_PX}px; ${bgImgStyle}"></div>
           ${borderHtml}
           ${marksHtml}
         </div>
@@ -116,10 +182,10 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, cardConfig: any, pagin
 
     const linesHtml: string[] = [];
     for (const y of horizLines) {
-      linesHtml.push(`<div class="page-cut-line horizontal" style="top: ${y}mm;"></div>`);
+      linesHtml.push(`<div class="page-cut-line horizontal" style="top: ${y * MM_TO_PX}px;"></div>`);
     }
     for (const x of vertLines) {
-      linesHtml.push(`<div class="page-cut-line vertical" style="left: ${x}mm;"></div>`);
+      linesHtml.push(`<div class="page-cut-line vertical" style="left: ${x * MM_TO_PX}px;"></div>`);
     }
     return linesHtml.join("\n");
   };
@@ -151,6 +217,9 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, cardConfig: any, pagin
     <html>
     <head>
       <meta charset="utf-8">
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
       <style>
         @page {
           size: ${wMm}mm ${hMm}mm;
@@ -162,15 +231,18 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, cardConfig: any, pagin
         html, body {
           margin: 0;
           padding: 0;
-          width: ${wMm}mm;
-          height: ${hMm}mm;
+          width: ${wPx}px;
+          height: ${hPx}px;
+          overflow: hidden;
           background-color: #ffffff;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;
+          -webkit-text-size-adjust: 100%;
+          text-size-adjust: 100%;
         }
         .page {
-          width: ${wMm}mm;
-          height: ${hMm}mm;
+          width: ${wPx}px;
+          height: ${hPx}px;
           position: relative;
           page-break-after: always;
           overflow: hidden;
@@ -199,24 +271,24 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, cardConfig: any, pagin
         }
         .corner-cut-mark {
           position: absolute;
-          width: 10mm;
-          height: 10mm;
+          width: ${10 * MM_TO_PX}px;
+          height: ${10 * MM_TO_PX}px;
           border-color: #000000;
           border-style: solid;
           pointer-events: none;
           z-index: 4;
         }
         .corner-cut-mark.top-left {
-          border-width: 0.1mm 0 0 0.1mm;
+          border-width: ${0.1 * MM_TO_PX}px 0 0 ${0.1 * MM_TO_PX}px;
         }
         .corner-cut-mark.top-right {
-          border-width: 0.1mm 0.1mm 0 0;
+          border-width: ${0.1 * MM_TO_PX}px ${0.1 * MM_TO_PX}px 0 0;
         }
         .corner-cut-mark.bottom-left {
-          border-width: 0 0 0.1mm 0.1mm;
+          border-width: 0 0 ${0.1 * MM_TO_PX}px ${0.1 * MM_TO_PX}px;
         }
         .corner-cut-mark.bottom-right {
-          border-width: 0 0.1mm 0.1mm 0;
+          border-width: 0 ${0.1 * MM_TO_PX}px ${0.1 * MM_TO_PX}px 0;
         }
         .page-cut-line {
           position: absolute;
@@ -226,14 +298,14 @@ function generarHtmlImpresion(canvasConfig: CanvasConfig, cardConfig: any, pagin
         .page-cut-line.horizontal {
           left: 0;
           right: 0;
-          height: 0.1mm;
-          border-top: 0.1mm dashed rgba(0, 0, 0, 0.4);
+          height: ${0.1 * MM_TO_PX}px;
+          border-top: ${0.1 * MM_TO_PX}px dashed rgba(0, 0, 0, 0.4);
         }
         .page-cut-line.vertical {
           top: 0;
           bottom: 0;
-          width: 0.1mm;
-          border-left: 0.1mm dashed rgba(0, 0, 0, 0.4);
+          width: ${0.1 * MM_TO_PX}px;
+          border-left: ${0.1 * MM_TO_PX}px dashed rgba(0, 0, 0, 0.4);
         }
       </style>
     </head>
@@ -279,9 +351,12 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
     );
 
     // 5. Generar el HTML de impresión y guardarlo como archivo físico temporal para que Chromium lo acceda de forma nativa sin restricciones de seguridad
-    const html = generarHtmlImpresion(proyecto.canvasConfig, proyecto.cardConfig, paginasFrontales, paginasTraseras, tempDir);
+    const html = generarHtmlImpresion(proyecto.canvasConfig, proyecto.cardConfig, paginasFrontales, paginasTraseras, tempDir, proyecto);
     const htmlPath = path.join(tempDir, "print.html");
     await fs.writeFile(htmlPath, html, "utf8");
+
+    // Guardar una copia para depuración/verificación de alineación
+    await fs.writeFile(path.join(EXPORTS_DIR, "last_generated_print.html"), html, "utf8");
 
     // 6. Levantar Puppeteer de manera headless y configurar acceso a file:///
     const browser = await puppeteer.launch({
@@ -290,15 +365,31 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--allow-file-access-from-files",
-        "--enable-local-file-accesses"
+        "--enable-local-file-accesses",
+        "--force-device-scale-factor=1"
       ]
     });
     
     const page = await browser.newPage();
+    
+    // Configurar viewport exacto para evitar reajustes de Chromium basados en viewport por defecto
+    const MM_TO_PX = 3.779527559;
+    await page.setViewport({
+      width: Math.ceil(proyecto.canvasConfig.anchoMm * MM_TO_PX),
+      height: Math.ceil(proyecto.canvasConfig.altoMm * MM_TO_PX),
+      deviceScaleFactor: 1
+    });
+
     const fileUrl = `file:///${htmlPath.replace(/\\/g, "/")}`;
     
     // Cargar el HTML local
     await page.goto(fileUrl, { waitUntil: "networkidle0" });
+
+    // Guardar una captura de pantalla para depuración de alineación visual en el navegador headless
+    await page.screenshot({
+      path: path.join(EXPORTS_DIR, "last_generated_screenshot.png"),
+      fullPage: true
+    });
 
     // 7. Generar el PDF respetando milimétricamente el canvas
     const pdfBuffer = await page.pdf({

@@ -48,6 +48,7 @@ export interface ProyectoCDC2 {
   modoTraseras: "comun" | "individual" | "ninguno";
   imagenTraseraComun: string | null;
   cards: Carta[];
+  templates?: Record<string, any>;
 }
 
 export interface LayoutSlot {

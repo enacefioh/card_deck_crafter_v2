@@ -18,6 +18,30 @@ describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
     expect(parsed.cards.length).toBe(1);
   });
 
+  it("debe conservar capasOverrides al parsear el proyecto", () => {
+    const proyectoConOverrides = {
+      version: "2.0.0",
+      canvasConfig: { tipo: "A4", anchoMm: 210, altoMm: 297 },
+      cardConfig: { anchoMm: 63.5, altoMm: 88.9 },
+      cards: [
+        {
+          id: "1",
+          nombre: "Carta Plantilla",
+          cantidad: 1,
+          plantillaId: "simple",
+          valoresCampos: { titulo: "Test Title" },
+          capasOverrides: {
+            background: { colorFill: "#ff0000" }
+          }
+        }
+      ]
+    };
+    const jsonStr = JSON.stringify(proyectoConOverrides);
+    const parsed = validarYParsearProyecto(jsonStr);
+    expect(parsed.cards[0].capasOverrides).toBeDefined();
+    expect(parsed.cards[0].capasOverrides.background.colorFill).toBe("#ff0000");
+  });
+
   it("debe lanzar un error si el JSON está vacío", () => {
     expect(() => validarYParsearProyecto("")).toThrow("El archivo de configuración JSON está vacío");
     expect(() => validarYParsearProyecto("   ")).toThrow("El archivo de configuración JSON está vacío");
