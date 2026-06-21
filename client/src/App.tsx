@@ -81,6 +81,7 @@ export default function App() {
   const [templatesMap, setTemplatesMap] = useState<Record<string, any>>({});
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [templateModalMode, setTemplateModalMode] = useState<"addCard" | "assignBack">("addCard");
 
   // --- Estado de cambios sin guardar (IsDirty) ---
   const [isDirty, setIsDirty] = useState<boolean>(false);
@@ -392,6 +393,9 @@ export default function App() {
         plantillaId: card.plantillaId,
         valoresCampos: card.valoresCampos,
         capasOverrides: card.capasOverrides,
+        plantillaTraseraId: card.plantillaTraseraId,
+        valoresCamposTrasera: card.valoresCamposTrasera,
+        capasOverridesTrasera: card.capasOverridesTrasera,
       });
     }
 
@@ -544,6 +548,9 @@ export default function App() {
           plantillaId: card.plantillaId,
           valoresCampos: card.valoresCampos,
           capasOverrides: card.capasOverrides,
+          plantillaTraseraId: card.plantillaTraseraId,
+          valoresCamposTrasera: card.valoresCamposTrasera,
+          capasOverridesTrasera: card.capasOverridesTrasera,
         });
       }
 
@@ -572,26 +579,85 @@ export default function App() {
     e.target.value = "";
   };
 
-  // --- Añadir Carta desde Plantilla (SRS-006) ---
-  const handleAñadirCartaDesdePlantilla = (plantilla: any) => {
-    const nuevaCarta: Carta = {
-      id: `carta_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      nombre: plantilla.nombre,
-      cantidad: 1,
-      imagenTrasera: null,
-      plantillaId: plantilla.id,
-      valoresCampos: {},
-    };
+  // --- Añadir Carta desde Plantilla (SRS-006) y Asignar Reverso ---
+  const handleSelectTemplate = (plantilla: any) => {
+    if (templateModalMode === "addCard") {
+      const nuevaCarta: Carta = {
+        id: `carta_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        nombre: plantilla.nombre,
+        cantidad: 1,
+        imagenTrasera: null,
+        plantillaId: plantilla.id,
+        valoresCampos: {},
+      };
 
-    if (plantilla.camposConfig) {
-      plantilla.camposConfig.forEach((campo: any) => {
-        nuevaCarta.valoresCampos![campo.clave] = campo.valorDefecto || "";
-      });
+      if (plantilla.camposConfig) {
+        plantilla.camposConfig.forEach((campo: any) => {
+          nuevaCarta.valoresCampos![campo.clave] = campo.valorDefecto || "";
+        });
+      }
+
+      setCartas((prev) => insertarCartaDesdePlantilla(prev, nuevaCarta, selectedCardIds));
+      setSelectedCardIds([nuevaCarta.id]);
+    } else if (templateModalMode === "assignBack") {
+      setCartas((prev) =>
+        prev.map((c) => {
+          if (selectedCardIds.includes(c.id)) {
+            const valoresCamposTrasera: Record<string, string> = {};
+            if (plantilla.camposConfig) {
+              plantilla.camposConfig.forEach((campo: any) => {
+                valoresCamposTrasera[campo.clave] = campo.valorDefecto || "";
+              });
+            }
+            return {
+              ...c,
+              plantillaTraseraId: plantilla.id,
+              valoresCamposTrasera,
+              capasOverridesTrasera: {},
+              imagenTrasera: null,
+            };
+          }
+          return c;
+        })
+      );
     }
-
-    setCartas((prev) => insertarCartaDesdePlantilla(prev, nuevaCarta, selectedCardIds));
-    setSelectedCardIds([nuevaCarta.id]);
     setShowTemplateModal(false);
+  };
+
+  const abrirModalPlantillaParaTrasera = () => {
+    setTemplateModalMode("assignBack");
+    setShowTemplateModal(true);
+  };
+
+  const quitarPlantillaTrasera = (id: string) => {
+    setCartas((prev) =>
+      prev.map((c) =>
+        c.id === id
+          ? {
+              ...c,
+              plantillaTraseraId: undefined,
+              valoresCamposTrasera: undefined,
+              capasOverridesTrasera: undefined,
+            }
+          : c
+      )
+    );
+  };
+
+  const quitarPlantillaTraseraLote = () => {
+    if (selectedCardIds.length === 0) return;
+    setCartas((prev) =>
+      prev.map((c) =>
+        selectedCardIds.includes(c.id)
+          ? {
+              ...c,
+              plantillaTraseraId: undefined,
+              valoresCamposTrasera: undefined,
+              capasOverridesTrasera: undefined,
+            }
+          : c
+      )
+    );
   };
 
   // Cerrar modal de plantilla al presionar Escape
@@ -652,7 +718,9 @@ export default function App() {
 
   const handleSaveCardEdits = (
     valoresCampos: Record<string, string>,
-    capasOverrides: Record<string, any>
+    capasOverrides: Record<string, any>,
+    valoresCamposTrasera?: Record<string, string>,
+    capasOverridesTrasera?: Record<string, any>
   ) => {
     if (!editingCardId) return;
     const nuevoNombre = valoresCampos.titulo || valoresCampos.nombre;
@@ -664,6 +732,8 @@ export default function App() {
               nombre: nuevoNombre || c.nombre,
               valoresCampos,
               capasOverrides,
+              valoresCamposTrasera: valoresCamposTrasera || c.valoresCamposTrasera,
+              capasOverridesTrasera: capasOverridesTrasera || c.capasOverridesTrasera,
             }
           : c
       )
@@ -1252,25 +1322,46 @@ export default function App() {
                     {generarReversos && (
                       <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "12px" }}>
                         <span style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "6px" }}>
-                          Reverso: {selectedCarta.imagenTrasera ? "Individual 👤" : "Por Defecto 👥"}
+                          Reverso: {selectedCarta.plantillaTraseraId 
+                            ? `Plantilla (${templatesMap[selectedCarta.plantillaTraseraId]?.nombre || selectedCarta.plantillaTraseraId}) 📄` 
+                            : selectedCarta.imagenTrasera 
+                            ? "Individual 👤" 
+                            : "Por Defecto 👥"}
                         </span>
                         
-                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                          <label style={{ margin: 0, cursor: "pointer", fontSize: "11px", backgroundColor: "var(--bg-main)", border: "1px solid var(--border-color)", padding: "4px 12px", borderRadius: "6px", flex: 1, textAlign: "center" }}>
-                            Subir Reverso
-                            <input
-                              type="file"
-                              accept="image/*"
-                              style={{ display: "none" }}
-                              onChange={(e) => handleTraseraIndividualUpload(selectedCarta.id, e)}
-                            />
-                          </label>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", alignItems: "center" }}>
+                          {!selectedCarta.plantillaTraseraId && (
+                            <label style={{ margin: 0, cursor: "pointer", fontSize: "11px", backgroundColor: "var(--bg-main)", border: "1px solid var(--border-color)", padding: "4px 12px", borderRadius: "6px", flex: 1, textAlign: "center" }}>
+                              Subir Reverso
+                              <input
+                                type="file"
+                                accept="image/*"
+                                style={{ display: "none" }}
+                                onChange={(e) => handleTraseraIndividualUpload(selectedCarta.id, e)}
+                              />
+                            </label>
+                          )}
                           
-                          {selectedCarta.imagenTrasera && (
+                          <button
+                            type="button"
+                            className="btn-secondary"
+                            style={{ margin: 0, fontSize: "11px", padding: "4px 12px", borderRadius: "6px", flex: 1, textAlign: "center" }}
+                            onClick={() => abrirModalPlantillaParaTrasera()}
+                          >
+                            {selectedCarta.plantillaTraseraId ? "Cambiar Plantilla" : "Usar Plantilla"}
+                          </button>
+                          
+                          {(selectedCarta.imagenTrasera || selectedCarta.plantillaTraseraId) && (
                             <button
                               className="btn-icon btn-danger"
                               style={{ width: "28px", height: "28px", padding: 0, margin: 0, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: "6px" }}
-                              onClick={() => eliminarTraseraIndividual(selectedCarta.id)}
+                              onClick={() => {
+                                if (selectedCarta.plantillaTraseraId) {
+                                  quitarPlantillaTrasera(selectedCarta.id);
+                                } else {
+                                  eliminarTraseraIndividual(selectedCarta.id);
+                                }
+                              }}
                               title="Volver a reverso común"
                             >
                               ✕
@@ -1296,12 +1387,24 @@ export default function App() {
                   </div>
                   
                   {generarReversos && (
-                    <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "12px" }}>
+                    <div style={{ borderTop: "1px solid rgba(255,255,255,0.05)", paddingTop: "12px", display: "flex", flexDirection: "column", gap: "8px" }}>
                       <button
                         className="btn-primary"
                         onClick={() => fileInputReversoLoteRef.current?.click()}
                       >
-                        Asignar Reverso en Lote
+                        Asignar Reverso Imagen en Lote
+                      </button>
+                      <button
+                        className="btn-secondary"
+                        onClick={() => abrirModalPlantillaParaTrasera()}
+                      >
+                        Asignar Reverso Plantilla en Lote
+                      </button>
+                      <button
+                        className="btn-secondary btn-danger"
+                        onClick={() => quitarPlantillaTraseraLote()}
+                      >
+                        Quitar Reverso Plantilla en Lote
                       </button>
                       <input
                         type="file"
@@ -1669,35 +1772,108 @@ export default function App() {
                               height: `${slot.altoMm * zoomFactor}px`,
                             }}
                           >
-                            {/* Renderizar Imagen con Sangrado */}
-                            {(() => {
-                              const borderMm = slot.bordeCorteMm;
-                              const noOverlap = cardConfig.reducirArteAlBorde && borderMm > 0;
-                              
-                              const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
-                              const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
-                              const imgWidth = noOverlap ? (slot.anchoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
-                              const imgHeight = noOverlap ? (slot.altoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
-                              const fitMode = cardConfig.modoAjuste || "cover";
+                             {/* Renderizar Imagen con Sangrado */}
+                             {(() => {
+                               const cardData = cartas.find((c) => c.id === slot.cartaId);
+                               if (cardData?.plantillaTraseraId) {
+                                 const plantilla = templatesMap[cardData.plantillaTraseraId];
+                                 return plantilla ? (
+                                   <div
+                                     className="card-template-render"
+                                     style={{
+                                       position: "absolute",
+                                       left: 0,
+                                       top: 0,
+                                       width: "100%",
+                                       height: "100%",
+                                       overflow: "hidden",
+                                       backgroundColor: "#ffffff",
+                                     }}
+                                   >
+                                     {plantilla.capas.map((capa: any) => {
+                                       const style: React.CSSProperties = {
+                                         position: "absolute",
+                                         left: `${capa.xMm * zoomFactor}px`,
+                                         top: `${capa.yMm * zoomFactor}px`,
+                                         width: `${capa.anchoMm * zoomFactor}px`,
+                                         height: `${capa.altoMm * zoomFactor}px`,
+                                         pointerEvents: "none",
+                                       };
 
-                              return (
-                                <div
-                                  className="card-image-render"
-                                  style={{
-                                    left: `${imgLeft * zoomFactor}px`,
-                                    top: `${imgTop * zoomFactor}px`,
-                                    width: `${imgWidth * zoomFactor}px`,
-                                    height: `${imgHeight * zoomFactor}px`,
-                                    backgroundImage: slot.imagenSrc ? `url(${slot.imagenSrc})` : "none",
-                                    backgroundSize: fitMode,
-                                    backgroundRepeat: "no-repeat",
-                                    backgroundPosition: "center",
-                                  }}
-                                >
-                                  {!slot.imagenSrc && "Reverso"}
-                                </div>
-                              );
-                            })()}
+                                       if (capa.tipo === "background") {
+                                         const colorFill = cardData.capasOverridesTrasera?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
+                                         return (
+                                           <div
+                                             key={capa.id}
+                                             style={{
+                                               ...style,
+                                               backgroundColor: colorFill,
+                                             }}
+                                           />
+                                         );
+                                       }
+
+                                       if (capa.tipo === "text") {
+                                         const textoInterp = renderizarTextoCapa(capa, cardData.valoresCamposTrasera);
+                                         const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * zoomFactor;
+                                         return (
+                                           <div
+                                             key={capa.id}
+                                             style={{
+                                               ...style,
+                                               fontFamily: capa.fontFamily || "sans-serif",
+                                               fontSize: `${fontSizePx}px`,
+                                               color: capa.color || "#000000",
+                                               textAlign: (capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left") as any,
+                                               fontWeight: capa.bold ? "bold" : "normal",
+                                               fontStyle: capa.italic ? "italic" : "normal",
+                                               whiteSpace: "pre-wrap",
+                                               wordBreak: "break-word",
+                                               lineHeight: 1.2,
+                                             }}
+                                           >
+                                             {textoInterp}
+                                           </div>
+                                         );
+                                       }
+
+                                       return null;
+                                     })}
+                                   </div>
+                                 ) : (
+                                   <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#ffebee", color: "#c62828", fontSize: "12px" }}>
+                                     Cargando plantilla...
+                                   </div>
+                                 );
+                               } else {
+                                 const borderMm = slot.bordeCorteMm;
+                                 const noOverlap = cardConfig.reducirArteAlBorde && borderMm > 0;
+                                 
+                                 const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
+                                 const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
+                                 const imgWidth = noOverlap ? (slot.anchoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
+                                 const imgHeight = noOverlap ? (slot.altoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
+                                 const fitMode = cardConfig.modoAjuste || "cover";
+
+                                 return (
+                                   <div
+                                     className="card-image-render"
+                                     style={{
+                                       left: `${imgLeft * zoomFactor}px`,
+                                       top: `${imgTop * zoomFactor}px`,
+                                       width: `${imgWidth * zoomFactor}px`,
+                                       height: `${imgHeight * zoomFactor}px`,
+                                       backgroundImage: slot.imagenSrc ? `url(${slot.imagenSrc})` : "none",
+                                       backgroundSize: fitMode,
+                                       backgroundRepeat: "no-repeat",
+                                       backgroundPosition: "center",
+                                     }}
+                                   >
+                                     {!slot.imagenSrc && "Reverso"}
+                                   </div>
+                                 );
+                               }
+                             })()}
 
                             {/* Borde interior de color fijo si aplica */}
                             {slot.bordeCorteMm > 0 && (
@@ -1807,7 +1983,7 @@ export default function App() {
                     <div
                       key={plantilla.id}
                       className="template-card-item"
-                      onClick={() => handleAñadirCartaDesdePlantilla(plantilla)}
+                      onClick={() => handleSelectTemplate(plantilla)}
                     >
                       <div className="template-icon">📄</div>
                       <div className="template-details">

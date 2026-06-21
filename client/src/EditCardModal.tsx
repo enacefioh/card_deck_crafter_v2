@@ -8,7 +8,12 @@ interface EditCardModalProps {
   templatesMap: Record<string, any>;
   generarReversos: boolean;
   imagenTraseraComun: string | null;
-  onSave: (valoresCampos: Record<string, string>, capasOverrides: Record<string, any>) => void;
+  onSave: (
+    valoresCampos: Record<string, string>,
+    capasOverrides: Record<string, any>,
+    valoresCamposTrasera?: Record<string, string>,
+    capasOverridesTrasera?: Record<string, any>
+  ) => void;
   onClose: () => void;
 }
 
@@ -32,6 +37,7 @@ export default function EditCardModal({
   onClose,
 }: EditCardModalProps) {
   const plantilla = carta.plantillaId ? templatesMap[carta.plantillaId] : null;
+  const plantillaTrasera = carta.plantillaTraseraId ? templatesMap[carta.plantillaTraseraId] : null;
 
   // --- Estados locales temporales ---
   const [tempValoresCampos, setTempValoresCampos] = useState<Record<string, string>>(() => ({
@@ -40,19 +46,34 @@ export default function EditCardModal({
   const [tempCapasOverrides, setTempCapasOverrides] = useState<Record<string, any>>(() => ({
     ...(carta.capasOverrides || {}),
   }));
+
+  const [tempValoresCamposTrasera, setTempValoresCamposTrasera] = useState<Record<string, string>>(() => ({
+    ...(carta.valoresCamposTrasera || {}),
+  }));
+  const [tempCapasOverridesTrasera, setTempCapasOverridesTrasera] = useState<Record<string, any>>(() => ({
+    ...(carta.capasOverridesTrasera || {}),
+  }));
+
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [hoveredLayerId, setHoveredLayerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"frontal" | "trasera">("frontal");
+
+  // Resolver estructuras activas según la pestaña activa
+  const plantillaActiva = activeTab === "frontal" ? plantilla : plantillaTrasera;
+  const tempValoresActivos = activeTab === "frontal" ? tempValoresCampos : tempValoresCamposTrasera;
+  const setTempValoresActivos = activeTab === "frontal" ? setTempValoresCampos : setTempValoresCamposTrasera;
+  const tempCapasOverridesActivos = activeTab === "frontal" ? tempCapasOverrides : tempCapasOverridesTrasera;
+  const setTempCapasOverridesActivos = activeTab === "frontal" ? setTempCapasOverrides : setTempCapasOverridesTrasera;
 
   // Escala fija para la edición interactiva en el modal
   const scale = 3.5;
 
   // --- Comprobar si hay cambios sin guardar ---
   const hasChanges = () => {
+    // Frontal
     const originalValores = carta.valoresCampos || {};
     const originalOverrides = carta.capasOverrides || {};
 
-    // Comprobar diferencias en valoresCampos
     const keysValores = Array.from(new Set([...Object.keys(tempValoresCampos), ...Object.keys(originalValores)]));
     for (const k of keysValores) {
       if ((tempValoresCampos[k] || "") !== (originalValores[k] || "")) {
@@ -60,11 +81,30 @@ export default function EditCardModal({
       }
     }
 
-    // Comprobar diferencias en capasOverrides
     const layers = plantilla?.capas || [];
     for (const capa of layers) {
       const tempColor = tempCapasOverrides[capa.id]?.colorFill;
       const originalColor = originalOverrides[capa.id]?.colorFill;
+      if ((tempColor || "") !== (originalColor || "")) {
+        return true;
+      }
+    }
+
+    // Trasera
+    const originalValoresTrasera = carta.valoresCamposTrasera || {};
+    const originalOverridesTrasera = carta.capasOverridesTrasera || {};
+
+    const keysValoresTrasera = Array.from(new Set([...Object.keys(tempValoresCamposTrasera), ...Object.keys(originalValoresTrasera)]));
+    for (const k of keysValoresTrasera) {
+      if ((tempValoresCamposTrasera[k] || "") !== (originalValoresTrasera[k] || "")) {
+        return true;
+      }
+    }
+
+    const layersTrasera = plantillaTrasera?.capas || [];
+    for (const capa of layersTrasera) {
+      const tempColor = tempCapasOverridesTrasera[capa.id]?.colorFill;
+      const originalColor = originalOverridesTrasera[capa.id]?.colorFill;
       if ((tempColor || "") !== (originalColor || "")) {
         return true;
       }
@@ -98,15 +138,13 @@ export default function EditCardModal({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [tempValoresCampos, tempCapasOverrides]);
+  }, [tempValoresCampos, tempCapasOverrides, tempValoresCamposTrasera, tempCapasOverridesTrasera]);
 
   // --- Escucha de la tecla Tabulador para navegar entre capas ---
   useEffect(() => {
-    if (activeTab !== "frontal") return;
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Tab") {
-        const capas = plantilla?.capas || [];
+        const capas = plantillaActiva?.capas || [];
         if (capas.length === 0) return;
 
         // Prevenir la navegación de foco nativa que saca al usuario del panel
@@ -136,7 +174,7 @@ export default function EditCardModal({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [selectedLayerId, plantilla, activeTab]);
+  }, [selectedLayerId, plantillaActiva]);
 
   // --- Foco automático en el input del inspector al cambiar de capa ---
   useEffect(() => {
@@ -161,11 +199,11 @@ export default function EditCardModal({
 
   // --- Manejo de Guardar ---
   const handleSave = () => {
-    onSave(tempValoresCampos, tempCapasOverrides);
+    onSave(tempValoresCampos, tempCapasOverrides, tempValoresCamposTrasera, tempCapasOverridesTrasera);
   };
 
   // --- Obtener la capa actualmente seleccionada ---
-  const selectedCapa = plantilla?.capas?.find((c: any) => c.id === selectedLayerId);
+  const selectedCapa = plantillaActiva?.capas?.find((c: any) => c.id === selectedLayerId);
 
   // --- Obtener el campo de variables asociado a la capa de texto ---
   const getFieldKeyForCapa = (capa: any): string | null => {
@@ -176,10 +214,10 @@ export default function EditCardModal({
 
   const fieldKey = selectedCapa ? getFieldKeyForCapa(selectedCapa) : null;
   const campoConfig = fieldKey
-    ? plantilla?.camposConfig?.find((f: any) => f.clave === fieldKey)
+    ? plantillaActiva?.camposConfig?.find((f: any) => f.clave === fieldKey)
     : null;
 
-  // Reverso a renderizar
+  // Reverso a renderizar cuando no es dinámico
   const traseraUrl = carta.imagenTrasera || imagenTraseraComun;
 
   return (
@@ -232,32 +270,30 @@ export default function EditCardModal({
           <aside className="hierarchy-column">
             <div className="column-title">Explorador de Capas</div>
             <div className="column-content">
-              {activeTab === "frontal" ? (
-                !plantilla || !plantilla.capas || plantilla.capas.length === 0 ? (
-                  <div className="empty-message-inline">Nada que editar</div>
-                ) : (
-                  <div className="hierarchy-list">
-                    {plantilla.capas.map((capa: any) => (
-                      <div
-                        key={capa.id}
-                        className={`hierarchy-item ${selectedLayerId === capa.id ? "selected" : ""} ${
-                          hoveredLayerId === capa.id ? "hovered" : ""
-                        }`}
-                        onClick={() => setSelectedLayerId(capa.id)}
-                        onMouseEnter={() => setHoveredLayerId(capa.id)}
-                        onMouseLeave={() => setHoveredLayerId(null)}
-                      >
-                        <span className="hierarchy-icon">
-                          {capa.tipo === "background" ? "🎨" : "📝"}
-                        </span>
-                        <span className="hierarchy-label">{capa.nombre}</span>
-                      </div>
-                    ))}
-                  </div>
-                )
+              {!plantillaActiva || !plantillaActiva.capas || plantillaActiva.capas.length === 0 ? (
+                <div className="empty-message-inline">
+                  {activeTab === "frontal"
+                    ? "Nada que editar"
+                    : "El reverso no posee capas editables en plantilla."}
+                </div>
               ) : (
-                <div className="hierarchy-list-empty-info">
-                  El reverso no posee capas editables en plantilla.
+                <div className="hierarchy-list">
+                  {plantillaActiva.capas.map((capa: any) => (
+                    <div
+                      key={capa.id}
+                      className={`hierarchy-item ${selectedLayerId === capa.id ? "selected" : ""} ${
+                        hoveredLayerId === capa.id ? "hovered" : ""
+                      }`}
+                      onClick={() => setSelectedLayerId(capa.id)}
+                      onMouseEnter={() => setHoveredLayerId(capa.id)}
+                      onMouseLeave={() => setHoveredLayerId(null)}
+                    >
+                      <span className="hierarchy-icon">
+                        {capa.tipo === "background" ? "🎨" : "📝"}
+                      </span>
+                      <span className="hierarchy-label">{capa.nombre}</span>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -281,85 +317,81 @@ export default function EditCardModal({
                   backgroundColor: "#ffffff",
                 }}
               >
-                {activeTab === "frontal" ? (
-                  !plantilla || !plantilla.capas || plantilla.capas.length === 0 ? (
-                    <div className="preview-empty-text">Nada que editar</div>
-                  ) : (
-                    plantilla.capas.map((capa: any) => {
-                      const isSelected = selectedLayerId === capa.id;
-                      const isHovered = hoveredLayerId === capa.id;
+                {plantillaActiva && plantillaActiva.capas && plantillaActiva.capas.length > 0 ? (
+                  plantillaActiva.capas.map((capa: any) => {
+                    const isSelected = selectedLayerId === capa.id;
+                    const isHovered = hoveredLayerId === capa.id;
 
-                      const layerStyle: React.CSSProperties = {
-                        position: "absolute",
-                        left: `${capa.xMm * scale}px`,
-                        top: `${capa.yMm * scale}px`,
-                        width: `${capa.anchoMm * scale}px`,
-                        height: `${capa.altoMm * scale}px`,
-                        cursor: "pointer",
-                        boxSizing: "border-box",
-                        transition: "outline 0.1s ease",
-                        outline: isSelected
-                          ? "2px solid var(--accent-primary)"
-                          : isHovered
-                          ? "2px dashed var(--accent-primary-half, rgba(139, 92, 246, 0.5))"
-                          : "none",
-                        outlineOffset: "-1px",
-                        zIndex: isSelected ? 10 : isHovered ? 9 : 1,
-                      };
+                    const layerStyle: React.CSSProperties = {
+                      position: "absolute",
+                      left: `${capa.xMm * scale}px`,
+                      top: `${capa.yMm * scale}px`,
+                      width: `${capa.anchoMm * scale}px`,
+                      height: `${capa.altoMm * scale}px`,
+                      cursor: "pointer",
+                      boxSizing: "border-box",
+                      transition: "outline 0.1s ease",
+                      outline: isSelected
+                        ? "2px solid var(--accent-primary)"
+                        : isHovered
+                        ? "2px dashed var(--accent-primary-half, rgba(139, 92, 246, 0.5))"
+                        : "none",
+                      outlineOffset: "-1px",
+                      zIndex: isSelected ? 10 : isHovered ? 9 : 1,
+                    };
 
-                      if (capa.tipo === "background") {
-                        const colorFill = tempCapasOverrides[capa.id]?.colorFill || capa.colorFill || "#ffffff";
-                        return (
-                          <div
-                            key={capa.id}
-                            style={{
-                              ...layerStyle,
-                              backgroundColor: colorFill,
-                            }}
-                            onClick={() => setSelectedLayerId(capa.id)}
-                            onMouseEnter={() => setHoveredLayerId(capa.id)}
-                            onMouseLeave={() => setHoveredLayerId(null)}
-                          />
-                        );
-                      }
+                    if (capa.tipo === "background") {
+                      const colorFill = tempCapasOverridesActivos[capa.id]?.colorFill || capa.colorFill || "#ffffff";
+                      return (
+                        <div
+                          key={capa.id}
+                          style={{
+                            ...layerStyle,
+                            backgroundColor: colorFill,
+                          }}
+                          onClick={() => setSelectedLayerId(capa.id)}
+                          onMouseEnter={() => setHoveredLayerId(capa.id)}
+                          onMouseLeave={() => setHoveredLayerId(null)}
+                        />
+                      );
+                    }
 
-                      if (capa.tipo === "text") {
-                        const textoInterp = renderizarTextoCapa(capa, tempValoresCampos);
-                        const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * scale;
-                        return (
-                          <div
-                            key={capa.id}
-                            style={{
-                              ...layerStyle,
-                              fontFamily: capa.fontFamily || "sans-serif",
-                              fontSize: `${fontSizePx}px`,
-                              color: capa.color || "#000000",
-                              textAlign: (capa.alineacion === "center"
-                                ? "center"
-                                : capa.alineacion === "right"
-                                ? "right"
-                                : "left") as any,
-                              fontWeight: capa.bold ? "bold" : "normal",
-                              fontStyle: capa.italic ? "italic" : "normal",
-                              whiteSpace: "pre-wrap",
-                              wordBreak: "break-word",
-                              lineHeight: 1.2,
-                              padding: "2px",
-                              userSelect: "none",
-                            }}
-                            onClick={() => setSelectedLayerId(capa.id)}
-                            onMouseEnter={() => setHoveredLayerId(capa.id)}
-                            onMouseLeave={() => setHoveredLayerId(null)}
-                          >
-                            {textoInterp}
-                          </div>
-                        );
-                      }
+                    if (capa.tipo === "text") {
+                      const textoInterp = renderizarTextoCapa(capa, tempValoresActivos);
+                      const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * scale;
+                      return (
+                        <div
+                          key={capa.id}
+                          style={{
+                            ...layerStyle,
+                            fontFamily: capa.fontFamily || "sans-serif",
+                            fontSize: `${fontSizePx}px`,
+                            color: capa.color || "#000000",
+                            textAlign: (capa.alineacion === "center"
+                              ? "center"
+                              : capa.alineacion === "right"
+                              ? "right"
+                              : "left") as any,
+                            fontWeight: capa.bold ? "bold" : "normal",
+                            fontStyle: capa.italic ? "italic" : "normal",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
+                            lineHeight: 1.2,
+                            padding: "2px",
+                            userSelect: "none",
+                          }}
+                          onClick={() => setSelectedLayerId(capa.id)}
+                          onMouseEnter={() => setHoveredLayerId(capa.id)}
+                          onMouseLeave={() => setHoveredLayerId(null)}
+                        >
+                          {textoInterp}
+                        </div>
+                      );
+                    }
 
-                      return null;
-                    })
-                  )
-                ) : traseraUrl ? (
+                    return null;
+                  })
+                ) : activeTab === "trasera" && traseraUrl ? (
                   <div
                     style={{
                       width: "100%",
@@ -371,7 +403,9 @@ export default function EditCardModal({
                     }}
                   />
                 ) : (
-                  <div className="preview-empty-text">Sin reverso configurado</div>
+                  <div className="preview-empty-text">
+                    {activeTab === "frontal" ? "Nada que editar" : "Sin reverso configurado"}
+                  </div>
                 )}
               </div>
             </div>
@@ -381,107 +415,105 @@ export default function EditCardModal({
           <aside className="inspector-column">
             <div className="column-title">Inspector de Propiedades</div>
             <div className="column-content">
-              {activeTab === "frontal" ? (
-                selectedLayerId && selectedCapa ? (
-                  <div className="inspector-panel">
-                    <div className="inspector-layer-header">
-                      <span className="inspector-layer-icon">
-                        {selectedCapa.tipo === "background" ? "🎨" : "📝"}
-                      </span>
-                      <h3>{selectedCapa.nombre}</h3>
-                    </div>
-                    <hr className="inspector-separator" />
+              {selectedLayerId && selectedCapa ? (
+                <div className="inspector-panel">
+                  <div className="inspector-layer-header">
+                    <span className="inspector-layer-icon">
+                      {selectedCapa.tipo === "background" ? "🎨" : "📝"}
+                    </span>
+                    <h3>{selectedCapa.nombre}</h3>
+                  </div>
+                  <hr className="inspector-separator" />
 
-                    {/* Controles para capas de Fondo */}
-                    {selectedCapa.tipo === "background" && (
-                      <div className="inspector-section">
-                        <label className="inspector-label">Color de Relleno</label>
-                        <div className="color-picker-group">
-                          <input
-                            type="color"
-                            className="color-picker-input"
-                            value={tempCapasOverrides[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff"}
-                            onChange={(e) => {
-                              setTempCapasOverrides((prev) => ({
+                  {/* Controles para capas de Fondo */}
+                  {selectedCapa.tipo === "background" && (
+                    <div className="inspector-section">
+                      <label className="inspector-label">Color de Relleno</label>
+                      <div className="color-picker-group">
+                        <input
+                          type="color"
+                          className="color-picker-input"
+                          value={tempCapasOverridesActivos[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff"}
+                          onChange={(e) => {
+                            setTempCapasOverridesActivos((prev) => ({
+                              ...prev,
+                              [selectedCapa.id]: {
+                                ...(prev[selectedCapa.id] || {}),
+                                colorFill: e.target.value,
+                              },
+                            }));
+                          }}
+                        />
+                        <input
+                          type="text"
+                          className="color-hex-input"
+                          value={tempCapasOverridesActivos[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff"}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (/^#[0-9A-F]{6}$/i.test(val)) {
+                              setTempCapasOverridesActivos((prev) => ({
                                 ...prev,
                                 [selectedCapa.id]: {
                                   ...(prev[selectedCapa.id] || {}),
-                                  colorFill: e.target.value,
+                                  colorFill: val,
                                 },
                               }));
-                            }}
-                          />
-                          <input
-                            type="text"
-                            className="color-hex-input"
-                            value={tempCapasOverrides[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff"}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (/^#[0-9A-F]{6}$/i.test(val)) {
-                                setTempCapasOverrides((prev) => ({
-                                  ...prev,
-                                  [selectedCapa.id]: {
-                                    ...(prev[selectedCapa.id] || {}),
-                                    colorFill: val,
-                                  },
-                                }));
-                              }
-                            }}
-                          />
-                        </div>
+                            }
+                          }}
+                        />
                       </div>
-                    )}
+                    </div>
+                  )}
 
-                    {/* Controles para capas de Texto */}
-                    {selectedCapa.tipo === "text" && (
-                      <div className="inspector-section">
-                        {fieldKey ? (
-                          <>
-                            <label className="inspector-label">
-                              {campoConfig?.nombreLegible || fieldKey} (Valor Dinámico)
-                            </label>
-                            {fieldKey === "texto" ? (
-                              <textarea
-                                className="inspector-textarea"
-                                value={tempValoresCampos[fieldKey] || ""}
-                                rows={6}
-                                onChange={(e) => {
-                                  setTempValoresCampos((prev) => ({
-                                    ...prev,
-                                    [fieldKey]: e.target.value,
-                                  }));
-                                }}
-                              />
-                            ) : (
-                              <input
-                                type="text"
-                                className="inspector-input"
-                                value={tempValoresCampos[fieldKey] || ""}
-                                onChange={(e) => {
-                                  setTempValoresCampos((prev) => ({
-                                    ...prev,
-                                    [fieldKey]: e.target.value,
-                                  }));
-                                }}
-                              />
-                            )}
-                          </>
-                        ) : (
-                          <div className="inspector-notice">
-                            Esta capa de texto utiliza un contenido estático sin variables editables.
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="inspector-guide">
-                    Selecciona una capa de la lista o haz clic directamente sobre la carta para editar sus valores.
-                  </div>
-                )
+                  {/* Controles para capas de Texto */}
+                  {selectedCapa.tipo === "text" && (
+                    <div className="inspector-section">
+                      {fieldKey ? (
+                        <>
+                          <label className="inspector-label">
+                            {campoConfig?.nombreLegible || fieldKey} (Valor Dinámico)
+                          </label>
+                          {fieldKey === "texto" ? (
+                            <textarea
+                              className="inspector-textarea"
+                              value={tempValoresActivos[fieldKey] || ""}
+                              rows={6}
+                              onChange={(e) => {
+                                setTempValoresActivos((prev) => ({
+                                  ...prev,
+                                  [fieldKey]: e.target.value,
+                                }));
+                              }}
+                            />
+                          ) : (
+                            <input
+                              type="text"
+                              className="inspector-input"
+                              value={tempValoresActivos[fieldKey] || ""}
+                              onChange={(e) => {
+                                setTempValoresActivos((prev) => ({
+                                  ...prev,
+                                  [fieldKey]: e.target.value,
+                                }));
+                              }}
+                            />
+                          )}
+                        </>
+                      ) : (
+                        <div className="inspector-notice">
+                          Esta capa de texto utiliza un contenido estático sin variables editables.
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               ) : (
                 <div className="inspector-guide">
-                  El reverso no posee propiedades editables para esta carta.
+                  {(!plantillaActiva || !plantillaActiva.capas || plantillaActiva.capas.length === 0)
+                    ? (activeTab === "frontal"
+                      ? "Nada que editar"
+                      : "El reverso no posee propiedades editables para esta carta.")
+                    : "Selecciona una capa de la lista o haz clic directamente sobre la carta para editar sus valores."}
                 </div>
               )}
             </div>

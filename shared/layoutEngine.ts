@@ -34,6 +34,11 @@ export interface Carta {
   capasOverrides?: Record<string, {
     colorFill?: string;
   }>;
+  plantillaTraseraId?: string;
+  valoresCamposTrasera?: Record<string, string>;
+  capasOverridesTrasera?: Record<string, {
+    colorFill?: string;
+  }>;
 }
 
 export interface ProyectoCDC2 {

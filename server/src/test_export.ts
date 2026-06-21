@@ -39,7 +39,7 @@ async function testExport() {
       bordeCorteMm: 0.5,
       bordeCorteColor: "#ff0000"
     },
-    modoTraseras: "ninguno",
+    modoTraseras: "individual",
     imagenTraseraComun: null,
     cards: [
       {
@@ -47,11 +47,20 @@ async function testExport() {
         nombre: "Carta de Prueba 1",
         imagenFrontal: null,
         imagenTrasera: null,
-        cantidad: 2,
+        cantidad: 8,
         plantillaId: "plantilla-1",
         valoresCampos: {
           titulo: "Título de la carta de prueba",
           descripcion: "Este es el texto de la carta de prueba. Debería ser lo suficientemente largo como para envolver líneas y probar la correcta escala y solapamiento de las fuentes de texto en el PDF generado."
+        },
+        plantillaTraseraId: "plantilla-trasera-1",
+        valoresCamposTrasera: {
+          textoTrasera: "REVERSO DE PRUEBA DYNAMIC"
+        },
+        capasOverridesTrasera: {
+          "capa-bg-trasera": {
+            colorFill: "#0f172a"
+          }
         }
       }
     ],
@@ -94,6 +103,32 @@ async function testExport() {
             italic: false,
             color: "#334155",
             contenidoRaw: "{{descripcion}}"
+          }
+        ]
+      },
+      "plantilla-trasera-1": {
+        id: "plantilla-trasera-1",
+        nombre: "Plantilla Trasera de Prueba",
+        capas: [
+          {
+            id: "capa-bg-trasera",
+            tipo: "background",
+            colorFill: "#1e293b"
+          },
+          {
+            id: "capa-texto-trasera",
+            tipo: "text",
+            xMm: 5,
+            yMm: 25,
+            anchoMm: 53.5,
+            altoMm: 30,
+            fontFamily: "Arial",
+            fontSizePt: 18,
+            alineacion: "center",
+            bold: true,
+            italic: false,
+            color: "#ffffff",
+            contenidoRaw: "{{textoTrasera}}"
           }
         ]
       }

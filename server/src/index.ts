@@ -69,7 +69,7 @@ function generarHtmlImpresion(
 
   const paginasHtml: string[] = [];
 
-  const renderSlots = (slots: any[]) => {
+  const renderSlots = (slots: any[], esTrasera: boolean) => {
     return slots.map((slot: any) => {
       const width = slot.anchoMm;
       const height = slot.altoMm;
@@ -110,19 +110,22 @@ function generarHtmlImpresion(
 
       // Buscar si es una carta de plantilla
       const cardData = proyecto.cards.find((c: Carta) => c.id === slot.cartaId);
-      if (cardData && cardData.plantillaId && proyecto.templates && proyecto.templates[cardData.plantillaId]) {
-        const plantilla = proyecto.templates[cardData.plantillaId];
+      const plantillaId = esTrasera ? cardData?.plantillaTraseraId : cardData?.plantillaId;
+      if (cardData && plantillaId && proyecto.templates && proyecto.templates[plantillaId]) {
+        const plantilla = proyecto.templates[plantillaId];
         
         const layersHtml = plantilla.capas.map((capa: any) => {
           if (capa.tipo === "background") {
-            const colorFill = cardData.capasOverrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
+            const overrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
+            const colorFill = overrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
             return `
               <div style="position: absolute; left: 0px; top: 0px; width: ${imgWidth * MM_TO_PX}px; height: ${imgHeight * MM_TO_PX}px; background-color: ${colorFill}; pointer-events: none;"></div>
             `;
           }
           
           if (capa.tipo === "text") {
-            const textoInterp = renderizarTextoCapa(capa, cardData.valoresCampos);
+            const valores = esTrasera ? cardData.valoresCamposTrasera : cardData.valoresCampos;
+            const textoInterp = renderizarTextoCapa(capa, valores);
             const fontSizePt = capa.fontSizePt || 12;
             const align = capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left";
             const weight = capa.bold ? "bold" : "normal";
@@ -196,7 +199,7 @@ function generarHtmlImpresion(
     // Página frontal
     paginasHtml.push(`
       <div class="page">
-        ${renderSlots(paginasFrontales[i].slots)}
+        ${renderSlots(paginasFrontales[i].slots, false)}
         ${cutLinesHtml}
       </div>
     `);
@@ -205,7 +208,7 @@ function generarHtmlImpresion(
     if (paginasTraseras[i]) {
       paginasHtml.push(`
         <div class="page">
-          ${renderSlots(paginasTraseras[i].slots)}
+          ${renderSlots(paginasTraseras[i].slots, true)}
           ${cutLinesHtml}
         </div>
       `);
@@ -231,9 +234,6 @@ function generarHtmlImpresion(
         html, body {
           margin: 0;
           padding: 0;
-          width: ${wPx}px;
-          height: ${hPx}px;
-          overflow: hidden;
           background-color: #ffffff;
           -webkit-print-color-adjust: exact;
           print-color-adjust: exact;

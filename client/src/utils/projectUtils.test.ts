@@ -193,6 +193,51 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(cartaActualizada.valoresCampos.texto).toBe("Texto Modificado");
       expect(cartaActualizada.capasOverrides.background.colorFill).toBe("#0000ff");
     });
+
+    it("debe mantener independientes las variables y overrides del anverso y del reverso", () => {
+      const carta = {
+        id: "carta_1",
+        nombre: "Carta Test",
+        valoresCampos: { titulo: "Anverso Titulo", texto: "Anverso Texto" },
+        capasOverrides: { background: { colorFill: "#ff0000" } },
+        plantillaTraseraId: "trasera_simple",
+        valoresCamposTrasera: { titulo: "Reverso Titulo", descripcion: "Reverso Desc" },
+        capasOverridesTrasera: { background: { colorFill: "#00ff00" } }
+      };
+
+      // Modificamos solo el frontal
+      const nuevosValoresFront = { titulo: "Anverso Nuevo", texto: "Anverso Texto Mod" };
+      const nuevosOverridesFront = { background: { colorFill: "#ffffff" } };
+
+      const cartaModificadaFront = {
+        ...carta,
+        nombre: nuevosValoresFront.titulo,
+        valoresCampos: nuevosValoresFront,
+        capasOverrides: nuevosOverridesFront
+      };
+
+      // Verificar que el frontal cambió pero la trasera quedó intacta
+      expect(cartaModificadaFront.valoresCampos.titulo).toBe("Anverso Nuevo");
+      expect(cartaModificadaFront.capasOverrides.background.colorFill).toBe("#ffffff");
+      expect(cartaModificadaFront.valoresCamposTrasera?.titulo).toBe("Reverso Titulo");
+      expect(cartaModificadaFront.capasOverridesTrasera?.background?.colorFill).toBe("#00ff00");
+
+      // Modificamos solo la trasera
+      const nuevosValoresBack = { titulo: "Reverso Nuevo", descripcion: "Reverso Desc Mod" };
+      const nuevosOverridesBack = { background: { colorFill: "#000000" } };
+
+      const cartaModificadaBack = {
+        ...carta,
+        valoresCamposTrasera: nuevosValoresBack,
+        capasOverridesTrasera: nuevosOverridesBack
+      };
+
+      // Verificar que la trasera cambió pero el frontal quedó intacto
+      expect(cartaModificadaBack.valoresCamposTrasera?.titulo).toBe("Reverso Nuevo");
+      expect(cartaModificadaBack.capasOverridesTrasera?.background?.colorFill).toBe("#000000");
+      expect(cartaModificadaBack.valoresCampos?.titulo).toBe("Anverso Titulo");
+      expect(cartaModificadaBack.capasOverrides?.background?.colorFill).toBe("#ff0000");
+    });
   });
 });
 
