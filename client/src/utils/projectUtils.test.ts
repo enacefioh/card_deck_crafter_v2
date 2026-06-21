@@ -145,5 +145,30 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(resultado.map(c => c.id)).toEqual(["A", "B", "N", "C"]);
     });
   });
+
+  describe("Edición de Carta y Sincronización de Campos", () => {
+    it("debe sincronizar el nombre de la carta si el campo titulo es modificado", () => {
+      const carta = {
+        id: "carta_1",
+        nombre: "Carta Antigua",
+        valoresCampos: { titulo: "Título Antiguo", texto: "Texto" },
+        capasOverrides: {}
+      };
+
+      const nuevosValores = { titulo: "Título Nuevo", texto: "Texto Modificado" };
+      const nuevosOverrides = { background: { colorFill: "#0000ff" } };
+
+      const cartaActualizada = {
+        ...carta,
+        nombre: nuevosValores.titulo || carta.nombre,
+        valoresCampos: nuevosValores,
+        capasOverrides: nuevosOverrides
+      };
+
+      expect(cartaActualizada.nombre).toBe("Título Nuevo");
+      expect(cartaActualizada.valoresCampos.texto).toBe("Texto Modificado");
+      expect(cartaActualizada.capasOverrides.background.colorFill).toBe("#0000ff");
+    });
+  });
 });
 

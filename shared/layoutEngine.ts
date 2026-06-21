@@ -31,6 +31,9 @@ export interface Carta {
   cantidad: number;
   plantillaId?: string;
   valoresCampos?: Record<string, string>;
+  capasOverrides?: Record<string, {
+    colorFill?: string;
+  }>;
 }
 
 export interface ProyectoCDC2 {

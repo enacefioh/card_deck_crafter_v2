@@ -5,6 +5,7 @@ import JSZip from "jszip";
 import MenuBar from "./MenuBar";
 import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla } from "./utils/projectUtils";
 import DetailModal from "./DetailModal";
+import EditCardModal from "./EditCardModal";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -79,6 +80,7 @@ export default function App() {
   const [activeTemplates, setActiveTemplates] = useState<any[]>([]);
   const [templatesMap, setTemplatesMap] = useState<Record<string, any>>({});
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
 
   // --- Carga de Plantillas al inicio ---
   useEffect(() => {
@@ -597,6 +599,27 @@ export default function App() {
     }
   };
 
+  const handleSaveCardEdits = (
+    valoresCampos: Record<string, string>,
+    capasOverrides: Record<string, any>
+  ) => {
+    if (!editingCardId) return;
+    const nuevoNombre = valoresCampos.titulo || valoresCampos.nombre;
+    setCartas((prev) =>
+      prev.map((c) =>
+        c.id === editingCardId
+          ? {
+              ...c,
+              nombre: nuevoNombre || c.nombre,
+              valoresCampos,
+              capasOverrides,
+            }
+          : c
+      )
+    );
+    setEditingCardId(null);
+  };
+
   const focusLienzoConfig = () => {
     sectionLienzoRef.current?.scrollIntoView({ behavior: "smooth" });
     sectionLienzoRef.current?.classList.add("config-group-glow");
@@ -844,6 +867,11 @@ export default function App() {
         onMoverSeleccionArriba={() => handleMoverSeleccion("arriba")}
         onMoverSeleccionAbajo={() => handleMoverSeleccion("abajo")}
         onAddCardFromTemplate={() => setShowTemplateModal(true)}
+        onEditCardSelected={() => {
+          if (selectedCardIds.length === 1) {
+            setEditingCardId(selectedCardIds[0]);
+          }
+        }}
       />
       <div className="app-container">
       {/* --- PANEL DE CONTROL LATERAL --- */}
@@ -1299,6 +1327,19 @@ export default function App() {
               <button
                 type="button"
                 className="toolbar-btn"
+                onClick={() => {
+                  if (selectedCardIds.length === 1) {
+                    setEditingCardId(selectedCardIds[0]);
+                  }
+                }}
+                disabled={selectedCardIds.length !== 1}
+                title="Editar carta seleccionada"
+              >
+                ✏️
+              </button>
+              <button
+                type="button"
+                className="toolbar-btn"
                 onClick={handleDuplicarSeleccion}
                 disabled={selectedCardIds.length === 0}
                 title="Duplicar cartas seleccionadas"
@@ -1423,12 +1464,13 @@ export default function App() {
                                     };
 
                                     if (capa.tipo === "background") {
+                                      const colorFill = cardData.capasOverrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
                                       return (
                                         <div
                                           key={capa.id}
                                           style={{
                                             ...style,
-                                            backgroundColor: capa.colorFill || "#ffffff",
+                                            backgroundColor: colorFill,
                                           }}
                                         />
                                       );
@@ -1680,6 +1722,17 @@ export default function App() {
           cardConfig={cardConfig}
           onClose={() => setInspectingCardId(null)}
           templatesMap={templatesMap}
+        />
+      )}
+      {editingCardId && cartas.find((c) => c.id === editingCardId) && (
+        <EditCardModal
+          carta={cartas.find((c) => c.id === editingCardId)!}
+          cardConfig={cardConfig}
+          templatesMap={templatesMap}
+          generarReversos={generarReversos}
+          imagenTraseraComun={imagenTraseraComun}
+          onSave={handleSaveCardEdits}
+          onClose={() => setEditingCardId(null)}
         />
       )}
       {showTemplateModal && (

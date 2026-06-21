@@ -98,12 +98,13 @@ export default function DetailModal({
                           };
 
                           if (capa.tipo === "background") {
+                            const colorFill = carta.capasOverrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
                             return (
                               <div
                                 key={capa.id}
                                 style={{
                                   ...style,
-                                  backgroundColor: capa.colorFill || "#ffffff",
+                                  backgroundColor: colorFill,
                                 }}
                               />
                             );
