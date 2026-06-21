@@ -82,6 +82,35 @@ export default function App() {
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
 
+  // --- Estado de cambios sin guardar (IsDirty) ---
+  const [isDirty, setIsDirty] = useState<boolean>(false);
+  const skipNextDirtyRef = useRef<boolean>(true);
+
+  // Monitorizar cambios en estados clave para marcar como modificado
+  useEffect(() => {
+    if (skipNextDirtyRef.current) {
+      skipNextDirtyRef.current = false;
+      return;
+    }
+    setIsDirty(true);
+  }, [cartas, canvasConfig, cardConfig, generarReversos, imagenTraseraComun]);
+
+  // Alerta de confirmación al salir/recargar la página
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        const msg = "Hay cambios sin guardar en tu proyecto. ¿Seguro que deseas salir?";
+        e.preventDefault();
+        e.returnValue = msg;
+        return msg;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => {
+      window.removeEventListener("beforeunload", handleBeforeUnload);
+    };
+  }, [isDirty]);
+
   // --- Carga de Plantillas al inicio ---
   useEffect(() => {
     async function loadDefaultTemplates() {
@@ -346,6 +375,7 @@ export default function App() {
         cantidad: card.cantidad,
         plantillaId: card.plantillaId,
         valoresCampos: card.valoresCampos,
+        capasOverrides: card.capasOverrides,
       });
     }
 
@@ -425,6 +455,7 @@ export default function App() {
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
+      setIsDirty(false);
     } catch (error: any) {
       alert(`Error al guardar el proyecto: ${error.message || error}`);
     }
@@ -432,6 +463,7 @@ export default function App() {
 
   // --- Cargar Proyecto Local (.cdc2) ---
   const handleCargarProyecto = async (file: File) => {
+    skipNextDirtyRef.current = true;
     try {
       const zip = await JSZip.loadAsync(file);
       
@@ -495,6 +527,7 @@ export default function App() {
           cantidad: card.cantidad || 1,
           plantillaId: card.plantillaId,
           valoresCampos: card.valoresCampos,
+          capasOverrides: card.capasOverrides,
         });
       }
 
@@ -509,6 +542,7 @@ export default function App() {
       setCanvasType(proyecto.canvasConfig.tipo || "Custom");
       setCardPreset("custom");
 
+      setIsDirty(false);
       alert("Proyecto cargado correctamente.");
     } catch (err: any) {
       alert(`Error al cargar el proyecto: ${err.message || err}`);
@@ -560,6 +594,7 @@ export default function App() {
   // --- Nuevo Proyecto (Reset) ---
   const handleNuevoProyecto = () => {
     if (window.confirm("¿Seguro que deseas empezar un nuevo proyecto? Se borrarán todos los cambios no guardados.")) {
+      skipNextDirtyRef.current = true;
       cartas.forEach((c) => {
         if (c.imagenFrontal) URL.revokeObjectURL(c.imagenFrontal);
         if (c.imagenTrasera) URL.revokeObjectURL(c.imagenTrasera);
@@ -596,6 +631,7 @@ export default function App() {
         modoAjuste: "contain",
         reducirArteAlBorde: false,
       });
+      setIsDirty(false);
     }
   };
 
