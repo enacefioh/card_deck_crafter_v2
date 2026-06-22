@@ -1,0 +1,19 @@
+{
+  "id": "vacia",
+  "nombre": "Plantilla Vacía (Sólo Fondo)",
+  "anchoMm": 63.5,
+  "altoMm": 88.9,
+  "camposConfig": [],
+  "capas": [
+    {
+      "id": "background",
+      "nombre": "Fondo",
+      "tipo": "background",
+      "xMm": 0,
+      "yMm": 0,
+      "anchoMm": 63.5,
+      "altoMm": 88.9,
+      "colorFill": "#ffffff"
+    }
+  ]
+}

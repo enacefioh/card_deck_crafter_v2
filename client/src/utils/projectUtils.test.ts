@@ -1,5 +1,12 @@
 import { describe, it, expect } from "vitest";
-import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla } from "./projectUtils";
+import {
+  validarYParsearProyecto,
+  moverCartas,
+  duplicarCartas,
+  insertarCartaDesdePlantilla,
+  actualizarClavePlantillaYValores,
+  validarYParsearPlantilla
+} from "./projectUtils";
 
 describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
   const proyectoValido = {
@@ -239,5 +246,66 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(cartaModificadaBack.capasOverrides?.background?.colorFill).toBe("#ff0000");
     });
   });
+
+  describe("actualizarClavePlantillaYValores", () => {
+    const plantillaMock = {
+      id: "test",
+      nombre: "Plantilla Test",
+      camposConfig: [
+        { clave: "poder", nombreLegible: "poder", tipo: "text", valorDefecto: "10" }
+      ],
+      capas: [
+        { id: "capa1", tipo: "text", contenidoRaw: "{{poder}}" }
+      ]
+    };
+
+    it("debe actualizar la clave en la capa y en camposConfig, y mover el valor", () => {
+      const valores = { poder: "99" };
+      const res = actualizarClavePlantillaYValores(plantillaMock, valores, "capa1", "poder", "fuerza");
+      
+      expect(res.plantilla.capas[0].contenidoRaw).toBe("{{fuerza}}");
+      expect(res.plantilla.camposConfig[0].clave).toBe("fuerza");
+      expect(res.valoresCampos.fuerza).toBe("99");
+      expect(res.valoresCampos.poder).toBeUndefined();
+    });
+
+    it("debe conservar la clave original en camposConfig si está usada en otra capa", () => {
+      const plantillaConClaveCompartida = {
+        ...plantillaMock,
+        capas: [
+          { id: "capa1", tipo: "text", contenidoRaw: "{{poder}}" },
+          { id: "capa2", tipo: "text", contenidoRaw: "{{poder}}" }
+        ]
+      };
+      const valores = { poder: "99" };
+      const res = actualizarClavePlantillaYValores(plantillaConClaveCompartida, valores, "capa1", "poder", "fuerza");
+
+      expect(res.plantilla.capas[0].contenidoRaw).toBe("{{fuerza}}");
+      expect(res.plantilla.capas[1].contenidoRaw).toBe("{{poder}}");
+      // Se debe haber añadido "fuerza" a camposConfig, manteniendo "poder"
+      expect(res.plantilla.camposConfig.map((f: any) => f.clave)).toContain("poder");
+      expect(res.plantilla.camposConfig.map((f: any) => f.clave)).toContain("fuerza");
+      expect(res.valoresCampos.fuerza).toBe("99");
+      expect(res.valoresCampos.poder).toBe("99");
+    });
+  });
+
+  describe("validarYParsearPlantilla", () => {
+    it("debe parsear y retornar una plantilla válida", () => {
+      const data = { id: "p1", nombre: "Plantilla 1" };
+      const parsed = validarYParsearPlantilla(JSON.stringify(data));
+      expect(parsed.id).toBe("p1");
+      expect(parsed.nombre).toBe("Plantilla 1");
+    });
+
+    it("debe fallar si falta id o nombre", () => {
+      const dataSinId = { nombre: "Plantilla 1" };
+      expect(() => validarYParsearPlantilla(JSON.stringify(dataSinId))).toThrow("Falta id o nombre");
+      
+      const dataSinNombre = { id: "p1" };
+      expect(() => validarYParsearPlantilla(JSON.stringify(dataSinNombre))).toThrow("Falta id o nombre");
+    });
+  });
 });
+
 

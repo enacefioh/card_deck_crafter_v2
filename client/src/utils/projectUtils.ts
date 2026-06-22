@@ -102,3 +102,96 @@ export function insertarCartaDesdePlantilla(
   return resultado;
 }
 
+export function actualizarClavePlantillaYValores(
+  plantilla: any,
+  valoresCampos: Record<string, string>,
+  capaId: string,
+  oldClave: string | null,
+  newClave: string
+): { plantilla: any; valoresCampos: Record<string, string> } {
+  const sanitizedClave = newClave.replace(/[^a-zA-Z0-9_]/g, "").trim();
+  if (!sanitizedClave) return { plantilla, valoresCampos };
+
+  const updatedCapas = plantilla.capas.map((c: any) => {
+    if (c.id === capaId) {
+      return {
+        ...c,
+        contenidoRaw: `{{${sanitizedClave}}}`
+      };
+    }
+    return c;
+  });
+
+  let updatedCamposConfig = [...(plantilla.camposConfig || [])];
+  if (oldClave) {
+    const isClaveUsedElsewhere = updatedCapas.some((c: any) => 
+      c.id !== capaId && c.tipo === "text" && c.contenidoRaw?.includes(`{{${oldClave}}}`)
+    );
+    
+    if (!isClaveUsedElsewhere) {
+      updatedCamposConfig = updatedCamposConfig.map((f: any) => 
+        f.clave === oldClave ? { ...f, clave: sanitizedClave, nombreLegible: sanitizedClave } : f
+      );
+    } else {
+      if (!updatedCamposConfig.some((f: any) => f.clave === sanitizedClave)) {
+        updatedCamposConfig.push({
+          clave: sanitizedClave,
+          nombreLegible: sanitizedClave,
+          tipo: "text",
+          valorDefecto: "Texto de ejemplo..."
+        });
+      }
+    }
+  } else {
+    if (!updatedCamposConfig.some((f: any) => f.clave === sanitizedClave)) {
+      updatedCamposConfig.push({
+        clave: sanitizedClave,
+        nombreLegible: sanitizedClave,
+        tipo: "text",
+        valorDefecto: "Texto de ejemplo..."
+      });
+    }
+  }
+
+  const updatedValores = { ...valoresCampos };
+  if (oldClave) {
+    updatedValores[sanitizedClave] = valoresCampos[oldClave] || "";
+
+    const isClaveUsedElsewhere = updatedCapas.some((c: any) => 
+      c.id !== capaId && c.tipo === "text" && c.contenidoRaw?.includes(`{{${oldClave}}}`)
+    );
+    if (!isClaveUsedElsewhere) {
+      delete updatedValores[oldClave];
+    }
+  } else {
+    updatedValores[sanitizedClave] = "";
+  }
+
+  return {
+    plantilla: {
+      ...plantilla,
+      capas: updatedCapas,
+      camposConfig: updatedCamposConfig
+    },
+    valoresCampos: updatedValores
+  };
+}
+
+export function validarYParsearPlantilla(jsonText: string): any {
+  if (!jsonText || jsonText.trim() === "") {
+    throw new Error("El archivo de configuración JSON está vacío.");
+  }
+  let templateData: any;
+  try {
+    templateData = JSON.parse(jsonText);
+  } catch (e) {
+    throw new Error("El archivo no contiene un JSON válido.");
+  }
+  if (!templateData.id || !templateData.nombre) {
+    throw new Error("Estructura de plantilla inválida. Falta id o nombre.");
+  }
+  return templateData;
+}
+
+
+

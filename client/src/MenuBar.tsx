@@ -18,6 +18,7 @@ interface MenuBarProps {
   setMarcasCorteEsquinas: (val: boolean | ((prev: boolean) => boolean)) => void;
   onFocusLienzoConfig: () => void;
   onFocusCartaConfig: () => void;
+  onImportarPlantillaClick: () => void;
 
   // Acciones de Selección
   selectedCount: number;
@@ -51,6 +52,7 @@ export default function MenuBar({
   setMarcasCorteEsquinas,
   onFocusLienzoConfig,
   onFocusCartaConfig,
+  onImportarPlantillaClick,
   selectedCount,
   puedeMoverArriba,
   puedeMoverAbajo,
@@ -132,6 +134,9 @@ export default function MenuBar({
               </button>
               <button className="menu-item" onClick={() => handleAction(onCargarProyectoClick)}>
                 <span className="menu-item-icon">📂</span> Abrir Proyecto...
+              </button>
+              <button className="menu-item" onClick={() => handleAction(onImportarPlantillaClick)}>
+                <span className="menu-item-icon">📥</span> Importar Plantilla (.cdc2t)...
               </button>
               <button
                 className="menu-item"

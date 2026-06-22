@@ -3,7 +3,7 @@ import { calcularDistribucion } from "shared";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
-import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla } from "./utils/projectUtils";
+import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla } from "./utils/projectUtils";
 import DetailModal from "./DetailModal";
 import EditCardModal from "./EditCardModal";
 import "./App.css";
@@ -39,6 +39,7 @@ export default function App() {
   const sectionCartaRef = useRef<HTMLDivElement>(null);
   const fileInputProyectoRef = useRef<HTMLInputElement>(null);
   const fileInputImagenesRef = useRef<HTMLInputElement>(null);
+  const fileInputTemplateRef = useRef<HTMLInputElement>(null);
 
   // --- Estados de Configuración ---
   const [canvasType, setCanvasType] = useState<"A4" | "A3" | "Custom">("A4");
@@ -79,6 +80,7 @@ export default function App() {
   // --- Estados de Plantillas y Módulos (SRS-006) ---
   const [activeTemplates, setActiveTemplates] = useState<any[]>([]);
   const [templatesMap, setTemplatesMap] = useState<Record<string, any>>({});
+  const [importedTemplates, setImportedTemplates] = useState<any[]>([]);
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [templateModalMode, setTemplateModalMode] = useState<"addCard" | "assignBack">("addCard");
@@ -152,7 +154,10 @@ export default function App() {
         }
 
         setActiveTemplates(loadedTemplates);
-        setTemplatesMap(loadedTemplatesMap);
+        setTemplatesMap((prev) => ({
+          ...loadedTemplatesMap,
+          ...prev,
+        }));
       } catch (err) {
         console.error("Error al inicializar el módulo por defecto:", err);
       }
@@ -404,6 +409,12 @@ export default function App() {
       commonBackPath = await addBlobToZip(imagenTraseraComun, "trasera_comun");
     }
 
+    // Guardar las plantillas personalizadas en una carpeta "templates/" del ZIP
+    const templatesFolder = zip.folder("templates")!;
+    importedTemplates.forEach((template) => {
+      templatesFolder.file(`${template.id}.json`, JSON.stringify(template, null, 2));
+    });
+
     const proyecto = {
       version: "2.0.0",
       meta: {
@@ -416,6 +427,7 @@ export default function App() {
       modoTraseras: generarReversos ? (imagenTraseraComun ? "comun" : "individual") : "ninguno",
       imagenTraseraComun: commonBackPath,
       cards: processedCards,
+      // Conservar para compatibilidad hacia atrás
       templates: templatesMap,
     };
 
@@ -556,6 +568,40 @@ export default function App() {
 
       const nuevaTraseraComunUrl = await resolverAssetBlob(proyecto.imagenTraseraComun);
 
+      // Cargar plantillas del proyecto (desde carpeta templates/ o fallback proyecto.templates)
+      const newImported: any[] = [];
+      const loadedTemplatesMap: Record<string, any> = {};
+
+      const templateFiles = zip.filter((path) => path.startsWith("templates/") && path.endsWith(".json"));
+      if (templateFiles.length > 0) {
+        for (const tFile of templateFiles) {
+          try {
+            const content = await tFile.async("text");
+            const tData = JSON.parse(content);
+            if (tData.id && tData.nombre) {
+              newImported.push(tData);
+              loadedTemplatesMap[tData.id] = tData;
+            }
+          } catch (err) {
+            console.error("Error al cargar plantilla desde ZIP:", err);
+          }
+        }
+      } else if (proyecto.templates) {
+        // Compatibilidad hacia atrás
+        Object.entries(proyecto.templates).forEach(([id, tData]: [string, any]) => {
+          if (id !== "simple" && id !== "vacia") {
+            newImported.push(tData);
+            loadedTemplatesMap[id] = tData;
+          }
+        });
+      }
+
+      setTemplatesMap((prev) => ({
+        ...prev,
+        ...loadedTemplatesMap,
+      }));
+      setImportedTemplates(newImported);
+
       setCanvasConfigInternal(proyecto.canvasConfig);
       setCardConfigInternal(proyecto.cardConfig);
       setImagenTraseraComunInternal(nuevaTraseraComunUrl);
@@ -577,6 +623,41 @@ export default function App() {
       handleCargarProyecto(e.target.files[0]);
     }
     e.target.value = "";
+  };
+
+  const handleCargarPlantillaFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    try {
+      const zip = await JSZip.loadAsync(file);
+      const templateFile = zip.file("template.json");
+      if (!templateFile) {
+        throw new Error("El archivo no contiene un template.json válido.");
+      }
+      const templateJsonText = await templateFile.async("text");
+      const templateData = validarYParsearPlantilla(templateJsonText);
+
+      setTemplatesMap((prev) => ({
+        ...prev,
+        [templateData.id]: templateData,
+      }));
+
+      setImportedTemplates((prev) => {
+        const index = prev.findIndex((t) => t.id === templateData.id);
+        if (index !== -1) {
+          const updated = [...prev];
+          updated[index] = templateData;
+          return updated;
+        }
+        return [...prev, templateData];
+      });
+
+      alert(`Plantilla "${templateData.nombre}" importada con éxito.`);
+    } catch (err: any) {
+      alert(`Error al importar plantilla: ${err.message || err}`);
+    } finally {
+      e.target.value = "";
+    }
   };
 
   // --- Añadir Carta desde Plantilla (SRS-006) y Asignar Reverso ---
@@ -720,9 +801,48 @@ export default function App() {
     valoresCampos: Record<string, string>,
     capasOverrides: Record<string, any>,
     valoresCamposTrasera?: Record<string, string>,
-    capasOverridesTrasera?: Record<string, any>
+    capasOverridesTrasera?: Record<string, any>,
+    plantillaActualizada?: any,
+    plantillaTraseraActualizada?: any
   ) => {
     if (!editingCardId) return;
+
+    if (plantillaActualizada) {
+      setTemplatesMap((prev) => ({
+        ...prev,
+        [plantillaActualizada.id]: plantillaActualizada,
+      }));
+      if (plantillaActualizada.id !== "simple" && plantillaActualizada.id !== "vacia") {
+        setImportedTemplates((prev) => {
+          const index = prev.findIndex((t) => t.id === plantillaActualizada.id);
+          if (index !== -1) {
+            const updated = [...prev];
+            updated[index] = plantillaActualizada;
+            return updated;
+          }
+          return [...prev, plantillaActualizada];
+        });
+      }
+    }
+
+    if (plantillaTraseraActualizada) {
+      setTemplatesMap((prev) => ({
+        ...prev,
+        [plantillaTraseraActualizada.id]: plantillaTraseraActualizada,
+      }));
+      if (plantillaTraseraActualizada.id !== "simple" && plantillaTraseraActualizada.id !== "vacia") {
+        setImportedTemplates((prev) => {
+          const index = prev.findIndex((t) => t.id === plantillaTraseraActualizada.id);
+          if (index !== -1) {
+            const updated = [...prev];
+            updated[index] = plantillaTraseraActualizada;
+            return updated;
+          }
+          return [...prev, plantillaTraseraActualizada];
+        });
+      }
+    }
+
     const nuevoNombre = valoresCampos.titulo || valoresCampos.nombre;
     setCartas((prev) =>
       prev.map((c) =>
@@ -953,6 +1073,7 @@ export default function App() {
       <MenuBar
         onNuevoProyecto={handleNuevoProyecto}
         onCargarProyectoClick={() => fileInputProyectoRef.current?.click()}
+        onImportarPlantillaClick={() => fileInputTemplateRef.current?.click()}
         onGuardarProyecto={handleGuardarProyecto}
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
         onExportarPdf={handleExportarPdf}
@@ -1940,6 +2061,13 @@ export default function App() {
         onChange={handleCargarProyectoFileChange}
         style={{ display: "none" }}
       />
+      <input
+        ref={fileInputTemplateRef}
+        type="file"
+        accept=".cdc2t"
+        onChange={handleCargarPlantillaFileChange}
+        style={{ display: "none" }}
+      />
       {inspectingCardId && cartas.find((c) => c.id === inspectingCardId) && (
         <DetailModal
           carta={cartas.find((c) => c.id === inspectingCardId)!}
@@ -1960,22 +2088,39 @@ export default function App() {
           imagenTraseraComun={imagenTraseraComun}
           onSave={handleSaveCardEdits}
           onClose={() => setEditingCardId(null)}
+          onExportTemplate={(plantilla) => {
+            setTemplatesMap((prev) => ({
+              ...prev,
+              [plantilla.id]: plantilla,
+            }));
+            setImportedTemplates((prev) => {
+              const index = prev.findIndex((t) => t.id === plantilla.id);
+              if (index !== -1) {
+                const updated = [...prev];
+                updated[index] = plantilla;
+                return updated;
+              }
+              return [...prev, plantilla];
+            });
+          }}
         />
       )}
       {showTemplateModal && (
         <div className="template-modal-backdrop" onClick={() => setShowTemplateModal(false)}>
           <div className="template-modal-container" onClick={(e) => e.stopPropagation()}>
             <header className="template-modal-header">
-              <h2>Añadir Carta desde Plantilla</h2>
+              <h2>{templateModalMode === "addCard" ? "Añadir Carta desde Plantilla" : "Asignar Reverso desde Plantilla"}</h2>
               <button className="template-modal-close" onClick={() => setShowTemplateModal(false)} title="Cerrar modal">
                 ✕
               </button>
             </header>
             <div className="template-modal-body">
-              <p className="template-modal-info">Selecciona una de las plantillas disponibles del módulo activo:</p>
+              <p className="template-modal-info">Selecciona una de las plantillas disponibles:</p>
+              
+              <div className="template-modal-group-title">Plantillas por Defecto</div>
               {activeTemplates.length === 0 ? (
                 <div className="template-modal-empty">
-                  No hay plantillas cargadas. Por favor, asegúrate de que el módulo por defecto está correctamente configurado.
+                  No hay plantillas por defecto cargadas.
                 </div>
               ) : (
                 <div className="template-list">
@@ -1992,7 +2137,33 @@ export default function App() {
                           {plantilla.anchoMm} x {plantilla.altoMm} mm ({plantilla.capas?.length || 0} capas)
                         </span>
                       </div>
-                      <button className="btn-add-template">Añadir</button>
+                      <button className="btn-add-template">Seleccionar</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div className="template-modal-group-title" style={{ marginTop: "16px" }}>Plantillas Importadas</div>
+              {importedTemplates.length === 0 ? (
+                <div className="template-modal-empty">
+                  No hay plantillas importadas en esta sesión.
+                </div>
+              ) : (
+                <div className="template-list">
+                  {importedTemplates.map((plantilla) => (
+                    <div
+                      key={plantilla.id}
+                      className="template-card-item"
+                      onClick={() => handleSelectTemplate(plantilla)}
+                    >
+                      <div className="template-icon">📦</div>
+                      <div className="template-details">
+                        <span className="template-name">{plantilla.nombre}</span>
+                        <span className="template-desc">
+                          {plantilla.anchoMm} x {plantilla.altoMm} mm ({plantilla.capas?.length || 0} capas)
+                        </span>
+                      </div>
+                      <button className="btn-add-template">Seleccionar</button>
                     </div>
                   ))}
                 </div>

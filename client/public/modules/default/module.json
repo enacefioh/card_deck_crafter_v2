@@ -7,6 +7,11 @@
       "id": "simple",
       "nombre": "Plantilla Simple",
       "archivo": "templates/simple.json"
+    },
+    {
+      "id": "vacia",
+      "nombre": "Plantilla Vacía",
+      "archivo": "templates/vacia.json"
     }
   ]
 }
