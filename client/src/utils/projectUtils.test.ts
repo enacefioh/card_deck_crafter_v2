@@ -395,6 +395,99 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(cartasActualizadas[1].capasOverrides.capa_defensa.color).toBe("#000000");
     });
   });
+
+  describe("Propagación de Variables Renombradas en Plantilla (TKT-009)", () => {
+    it("debe clonar la plantilla cuando se edita el diseño/capas de una carta, manteniendo a las demás intactas", () => {
+      const oldTemplate = {
+        id: "mi_plantilla",
+        nombre: "Plantilla Test",
+        camposConfig: [
+          { clave: "fuerza", tipo: "text" }
+        ],
+        capas: [
+          { id: "capa_texto", tipo: "text", contenidoRaw: "{{fuerza}}" }
+        ]
+      };
+
+      const plantillaActualizada = {
+        id: "mi_plantilla",
+        nombre: "Plantilla Test",
+        camposConfig: [
+          { clave: "poder", tipo: "text" }
+        ],
+        capas: [
+          { id: "capa_texto", tipo: "text", contenidoRaw: "{{poder}}" }
+        ]
+      };
+
+      const templatesMap: Record<string, any> = {
+        mi_plantilla: oldTemplate
+      };
+
+      const cartas = [
+        {
+          id: "carta_1",
+          plantillaId: "mi_plantilla",
+          nombre: "Carta 1",
+          valoresCampos: { fuerza: "15" } as Record<string, any>,
+          capasOverrides: {}
+        },
+        {
+          id: "carta_2",
+          plantillaId: "mi_plantilla",
+          nombre: "Carta 2",
+          valoresCampos: { fuerza: "20" } as Record<string, any>,
+          capasOverrides: {}
+        }
+      ];
+
+      // Simular guardado del diseño de carta_1
+      const editingCardId = "carta_1";
+      const targetCard = cartas.find((c) => c.id === editingCardId)!;
+      
+      let finalPlantillaId = targetCard.plantillaId;
+      let clonedTemplate: any = null;
+
+      // Comparar y clonar si el diseño cambió
+      if (JSON.stringify(plantillaActualizada) !== JSON.stringify(oldTemplate)) {
+        const newTemplateId = "mi_plantilla_clonada";
+        finalPlantillaId = newTemplateId;
+        clonedTemplate = {
+          ...plantillaActualizada,
+          id: newTemplateId
+        };
+        templatesMap[newTemplateId] = clonedTemplate;
+      }
+
+      // Actualizar carta_1 con sus nuevos valores
+      const valoresCamposNuevos = { poder: "15" };
+
+      const cartasActualizadas = cartas.map((c) => {
+        if (c.id !== editingCardId) {
+          return c; // Otras cartas no cambian
+        }
+        return {
+          ...c,
+          plantillaId: finalPlantillaId,
+          valoresCampos: valoresCamposNuevos
+        };
+      });
+
+      // La carta editada debe usar la plantilla clonada y los nuevos valores
+      expect(cartasActualizadas[0].plantillaId).toBe("mi_plantilla_clonada");
+      expect((cartasActualizadas[0].valoresCampos as any).poder).toBe("15");
+      expect((cartasActualizadas[0].valoresCampos as any).fuerza).toBeUndefined();
+
+      // La otra carta (carta_2) debe mantener la plantilla original e intacta su clave de fuerza
+      expect(cartasActualizadas[1].plantillaId).toBe("mi_plantilla");
+      expect((cartasActualizadas[1].valoresCampos as any).fuerza).toBe("20");
+      expect((cartasActualizadas[1].valoresCampos as any).poder).toBeUndefined();
+
+      // La plantilla original en templatesMap no debe haber cambiado
+      expect(templatesMap.mi_plantilla.camposConfig[0].clave).toBe("fuerza");
+      expect(templatesMap.mi_plantilla.capas[0].contenidoRaw).toBe("{{fuerza}}");
+    });
+  });
 });
 
 

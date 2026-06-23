@@ -1,7 +1,7 @@
 # Ticket - TKT-009: Pérdida de Contenido en Otras Cartas al Renombrar Variable de Texto
 
 - **ID del Ticket**: TKT-009
-- **Estado**: ⏳ Activo
+- **Estado**: ✅ Completado
 - **Fecha de Registro**: 2026-06-23
 - **Severidad**: Alta (Pérdida de datos en UI)
 
