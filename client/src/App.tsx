@@ -1703,6 +1703,10 @@ export default function App() {
                             const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
                             handleToggleSelectCard(slot.cartaId, isMulti);
                           }}
+                          onDoubleClick={(e) => {
+                            e.stopPropagation();
+                            setEditingCardId(slot.cartaId);
+                          }}
                           style={{
                             left: `${slot.xMm * zoomFactor}px`,
                             top: `${slot.yMm * zoomFactor}px`,
@@ -1885,6 +1889,10 @@ export default function App() {
                               e.stopPropagation();
                               const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
                               handleToggleSelectCard(slot.cartaId, isMulti);
+                            }}
+                            onDoubleClick={(e) => {
+                              e.stopPropagation();
+                              setEditingCardId(slot.cartaId);
                             }}
                             style={{
                               left: `${slot.xMm * zoomFactor}px`,
