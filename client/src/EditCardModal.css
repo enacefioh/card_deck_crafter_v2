@@ -599,3 +599,50 @@ select.inspector-input option {
   color: var(--accent-primary);
   font-weight: 600;
 }
+
+/* Barra de acciones de capas - SRS-016 */
+.layer-actions-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+  justify-content: space-between;
+  width: 100%;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 12px;
+}
+
+.layer-action-btn {
+  flex: 1;
+  padding: 8px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  color: var(--text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+}
+
+.layer-action-btn:hover:not(:disabled) {
+  background-color: var(--bg-card-hover);
+  border-color: var(--text-secondary);
+}
+
+.layer-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background-color: var(--bg-app);
+}
+
+.layer-action-btn.btn-danger-action {
+  border-color: rgba(239, 68, 68, 0.2);
+  background-color: rgba(239, 68, 68, 0.05);
+}
+
+.layer-action-btn.btn-danger-action:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.4);
+}

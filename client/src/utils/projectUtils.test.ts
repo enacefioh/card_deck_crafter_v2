@@ -306,6 +306,95 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(() => validarYParsearPlantilla(JSON.stringify(dataSinNombre))).toThrow("Falta id o nombre");
     });
   });
+
+  describe("Limpieza en Cascada de Capas y Variables de Plantilla (SRS-016)", () => {
+    it("debe limpiar los overrides y variables dinámicas eliminadas de la plantilla para todas las cartas del proyecto", () => {
+      const oldTemplate = {
+        id: "mi_plantilla",
+        nombre: "Plantilla Test",
+        camposConfig: [
+          { clave: "poder", tipo: "text" },
+          { clave: "defensa", tipo: "text" }
+        ],
+        capas: [
+          { id: "capa_fondo", tipo: "background" },
+          { id: "capa_poder", tipo: "text", contenidoRaw: "{{poder}}" },
+          { id: "capa_defensa", tipo: "text", contenidoRaw: "{{defensa}}" }
+        ]
+      };
+
+      const plantillaActualizada = {
+        id: "mi_plantilla",
+        nombre: "Plantilla Test",
+        camposConfig: [
+          { clave: "poder", tipo: "text" }
+        ],
+        capas: [
+          { id: "capa_fondo", tipo: "background" },
+          { id: "capa_poder", tipo: "text", contenidoRaw: "{{poder}}" }
+        ]
+      };
+
+      const cartas = [
+        {
+          id: "carta_1",
+          plantillaId: "mi_plantilla",
+          nombre: "Carta 1",
+          valoresCampos: { poder: "5", defensa: "3" },
+          capasOverrides: { capa_fondo: { colorFill: "#ff0000" }, capa_defensa: { color: "#ffffff" } }
+        },
+        {
+          id: "carta_2",
+          plantillaId: "otra_plantilla",
+          nombre: "Carta de otra plantilla",
+          valoresCampos: { defensa: "10" },
+          capasOverrides: { capa_defensa: { color: "#000000" } }
+        }
+      ];
+
+      const newLayerIds = new Set(plantillaActualizada.capas.map((c: any) => c.id));
+      const newFieldKeys = new Set(plantillaActualizada.camposConfig.map((f: any) => f.clave));
+
+      const deletedLayerIds = oldTemplate.capas
+        .map((c: any) => c.id)
+        .filter((id: string) => !newLayerIds.has(id));
+        
+      const deletedFieldKeys = oldTemplate.camposConfig
+        .map((f: any) => f.clave)
+        .filter((clave: string) => !newFieldKeys.has(clave));
+
+      expect(deletedLayerIds).toEqual(["capa_defensa"]);
+      expect(deletedFieldKeys).toEqual(["defensa"]);
+
+      const cartasActualizadas: any[] = cartas.map((c) => {
+        const nextOverrides = { ...c.capasOverrides } as any;
+        const nextValores = { ...c.valoresCampos } as any;
+
+        if (c.plantillaId === plantillaActualizada.id) {
+          deletedLayerIds.forEach((id) => {
+            delete nextOverrides[id];
+          });
+          deletedFieldKeys.forEach((key) => {
+            delete nextValores[key];
+          });
+        }
+
+        return {
+          ...c,
+          valoresCampos: nextValores,
+          capasOverrides: nextOverrides
+        };
+      });
+
+      expect(cartasActualizadas[0].valoresCampos.poder).toBe("5");
+      expect(cartasActualizadas[0].valoresCampos.defensa).toBeUndefined();
+      expect(cartasActualizadas[0].capasOverrides.capa_fondo.colorFill).toBe("#ff0000");
+      expect(cartasActualizadas[0].capasOverrides.capa_defensa).toBeUndefined();
+
+      expect(cartasActualizadas[1].valoresCampos.defensa).toBe("10");
+      expect(cartasActualizadas[1].capasOverrides.capa_defensa.color).toBe("#000000");
+    });
+  });
 });
 
 

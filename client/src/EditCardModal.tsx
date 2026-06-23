@@ -451,6 +451,135 @@ export default function EditCardModal({
     }
   };
 
+  // --- Subir o Bajar Capa en la Jerarquía (SRS-016) ---
+  const handleMoveCapa = (capaId: string, direction: "up" | "down") => {
+    if (!plantillaActiva) return;
+    const capas = plantillaActiva.capas || [];
+    const index = capas.findIndex((c: any) => c.id === capaId);
+    if (index === -1) return;
+    const capa = capas[index];
+    if (capa.tipo === "background") return;
+
+    let targetIndex = direction === "up" ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= capas.length) return;
+    if (targetIndex === 0 && capas[0].tipo === "background") return;
+
+    const updater = (prev: any) => {
+      const nextCapas = [...prev.capas];
+      const temp = nextCapas[index];
+      nextCapas[index] = nextCapas[targetIndex];
+      nextCapas[targetIndex] = temp;
+      return {
+        ...prev,
+        capas: nextCapas
+      };
+    };
+
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+  };
+
+  // --- Duplicar Capa Seleccionada (SRS-016) ---
+  const handleDuplicateCapa = (capaId: string) => {
+    if (!plantillaActiva) return;
+    const index = plantillaActiva.capas?.findIndex((c: any) => c.id === capaId);
+    if (index === -1) return;
+    const capa = plantillaActiva.capas[index];
+    if (capa.tipo === "background") return;
+
+    const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newNombre = `${capa.nombre || (capa.tipo === "image" ? "Imagen" : "Texto")} (Copia)`;
+    
+    const duplicatedCapa = {
+      ...capa,
+      id: newId,
+      nombre: newNombre,
+    };
+
+    const updater = (prev: any) => {
+      const nextCapas = [...prev.capas];
+      nextCapas.splice(index + 1, 0, duplicatedCapa);
+      return {
+        ...prev,
+        capas: nextCapas
+      };
+    };
+
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+
+    setSelectedLayerId(newId);
+  };
+
+  // --- Eliminar Capa de la Plantilla (SRS-016) ---
+  const handleDeleteCapa = (capaId: string) => {
+    if (!plantillaActiva) return;
+    const capa = plantillaActiva.capas?.find((c: any) => c.id === capaId);
+    if (!capa || capa.tipo === "background") return;
+
+    const updater = (prev: any) => {
+      const nextCapas = prev.capas.filter((c: any) => c.id !== capaId);
+      
+      let nextCamposConfig = [...(prev.camposConfig || [])];
+      let deletedClave: string | null = null;
+      
+      if (capa.tipo === "text") {
+        const match = capa.contenidoRaw?.match(/\{\{\s*(\w+)\s*\}\}/);
+        const clave = match ? match[1] : null;
+        if (clave) {
+          const isClaveUsed = nextCapas.some((c: any) => 
+            c.tipo === "text" && c.contenidoRaw?.includes(`{{${clave}}}`)
+          );
+          if (!isClaveUsed) {
+            nextCamposConfig = nextCamposConfig.filter((f: any) => f.clave !== clave);
+            deletedClave = clave;
+          }
+        }
+      }
+
+      return {
+        ...prev,
+        capas: nextCapas,
+        camposConfig: nextCamposConfig,
+        _deletedClave: deletedClave
+      };
+    };
+
+    if (activeTab === "frontal") {
+      setTempPlantilla((prev: any) => {
+        const next = updater(prev);
+        const { [capaId]: _, ...nextOverrides } = tempCapasOverrides;
+        setTempCapasOverrides(nextOverrides);
+        if (next._deletedClave) {
+          const { [next._deletedClave]: __, ...nextValores } = tempValoresCampos;
+          setTempValoresCampos(nextValores);
+        }
+        delete next._deletedClave;
+        return next;
+      });
+    } else {
+      setTempPlantillaTrasera((prev: any) => {
+        const next = updater(prev);
+        const { [capaId]: _, ...nextOverrides } = tempCapasOverridesTrasera;
+        setTempCapasOverridesTrasera(nextOverrides);
+        if (next._deletedClave) {
+          const { [next._deletedClave]: __, ...nextValores } = tempValoresCamposTrasera;
+          setTempValoresCampos(nextValores);
+        }
+        delete next._deletedClave;
+        return next;
+      });
+    }
+
+    setSelectedLayerId(null);
+  };
+
   // --- Modificar Clave de Capa (Sincronizada con camposConfig y valores de carta) ---
   const handleUpdateCapaClave = (capaId: string, oldClave: string | null, newClave: string) => {
     const sanitizedClave = newClave.replace(/[^a-zA-Z0-9_]/g, "").trim();
@@ -601,6 +730,63 @@ export default function EditCardModal({
             {/* Acciones de Edición de Plantilla */}
             {plantillaActiva && (
               <div className="hierarchy-column-footer">
+                {/* Barra de Acciones de Capas (SRS-016) */}
+                <div className="layer-actions-toolbar">
+                  <button
+                    type="button"
+                    className="layer-action-btn"
+                    title="Subir capa en la jerarquía"
+                    disabled={
+                      !selectedLayerId ||
+                      selectedCapa?.tipo === "background" ||
+                      (() => {
+                        const idx = plantillaActiva.capas?.findIndex((c: any) => c.id === selectedLayerId);
+                        return idx === undefined || idx <= 1;
+                      })()
+                    }
+                    onClick={() => selectedLayerId && handleMoveCapa(selectedLayerId, "up")}
+                  >
+                    ⬆️
+                  </button>
+                  <button
+                    type="button"
+                    className="layer-action-btn"
+                    title="Bajar capa en la jerarquía"
+                    disabled={
+                      !selectedLayerId ||
+                      selectedCapa?.tipo === "background" ||
+                      (() => {
+                        const idx = plantillaActiva.capas?.findIndex((c: any) => c.id === selectedLayerId);
+                        return idx === undefined || idx === -1 || idx === (plantillaActiva.capas?.length - 1);
+                      })()
+                    }
+                    onClick={() => selectedLayerId && handleMoveCapa(selectedLayerId, "down")}
+                  >
+                    ⬇️
+                  </button>
+                  <button
+                    type="button"
+                    className="layer-action-btn"
+                    title="Duplicar capa seleccionada"
+                    disabled={!selectedLayerId || selectedCapa?.tipo === "background"}
+                    onClick={() => selectedLayerId && handleDuplicateCapa(selectedLayerId)}
+                  >
+                    👥
+                  </button>
+                  <button
+                    type="button"
+                    className="layer-action-btn btn-danger-action"
+                    title="Eliminar capa seleccionada"
+                    disabled={!selectedLayerId || selectedCapa?.tipo === "background"}
+                    onClick={() => {
+                      if (selectedLayerId && confirm("¿Estás seguro de que deseas eliminar esta capa de la plantilla? Esta acción no se puede deshacer y limpiará los valores de las cartas asociadas.")) {
+                        handleDeleteCapa(selectedLayerId);
+                      }
+                    }}
+                  >
+                    🗑️
+                  </button>
+                </div>
                 <button
                   type="button"
                   className="btn-add-element"

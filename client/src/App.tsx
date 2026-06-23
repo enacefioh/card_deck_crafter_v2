@@ -944,6 +944,43 @@ export default function App() {
   ) => {
     if (!editingCardId) return;
 
+    // Calcular capas y variables dinámicas eliminadas de la plantilla para cascada de limpieza (SRS-016)
+    let deletedFrontLayerIds: string[] = [];
+    let deletedFrontFieldKeys: string[] = [];
+    if (plantillaActualizada) {
+      const oldTemplate = templatesMap[plantillaActualizada.id];
+      if (oldTemplate) {
+        const newLayerIds = new Set(plantillaActualizada.capas.map((c: any) => c.id));
+        const newFieldKeys = new Set(plantillaActualizada.camposConfig?.map((f: any) => f.clave) || []);
+        
+        deletedFrontLayerIds = oldTemplate.capas
+          .map((c: any) => c.id)
+          .filter((id: string) => !newLayerIds.has(id));
+          
+        deletedFrontFieldKeys = (oldTemplate.camposConfig || [])
+          .map((f: any) => f.clave)
+          .filter((clave: string) => !newFieldKeys.has(clave));
+      }
+    }
+
+    let deletedBackLayerIds: string[] = [];
+    let deletedBackFieldKeys: string[] = [];
+    if (plantillaTraseraActualizada) {
+      const oldTemplate = templatesMap[plantillaTraseraActualizada.id];
+      if (oldTemplate) {
+        const newLayerIds = new Set(plantillaTraseraActualizada.capas.map((c: any) => c.id));
+        const newFieldKeys = new Set(plantillaTraseraActualizada.camposConfig?.map((f: any) => f.clave) || []);
+        
+        deletedBackLayerIds = oldTemplate.capas
+          .map((c: any) => c.id)
+          .filter((id: string) => !newLayerIds.has(id));
+          
+        deletedBackFieldKeys = (oldTemplate.camposConfig || [])
+          .map((f: any) => f.clave)
+          .filter((clave: string) => !newFieldKeys.has(clave));
+      }
+    }
+
     if (plantillaActualizada) {
       setTemplatesMap((prev) => ({
         ...prev,
@@ -980,20 +1017,66 @@ export default function App() {
       }
     }
 
-    const nuevoNombre = valoresCampos.titulo || valoresCampos.nombre;
     setCartas((prev) =>
-      prev.map((c) =>
-        c.id === editingCardId
-          ? {
-              ...c,
-              nombre: nuevoNombre || c.nombre,
-              valoresCampos,
-              capasOverrides,
-              valoresCamposTrasera: valoresCamposTrasera || c.valoresCamposTrasera,
-              capasOverridesTrasera: capasOverridesTrasera || c.capasOverridesTrasera,
-            }
-          : c
-      )
+      prev.map((c) => {
+        const isCurrentCard = c.id === editingCardId;
+
+        // Limpiar overrides frontales
+        const nextOverrides = isCurrentCard ? { ...capasOverrides } : { ...c.capasOverrides };
+        if (plantillaActualizada && (isCurrentCard || c.plantillaId === plantillaActualizada.id)) {
+          deletedFrontLayerIds.forEach((id) => {
+            delete nextOverrides[id];
+          });
+        }
+
+        // Limpiar valores frontales
+        const nextValores = isCurrentCard ? { ...valoresCampos } : { ...c.valoresCampos };
+        if (plantillaActualizada && (isCurrentCard || c.plantillaId === plantillaActualizada.id)) {
+          deletedFrontFieldKeys.forEach((key) => {
+            delete nextValores[key];
+          });
+        }
+
+        // Limpiar overrides traseros
+        const nextOverridesTrasera = isCurrentCard 
+          ? { ...(capasOverridesTrasera || c.capasOverridesTrasera) } 
+          : { ...c.capasOverridesTrasera };
+        if (plantillaTraseraActualizada && (isCurrentCard || c.plantillaTraseraId === plantillaTraseraActualizada.id)) {
+          deletedBackLayerIds.forEach((id) => {
+            delete nextOverridesTrasera[id];
+          });
+        }
+
+        // Limpiar valores traseros
+        const nextValoresTrasera = isCurrentCard 
+          ? { ...(valoresCamposTrasera || c.valoresCamposTrasera) } 
+          : { ...c.valoresCamposTrasera };
+        if (plantillaTraseraActualizada && (isCurrentCard || c.plantillaTraseraId === plantillaTraseraActualizada.id)) {
+          deletedBackFieldKeys.forEach((key) => {
+            delete nextValoresTrasera[key];
+          });
+        }
+
+        if (isCurrentCard) {
+          const nuevoNombre = nextValores.titulo || nextValores.nombre;
+          return {
+            ...c,
+            nombre: nuevoNombre || c.nombre,
+            valoresCampos: nextValores,
+            capasOverrides: nextOverrides,
+            valoresCamposTrasera: nextValoresTrasera,
+            capasOverridesTrasera: nextOverridesTrasera,
+          };
+        } else {
+          return {
+            ...c,
+            valoresCampos: nextValores,
+            capasOverrides: nextOverrides,
+            valoresCamposTrasera: nextValoresTrasera,
+            capasOverridesTrasera: nextOverridesTrasera,
+          };
+        }
+      })
     );
     setEditingCardId(null);
   };
