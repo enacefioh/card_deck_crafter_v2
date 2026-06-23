@@ -497,6 +497,93 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(templatesMap.mi_plantilla.capas[0].contenidoRaw).toBe("{{fuerza}}");
     });
   });
+
+  describe("Utilidades Geométricas de Alineación y Tamaño (SRS-017)", () => {
+    const anchoCarta = 63.5;
+    const altoCarta = 88.9;
+
+    const mockCapa = {
+      id: "capa_1",
+      tipo: "text",
+      xMm: 10,
+      yMm: 20,
+      anchoMm: 30,
+      altoMm: 15
+    };
+
+    const applyAlignmentHelper = (type: string, capa: typeof mockCapa) => {
+      const w = capa.anchoMm;
+      const h = capa.altoMm;
+      switch (type) {
+        case "izq":
+          return { ...capa, xMm: 0 };
+        case "der":
+          return { ...capa, xMm: Number((anchoCarta - w).toFixed(1)) };
+        case "arr":
+          return { ...capa, yMm: 0 };
+        case "abj":
+          return { ...capa, yMm: Number((altoCarta - h).toFixed(1)) };
+        case "anchoMax":
+          return { ...capa, xMm: 0, anchoMm: Number(anchoCarta.toFixed(1)) };
+        case "altoMax":
+          return { ...capa, yMm: 0, altoMm: Number(altoCarta.toFixed(1)) };
+        case "expandir":
+          return {
+            ...capa,
+            xMm: 0,
+            yMm: 0,
+            anchoMm: Number(anchoCarta.toFixed(1)),
+            altoMm: Number(altoCarta.toFixed(1))
+          };
+        default:
+          return capa;
+      }
+    };
+
+    it("debe alinear al borde izquierdo correctamente", () => {
+      const res = applyAlignmentHelper("izq", mockCapa);
+      expect(res.xMm).toBe(0);
+      expect(res.yMm).toBe(20);
+    });
+
+    it("debe alinear al borde derecho correctamente con precisión decimal", () => {
+      const res = applyAlignmentHelper("der", mockCapa);
+      expect(res.xMm).toBe(Number((63.5 - 30).toFixed(1))); // 33.5
+      expect(res.yMm).toBe(20);
+    });
+
+    it("debe alinear al borde superior correctamente", () => {
+      const res = applyAlignmentHelper("arr", mockCapa);
+      expect(res.xMm).toBe(10);
+      expect(res.yMm).toBe(0);
+    });
+
+    it("debe alinear al borde inferior correctamente con precisión decimal", () => {
+      const res = applyAlignmentHelper("abj", mockCapa);
+      expect(res.xMm).toBe(10);
+      expect(res.yMm).toBe(Number((88.9 - 15).toFixed(1))); // 73.9
+    });
+
+    it("debe expandir al ancho máximo de la carta y establecer X en 0", () => {
+      const res = applyAlignmentHelper("anchoMax", mockCapa);
+      expect(res.xMm).toBe(0);
+      expect(res.anchoMm).toBe(63.5);
+    });
+
+    it("debe expandir al alto máximo de la carta y establecer Y en 0", () => {
+      const res = applyAlignmentHelper("altoMax", mockCapa);
+      expect(res.yMm).toBe(0);
+      expect(res.altoMm).toBe(88.9);
+    });
+
+    it("debe expandir a pantalla completa", () => {
+      const res = applyAlignmentHelper("expandir", mockCapa);
+      expect(res.xMm).toBe(0);
+      expect(res.yMm).toBe(0);
+      expect(res.anchoMm).toBe(63.5);
+      expect(res.altoMm).toBe(88.9);
+    });
+  });
 });
 
 

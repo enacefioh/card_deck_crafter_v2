@@ -646,3 +646,77 @@ select.inspector-input option {
   background-color: rgba(239, 68, 68, 0.1);
   border-color: rgba(239, 68, 68, 0.4);
 }
+
+/* Utilidades de alineación e igualación geométrica (SRS-017) */
+.inspector-alignment-utilities {
+  display: flex;
+  justify-content: space-between;
+  gap: 4px;
+  background-color: var(--bg-app);
+  padding: 4px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  margin-top: 4px;
+}
+
+.alignment-utility-btn {
+  flex: 1;
+  height: 28px;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+
+.alignment-utility-btn:hover:not(:disabled) {
+  background-color: var(--bg-card-hover);
+  border-color: var(--accent-primary);
+  transform: translateY(-1px);
+}
+
+.alignment-utility-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.alignment-utility-btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+  background-color: var(--bg-app);
+  border-color: var(--border-color);
+}
+
+/* Formulario compacto para X, Y, W, H */
+.layout-form-grid-compact {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.inspector-section-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.inspector-label-compact {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+  cursor: help;
+  user-select: none;
+}
+
+.inspector-section-compact .inspector-input {
+  text-align: center;
+  padding: 6px 4px;
+  font-size: 12px;
+}

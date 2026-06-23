@@ -469,6 +469,74 @@ export default function EditCardModal({
     }
   };
 
+  // --- Aplicar Utilidades Geométricas / Alineación (SRS-017) ---
+  const handleApplyAlignment = (type: "izq" | "der" | "arr" | "abj" | "anchoMax" | "altoMax" | "expandir") => {
+    if (!selectedCapa || selectedCapa.tipo === "background") return;
+
+    // Obtener dimensiones de la carta
+    const anchoCarta = plantillaActiva.anchoMm || cardConfig.anchoMm || 63.5;
+    const altoCarta = plantillaActiva.altoMm || cardConfig.altoMm || 88.9;
+
+    // Dimensiones actuales de la capa
+    const w = selectedCapa.anchoMm || 0;
+    const h = selectedCapa.altoMm || 0;
+
+    let nextCoords: Record<string, number> = {};
+
+    switch (type) {
+      case "izq":
+        nextCoords = { xMm: 0 };
+        break;
+      case "der":
+        nextCoords = { xMm: Number((anchoCarta - w).toFixed(1)) };
+        break;
+      case "arr":
+        nextCoords = { yMm: 0 };
+        break;
+      case "abj":
+        nextCoords = { yMm: Number((altoCarta - h).toFixed(1)) };
+        break;
+      case "anchoMax":
+        nextCoords = { xMm: 0, anchoMm: Number(anchoCarta.toFixed(1)) };
+        break;
+      case "altoMax":
+        nextCoords = { yMm: 0, altoMm: Number(altoCarta.toFixed(1)) };
+        break;
+      case "expandir":
+        nextCoords = {
+          xMm: 0,
+          yMm: 0,
+          anchoMm: Number(anchoCarta.toFixed(1)),
+          altoMm: Number(altoCarta.toFixed(1))
+        };
+        break;
+      default:
+        return;
+    }
+
+    const updater = (prev: any) => {
+      const updatedCapas = prev.capas.map((c: any) => {
+        if (c.id === selectedCapa.id) {
+          return {
+            ...c,
+            ...nextCoords
+          };
+        }
+        return c;
+      });
+      return {
+        ...prev,
+        capas: updatedCapas
+      };
+    };
+
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+  };
+
   // --- Subir o Bajar Capa en la Jerarquía (SRS-016) ---
   const handleMoveCapa = (capaId: string, direction: "up" | "down") => {
     if (!plantillaActiva) return;
@@ -1350,45 +1418,118 @@ export default function EditCardModal({
                         </>
                       )}
 
-                      <div className="layout-form-grid">
-                        <div className="inspector-section">
-                          <label className="inspector-label">Posición X (mm)</label>
+                      <div className="inspector-section" style={{ marginBottom: "8px" }}>
+                        <label className="inspector-label">Alineación y Utilidades</label>
+                        <div className="inspector-alignment-utilities">
+                          <button
+                            type="button"
+                            className="alignment-utility-btn"
+                            title="Alinear al borde izquierdo (X = 0)"
+                            onClick={() => handleApplyAlignment("izq")}
+                            disabled={selectedCapa.tipo === "background"}
+                          >
+                            ⬅️
+                          </button>
+                          <button
+                            type="button"
+                            className="alignment-utility-btn"
+                            title="Ajustar al ancho total de la carta (X = 0, Ancho = 100%)"
+                            onClick={() => handleApplyAlignment("anchoMax")}
+                            disabled={selectedCapa.tipo === "background"}
+                          >
+                            ↔️
+                          </button>
+                          <button
+                            type="button"
+                            className="alignment-utility-btn"
+                            title="Alinear al borde derecho"
+                            onClick={() => handleApplyAlignment("der")}
+                            disabled={selectedCapa.tipo === "background"}
+                          >
+                            ➡️
+                          </button>
+                          <button
+                            type="button"
+                            className="alignment-utility-btn"
+                            title="Alinear al borde superior (Y = 0)"
+                            onClick={() => handleApplyAlignment("arr")}
+                            disabled={selectedCapa.tipo === "background"}
+                          >
+                            ⬆️
+                          </button>
+                          <button
+                            type="button"
+                            className="alignment-utility-btn"
+                            title="Ajustar al alto total de la carta (Y = 0, Alto = 100%)"
+                            onClick={() => handleApplyAlignment("altoMax")}
+                            disabled={selectedCapa.tipo === "background"}
+                          >
+                            ↕️
+                          </button>
+                          <button
+                            type="button"
+                            className="alignment-utility-btn"
+                            title="Alinear al borde inferior"
+                            onClick={() => handleApplyAlignment("abj")}
+                            disabled={selectedCapa.tipo === "background"}
+                          >
+                            ⬇️
+                          </button>
+                          <button
+                            type="button"
+                            className="alignment-utility-btn"
+                            title="Expandir a pantalla completa (X = 0, Y = 0, 100% de la carta)"
+                            onClick={() => handleApplyAlignment("expandir")}
+                            disabled={selectedCapa.tipo === "background"}
+                          >
+                            ⏹️
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="layout-form-grid-compact">
+                        <div className="inspector-section-compact" title="Posición X (mm)">
+                          <label className="inspector-label-compact">X</label>
                           <input
                             type="number"
                             step="0.5"
                             className="inspector-input"
                             value={selectedCapa.xMm}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "xMm", Number(e.target.value))}
+                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "xMm", Number(Number(e.target.value).toFixed(1)))}
+                            disabled={selectedCapa.tipo === "background"}
                           />
                         </div>
-                        <div className="inspector-section">
-                          <label className="inspector-label">Posición Y (mm)</label>
+                        <div className="inspector-section-compact" title="Posición Y (mm)">
+                          <label className="inspector-label-compact">Y</label>
                           <input
                             type="number"
                             step="0.5"
                             className="inspector-input"
                             value={selectedCapa.yMm}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "yMm", Number(e.target.value))}
+                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "yMm", Number(Number(e.target.value).toFixed(1)))}
+                            disabled={selectedCapa.tipo === "background"}
                           />
                         </div>
-                        <div className="inspector-section">
-                          <label className="inspector-label">Ancho (mm)</label>
+                        <div className="inspector-section-compact" title="Ancho (mm)">
+                          <label className="inspector-label-compact">W</label>
                           <input
                             type="number"
                             step="0.5"
                             className="inspector-input"
                             value={selectedCapa.anchoMm}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "anchoMm", Number(e.target.value))}
+                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "anchoMm", Number(Number(e.target.value).toFixed(1)))}
+                            disabled={selectedCapa.tipo === "background"}
                           />
                         </div>
-                        <div className="inspector-section">
-                          <label className="inspector-label">Alto (mm)</label>
+                        <div className="inspector-section-compact" title="Alto (mm)">
+                          <label className="inspector-label-compact">H</label>
                           <input
                             type="number"
                             step="0.5"
                             className="inspector-input"
                             value={selectedCapa.altoMm}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "altoMm", Number(e.target.value))}
+                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "altoMm", Number(Number(e.target.value).toFixed(1)))}
+                            disabled={selectedCapa.tipo === "background"}
                           />
                         </div>
                       </div>

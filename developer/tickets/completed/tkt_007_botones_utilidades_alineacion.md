@@ -1,7 +1,7 @@
 # Ticket - TKT-007: Botones de Utilidades de Posición y Tamaño en Editor
 
 - **ID del Ticket**: TKT-007
-- **Estado**: ⏳ Activo
+- **Estado**: 📝 Convertido en Spec (SRS-017)
 - **Fecha de Registro**: 2026-06-23
 - **Severidad**: Baja (Mejora de UX y Productividad)
 
