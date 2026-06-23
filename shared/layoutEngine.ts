@@ -41,6 +41,18 @@ export interface Carta {
     colorFill?: string;
     src?: string;
   }>;
+  plantilla?: {
+    id: string;
+    nombre: string;
+    capas: any[];
+    camposConfig: any[];
+  };
+  plantillaTrasera?: {
+    id: string;
+    nombre: string;
+    capas: any[];
+    camposConfig: any[];
+  };
 }
 
 export interface ProyectoCDC2 {

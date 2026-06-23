@@ -44,10 +44,16 @@ export default function EditCardModal({
 }: EditCardModalProps) {
   // --- Estados de Plantilla Editables Localmente ---
   const [tempPlantilla, setTempPlantilla] = useState<any>(() => {
-    return carta.plantillaId ? { ...templatesMap[carta.plantillaId] } : null;
+    if (carta.plantilla) return JSON.parse(JSON.stringify(carta.plantilla));
+    return carta.plantillaId && templatesMap[carta.plantillaId]
+      ? JSON.parse(JSON.stringify(templatesMap[carta.plantillaId]))
+      : null;
   });
   const [tempPlantillaTrasera, setTempPlantillaTrasera] = useState<any>(() => {
-    return carta.plantillaTraseraId ? { ...templatesMap[carta.plantillaTraseraId] } : null;
+    if (carta.plantillaTrasera) return JSON.parse(JSON.stringify(carta.plantillaTrasera));
+    return carta.plantillaTraseraId && templatesMap[carta.plantillaTraseraId]
+      ? JSON.parse(JSON.stringify(templatesMap[carta.plantillaTraseraId]))
+      : null;
   });
 
   // --- Estados locales temporales de valores ---

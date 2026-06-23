@@ -418,6 +418,34 @@ export default function App() {
         }
       }
 
+      let processedPlantilla = undefined;
+      if (card.plantilla) {
+        const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
+        if (clonedPlantilla.capas) {
+          for (let i = 0; i < clonedPlantilla.capas.length; i++) {
+            const capa = clonedPlantilla.capas[i];
+            if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+              capa.src = await addBlobToZip(capa.src, `card_${card.id}_template_image_${i}`);
+            }
+          }
+        }
+        processedPlantilla = clonedPlantilla;
+      }
+
+      let processedPlantillaTrasera = undefined;
+      if (card.plantillaTrasera) {
+        const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
+        if (clonedPlantillaTrasera.capas) {
+          for (let i = 0; i < clonedPlantillaTrasera.capas.length; i++) {
+            const capa = clonedPlantillaTrasera.capas[i];
+            if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+              capa.src = await addBlobToZip(capa.src, `card_${card.id}_back_template_image_${i}`);
+            }
+          }
+        }
+        processedPlantillaTrasera = clonedPlantillaTrasera;
+      }
+
       processedCards.push({
         id: card.id,
         nombre: card.nombre,
@@ -430,6 +458,8 @@ export default function App() {
         plantillaTraseraId: card.plantillaTraseraId,
         valoresCamposTrasera: card.valoresCamposTrasera,
         capasOverridesTrasera: processedOverridesTrasera,
+        plantilla: processedPlantilla,
+        plantillaTrasera: processedPlantillaTrasera,
       });
     }
 
@@ -637,6 +667,34 @@ export default function App() {
           }
         }
 
+        let processedPlantilla = undefined;
+        if (card.plantilla) {
+          const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
+          if (clonedPlantilla.capas) {
+            for (const capa of clonedPlantilla.capas) {
+              if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+                const url = await resolverAssetBlob(capa.src);
+                if (url) capa.src = url;
+              }
+            }
+          }
+          processedPlantilla = clonedPlantilla;
+        }
+
+        let processedPlantillaTrasera = undefined;
+        if (card.plantillaTrasera) {
+          const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
+          if (clonedPlantillaTrasera.capas) {
+            for (const capa of clonedPlantillaTrasera.capas) {
+              if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+                const url = await resolverAssetBlob(capa.src);
+                if (url) capa.src = url;
+              }
+            }
+          }
+          processedPlantillaTrasera = clonedPlantillaTrasera;
+        }
+
         nuevasCartas.push({
           id: card.id || `${Date.now()}-${Math.random()}`,
           nombre: card.nombre,
@@ -649,6 +707,8 @@ export default function App() {
           plantillaTraseraId: card.plantillaTraseraId,
           valoresCamposTrasera: card.valoresCamposTrasera,
           capasOverridesTrasera: processedOverridesTrasera,
+          plantilla: processedPlantilla,
+          plantillaTrasera: processedPlantillaTrasera,
         });
       }
 
@@ -807,6 +867,7 @@ export default function App() {
         imagenTrasera: null,
         plantillaId: plantilla.id,
         valoresCampos: {},
+        plantilla: JSON.parse(JSON.stringify(plantilla)),
       };
 
       if (plantilla.camposConfig) {
@@ -833,6 +894,7 @@ export default function App() {
               valoresCamposTrasera,
               capasOverridesTrasera: {},
               imagenTrasera: null,
+              plantillaTrasera: JSON.parse(JSON.stringify(plantilla)),
             };
           }
           return c;
@@ -947,26 +1009,11 @@ export default function App() {
     const targetCard = cartas.find((c) => c.id === editingCardId);
     if (!targetCard) return;
 
-    let finalPlantillaId = targetCard.plantillaId;
     let deletedFrontLayerIds: string[] = [];
     let deletedFrontFieldKeys: string[] = [];
 
     if (plantillaActualizada) {
-      const originalPlantilla = targetCard.plantillaId ? templatesMap[targetCard.plantillaId] : null;
-      // Clonamos la plantilla si ha habido cambios en el diseño/capas
-      if (JSON.stringify(plantillaActualizada) !== JSON.stringify(originalPlantilla)) {
-        const newTemplateId = `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        finalPlantillaId = newTemplateId;
-        const clonedTemplate = {
-          ...plantillaActualizada,
-          id: newTemplateId,
-        };
-        setTemplatesMap((prev) => ({
-          ...prev,
-          [newTemplateId]: clonedTemplate,
-        }));
-      }
-
+      const originalPlantilla = targetCard.plantilla;
       if (originalPlantilla) {
         const newLayerIds = new Set(plantillaActualizada.capas.map((c: any) => c.id));
         const newFieldKeys = new Set(plantillaActualizada.camposConfig?.map((f: any) => f.clave) || []);
@@ -981,25 +1028,11 @@ export default function App() {
       }
     }
 
-    let finalPlantillaTraseraId = targetCard.plantillaTraseraId;
     let deletedBackLayerIds: string[] = [];
     let deletedBackFieldKeys: string[] = [];
 
     if (plantillaTraseraActualizada) {
-      const originalPlantillaTrasera = targetCard.plantillaTraseraId ? templatesMap[targetCard.plantillaTraseraId] : null;
-      if (JSON.stringify(plantillaTraseraActualizada) !== JSON.stringify(originalPlantillaTrasera)) {
-        const newTemplateId = `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        finalPlantillaTraseraId = newTemplateId;
-        const clonedTemplate = {
-          ...plantillaTraseraActualizada,
-          id: newTemplateId,
-        };
-        setTemplatesMap((prev) => ({
-          ...prev,
-          [newTemplateId]: clonedTemplate,
-        }));
-      }
-
+      const originalPlantillaTrasera = targetCard.plantillaTrasera;
       if (originalPlantillaTrasera) {
         const newLayerIds = new Set(plantillaTraseraActualizada.capas.map((c: any) => c.id));
         const newFieldKeys = new Set(plantillaTraseraActualizada.camposConfig?.map((f: any) => f.clave) || []);
@@ -1050,10 +1083,10 @@ export default function App() {
           nombre: nuevoNombre || c.nombre,
           valoresCampos: nextValores,
           capasOverrides: nextOverrides,
-          plantillaId: finalPlantillaId,
-          plantillaTraseraId: finalPlantillaTraseraId,
           valoresCamposTrasera: nextValoresTrasera,
           capasOverridesTrasera: nextOverridesTrasera,
+          plantilla: plantillaActualizada || c.plantilla,
+          plantillaTrasera: plantillaTraseraActualizada || c.plantillaTrasera,
         };
       })
     );
@@ -1913,12 +1946,12 @@ export default function App() {
                             height: `${slot.altoMm * zoomFactor}px`,
                           }}
                         >
-                          {/* Renderizar Imagen con Sangrado */}
                           {(() => {
                             const cardData = cartas.find((c) => c.id === slot.cartaId);
-                            if (cardData?.plantillaId) {
-                              const plantilla = templatesMap[cardData.plantillaId];
-                              return plantilla ? (
+                            if (!cardData) return null;
+                            const plantilla = cardData.plantilla || (cardData.plantillaId ? templatesMap[cardData.plantillaId] : null);
+                            if (plantilla) {
+                              return (
                                 <div
                                   className="card-template-render"
                                   style={{
@@ -1979,32 +2012,16 @@ export default function App() {
                                     }
 
                                     if (capa.tipo === "image") {
-                                      const src = cardData.capasOverrides?.[capa.id]?.src !== undefined
-                                        ? cardData.capasOverrides[capa.id]?.src
-                                        : capa.src;
-                                      
-                                      const showPlaceholder = !src;
-
+                                      const overrideSrc = cardData.capasOverrides?.[capa.id]?.src;
+                                      const activeSrc = overrideSrc || capa.src;
                                       return (
                                         <div
                                           key={capa.id}
-                                          style={{
-                                            ...style,
-                                            display: "flex",
-                                            alignItems: "center",
-                                            justifyContent: "center",
-                                            overflow: "hidden",
-                                            backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
-                                            border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
-                                          }}
+                                          style={style}
                                         >
-                                          {showPlaceholder ? (
-                                            <span style={{ fontSize: `${Math.min(capa.anchoMm, capa.altoMm) * 0.4 * zoomFactor}px`, userSelect: "none" }}>
-                                              🖼️
-                                            </span>
-                                          ) : (
+                                          {activeSrc && (
                                             <img
-                                              src={src}
+                                              src={activeSrc}
                                               alt={capa.nombre}
                                               style={{
                                                 width: "100%",
@@ -2019,10 +2036,6 @@ export default function App() {
 
                                     return null;
                                   })}
-                                </div>
-                              ) : (
-                                <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#ffebee", color: "#c62828", fontSize: "12px" }}>
-                                  Cargando plantilla...
                                 </div>
                               );
                             } else {
@@ -2142,9 +2155,10 @@ export default function App() {
                              {/* Renderizar Imagen con Sangrado */}
                              {(() => {
                                const cardData = cartas.find((c) => c.id === slot.cartaId);
-                               if (cardData?.plantillaTraseraId) {
-                                 const plantilla = templatesMap[cardData.plantillaTraseraId];
-                                 return plantilla ? (
+                               if (!cardData) return null;
+                               const plantilla = cardData.plantillaTrasera || (cardData.plantillaTraseraId ? templatesMap[cardData.plantillaTraseraId] : null);
+                               if (plantilla) {
+                                 return (
                                    <div
                                      className="card-template-render"
                                      style={{
@@ -2181,32 +2195,16 @@ export default function App() {
                                        }
 
                                        if (capa.tipo === "image") {
-                                         const src = cardData.capasOverridesTrasera?.[capa.id]?.src !== undefined
-                                           ? cardData.capasOverridesTrasera[capa.id]?.src
-                                           : capa.src;
-                                         
-                                         const showPlaceholder = !src;
-
+                                         const overrideSrc = cardData.capasOverridesTrasera?.[capa.id]?.src;
+                                         const activeSrc = overrideSrc || capa.src;
                                          return (
                                            <div
                                              key={capa.id}
-                                             style={{
-                                               ...style,
-                                               display: "flex",
-                                               alignItems: "center",
-                                               justifyContent: "center",
-                                               overflow: "hidden",
-                                               backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
-                                               border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
-                                             }}
+                                             style={style}
                                            >
-                                             {showPlaceholder ? (
-                                               <span style={{ fontSize: `${Math.min(capa.anchoMm, capa.altoMm) * 0.4 * zoomFactor}px`, userSelect: "none" }}>
-                                                 🖼️
-                                               </span>
-                                             ) : (
+                                             {activeSrc && (
                                                <img
-                                                 src={src}
+                                                 src={activeSrc}
                                                  alt={capa.nombre}
                                                  style={{
                                                    width: "100%",
@@ -2245,10 +2243,6 @@ export default function App() {
 
                                        return null;
                                      })}
-                                   </div>
-                                 ) : (
-                                   <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "#ffebee", color: "#c62828", fontSize: "12px" }}>
-                                     Cargando plantilla...
                                    </div>
                                  );
                                } else {

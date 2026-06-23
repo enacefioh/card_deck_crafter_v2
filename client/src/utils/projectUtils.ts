@@ -71,7 +71,9 @@ export function duplicarCartas(cartas: any[], selectedIds: string[]): any[] {
       const copia = {
         ...carta,
         id: `${carta.id}_copia_${Math.random().toString(36).substring(2, 9)}`,
-        nombre: `${carta.nombre} (Copia)`
+        nombre: `${carta.nombre} (Copia)`,
+        plantilla: carta.plantilla ? JSON.parse(JSON.stringify(carta.plantilla)) : undefined,
+        plantillaTrasera: carta.plantillaTrasera ? JSON.parse(JSON.stringify(carta.plantillaTrasera)) : undefined
       };
       resultado.push(copia);
     }

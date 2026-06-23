@@ -150,6 +150,28 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(resultado[4].nombre).toBe("Carta C (Copia)");
       expect(resultado[5].id).toBe("D");
     });
+
+    it("debe clonar profundamente las propiedades plantilla y plantillaTrasera", () => {
+      const cartasConPlantilla = [
+        {
+          id: "A",
+          nombre: "Carta A",
+          plantilla: { id: "p1", nombre: "P1", capas: [{ id: "l1", tipo: "text" }] },
+          plantillaTrasera: { id: "p2", nombre: "P2", capas: [] }
+        }
+      ];
+      const resultado = duplicarCartas(cartasConPlantilla, ["A"]);
+      expect(resultado.length).toBe(2);
+      
+      const copia = resultado[1];
+      expect(copia.plantilla).toBeDefined();
+      expect(copia.plantilla).toEqual(cartasConPlantilla[0].plantilla);
+      expect(copia.plantilla).not.toBe(cartasConPlantilla[0].plantilla); // Referencia distinta
+
+      expect(copia.plantillaTrasera).toBeDefined();
+      expect(copia.plantillaTrasera).toEqual(cartasConPlantilla[0].plantillaTrasera);
+      expect(copia.plantillaTrasera).not.toBe(cartasConPlantilla[0].plantillaTrasera); // Referencia distinta
+    });
   });
 
   describe("insertarCartaDesdePlantilla", () => {
