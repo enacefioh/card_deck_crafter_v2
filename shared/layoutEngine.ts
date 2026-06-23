@@ -33,11 +33,13 @@ export interface Carta {
   valoresCampos?: Record<string, string>;
   capasOverrides?: Record<string, {
     colorFill?: string;
+    src?: string;
   }>;
   plantillaTraseraId?: string;
   valoresCamposTrasera?: Record<string, string>;
   capasOverridesTrasera?: Record<string, {
     colorFill?: string;
+    src?: string;
   }>;
 }
 

@@ -110,6 +110,45 @@ export default function DetailModal({
                             );
                           }
 
+                          if (capa.tipo === "image") {
+                            const src = carta.capasOverrides?.[capa.id]?.src !== undefined
+                              ? carta.capasOverrides[capa.id]?.src
+                              : capa.src;
+                            
+                            const showPlaceholder = !src;
+
+                            return (
+                              <div
+                                key={capa.id}
+                                style={{
+                                  ...style,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  overflow: "hidden",
+                                  backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
+                                  border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
+                                }}
+                              >
+                                {showPlaceholder ? (
+                                  <span style={{ fontSize: `${Math.min(capa.anchoMm, capa.altoMm) * 0.4 * 2.5}px`, userSelect: "none" }}>
+                                    🖼️
+                                  </span>
+                                ) : (
+                                  <img
+                                    src={src}
+                                    alt={capa.nombre}
+                                    style={{
+                                      width: "100%",
+                                      height: "100%",
+                                      objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
+                                    }}
+                                  />
+                                )}
+                              </div>
+                            );
+                          }
+
                           if (capa.tipo === "text") {
                             const textoInterp = renderizarTextoCapa(capa, carta.valoresCampos);
                             const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * 2.5;

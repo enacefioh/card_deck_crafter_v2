@@ -74,7 +74,7 @@ export default function EditCardModal({
 
   // Popup de añadir elementos
   const [showAddElementPopup, setShowAddElementPopup] = useState<boolean>(false);
-  const [selectedNewType, setSelectedNewType] = useState<"single" | "multi">("single");
+  const [selectedNewType, setSelectedNewType] = useState<"single" | "multi" | "image">("single");
 
   // Resolver estructuras activas según la pestaña activa
   const plantillaActiva = activeTab === "frontal" ? tempPlantilla : tempPlantillaTrasera;
@@ -113,6 +113,11 @@ export default function EditCardModal({
       if ((tempColor || "") !== (originalColor || "")) {
         return true;
       }
+      const tempSrc = tempCapasOverrides[capa.id]?.src;
+      const originalSrc = originalOverrides[capa.id]?.src;
+      if ((tempSrc || "") !== (originalSrc || "")) {
+        return true;
+      }
     }
 
     // Trasera
@@ -131,6 +136,11 @@ export default function EditCardModal({
       const tempColor = tempCapasOverridesTrasera[capa.id]?.colorFill;
       const originalColor = originalOverridesTrasera[capa.id]?.colorFill;
       if ((tempColor || "") !== (originalColor || "")) {
+        return true;
+      }
+      const tempSrc = tempCapasOverridesTrasera[capa.id]?.src;
+      const originalSrc = originalOverridesTrasera[capa.id]?.src;
+      if ((tempSrc || "") !== (originalSrc || "")) {
         return true;
       }
     }
@@ -239,34 +249,53 @@ export default function EditCardModal({
     if (!plantillaActiva) return;
 
     const isMultiline = selectedNewType === "multi";
+    const isImage = selectedNewType === "image";
     const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newClave = `campo_${Date.now().toString().slice(-4)}`;
-    const newNombre = isMultiline ? "Texto Multilínea" : "Texto de una Línea";
 
-    const newLayer = {
-      id: newId,
-      nombre: newNombre,
-      visible: true,
-      tipo: "text" as const,
-      xMm: Math.round((cardConfig.anchoMm * 0.05) * 10) / 10,
-      yMm: Math.round((cardConfig.altoMm * 0.45) * 10) / 10,
-      anchoMm: Math.round((cardConfig.anchoMm * 0.9) * 10) / 10,
-      altoMm: isMultiline ? Math.round((cardConfig.altoMm * 0.3) * 10) / 10 : 8,
-      fontFamily: "sans-serif",
-      fontSizePt: isMultiline ? 10 : 12,
-      color: "#000000",
-      alineacion: "center" as const,
-      bold: false,
-      italic: false,
-      contenidoRaw: `{{${newClave}}}`
-    };
+    let newLayer: any;
+    if (isImage) {
+      const size = Math.round((cardConfig.anchoMm * 0.3) * 10) / 10;
+      newLayer = {
+        id: newId,
+        nombre: "Nueva Imagen",
+        visible: true,
+        tipo: "image" as const,
+        xMm: Math.round(((cardConfig.anchoMm - size) / 2) * 10) / 10,
+        yMm: Math.round(((cardConfig.altoMm - size) / 2) * 10) / 10,
+        anchoMm: size,
+        altoMm: size,
+        src: "",
+        modoAjuste: "cover" as const,
+        tinteColor: null,
+      };
+    } else {
+      const newNombre = isMultiline ? "Texto Multilínea" : "Texto de una Línea";
+      newLayer = {
+        id: newId,
+        nombre: newNombre,
+        visible: true,
+        tipo: "text" as const,
+        xMm: Math.round((cardConfig.anchoMm * 0.05) * 10) / 10,
+        yMm: Math.round((cardConfig.altoMm * 0.45) * 10) / 10,
+        anchoMm: Math.round((cardConfig.anchoMm * 0.9) * 10) / 10,
+        altoMm: isMultiline ? Math.round((cardConfig.altoMm * 0.3) * 10) / 10 : 8,
+        fontFamily: "sans-serif",
+        fontSizePt: isMultiline ? 10 : 12,
+        color: "#000000",
+        alineacion: "center" as const,
+        bold: false,
+        italic: false,
+        contenidoRaw: `{{${newClave}}}`
+      };
+    }
 
-    const newCampo = {
+    const newCampo = !isImage ? {
       clave: newClave,
-      nombreLegible: newNombre,
+      nombreLegible: isMultiline ? "Texto Multilínea" : "Texto de una Línea",
       tipo: "text" as const,
       valorDefecto: isMultiline ? "Texto multilínea de ejemplo..." : "Texto de ejemplo..."
-    };
+    } : null;
 
     const updater = (prev: any) => {
       const updatedCapas = [...prev.capas];
@@ -280,8 +309,8 @@ export default function EditCardModal({
         updatedCapas.push(newLayer);
       }
 
-      // Registrar variable
-      if (!updatedCamposConfig.some((f) => f.clave === newClave)) {
+      // Registrar variable si es de texto
+      if (newCampo && !updatedCamposConfig.some((f) => f.clave === newClave)) {
         updatedCamposConfig.push(newCampo);
       }
 
@@ -294,20 +323,24 @@ export default function EditCardModal({
 
     if (activeTab === "frontal") {
       setTempPlantilla(updater);
-      setTempValoresCampos((prev) => ({
-        ...prev,
-        [newClave]: newCampo.valorDefecto
-      }));
+      if (newCampo) {
+        setTempValoresCampos((prev) => ({
+          ...prev,
+          [newClave]: newCampo.valorDefecto
+        }));
+      }
     } else {
       setTempPlantillaTrasera(updater);
-      setTempValoresCamposTrasera((prev) => ({
-        ...prev,
-        [newClave]: newCampo.valorDefecto
-      }));
+      if (newCampo) {
+        setTempValoresCamposTrasera((prev) => ({
+          ...prev,
+          [newClave]: newCampo.valorDefecto
+        }));
+      }
     }
 
     setSelectedLayerId(newId);
-    setInspectorTab("diseño");
+    setInspectorTab(isImage ? "contenido" : "diseño");
     setShowAddElementPopup(false);
   };
 
@@ -332,7 +365,46 @@ export default function EditCardModal({
 
     try {
       const zip = new JSZip();
-      zip.file("template.json", JSON.stringify(updatedTemplate, null, 2));
+      const assetsFolder = zip.folder("assets")!;
+      const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
+
+      // Clonar capas para no mutar el estado local
+      const zipCapas = await Promise.all(
+        updatedTemplate.capas.map(async (capa: any) => {
+          if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+            if (imagenMap.has(capa.src)) {
+              return { ...capa, src: imagenMap.get(capa.src)! };
+            }
+            try {
+              const res = await fetch(capa.src);
+              const blob = await res.blob();
+              
+              let extension = "png";
+              if (blob.type === "image/jpeg") extension = "jpg";
+              else if (blob.type === "image/webp") extension = "webp";
+              else if (blob.type === "image/gif") extension = "gif";
+              
+              const filename = `template_image_${imagenMap.size}.${extension}`;
+              assetsFolder.file(filename, blob);
+              
+              const assetPath = `asset://${filename}`;
+              imagenMap.set(capa.src, assetPath);
+              return { ...capa, src: assetPath };
+            } catch (err) {
+              console.error("Error al empaquetar imagen de plantilla:", capa.src, err);
+              return capa;
+            }
+          }
+          return capa;
+        })
+      );
+
+      const templateToSave = {
+        ...updatedTemplate,
+        capas: zipCapas,
+      };
+
+      zip.file("template.json", JSON.stringify(templateToSave, null, 2));
       const zipBlob = await zip.generateAsync({ type: "blob" });
 
       const downloadUrl = URL.createObjectURL(zipBlob);
@@ -497,6 +569,9 @@ export default function EditCardModal({
                         title = fieldConfig?.nombreLegible || key;
                       }
                       subtitle = capa.altoMm > 15 ? "Texto multilínea" : "Texto de una línea";
+                    } else if (capa.tipo === "image") {
+                      title = capa.nombre || "Imagen";
+                      subtitle = "Capa de Imagen";
                     }
 
                     return (
@@ -510,7 +585,7 @@ export default function EditCardModal({
                         onMouseLeave={() => setHoveredLayerId(null)}
                       >
                         <span className="hierarchy-icon">
-                          {capa.tipo === "background" ? "🎨" : "📝"}
+                          {capa.tipo === "background" ? "🎨" : capa.tipo === "image" ? "🖼️" : "📝"}
                         </span>
                         <div className="hierarchy-text-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                           <span className="hierarchy-label" style={{ fontWeight: 600, fontSize: "13px" }}>{title}</span>
@@ -639,6 +714,49 @@ export default function EditCardModal({
                       );
                     }
 
+                    if (capa.tipo === "image") {
+                      const src = tempCapasOverridesActivos[capa.id]?.src !== undefined
+                        ? tempCapasOverridesActivos[capa.id]?.src
+                        : capa.src;
+                      
+                      const showPlaceholder = !src;
+
+                      return (
+                        <div
+                          key={capa.id}
+                          style={{
+                            ...layerStyle,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            overflow: "hidden",
+                            backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
+                            border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
+                          }}
+                          onClick={() => setSelectedLayerId(capa.id)}
+                          onMouseEnter={() => setHoveredLayerId(capa.id)}
+                          onMouseLeave={() => setHoveredLayerId(null)}
+                        >
+                          {showPlaceholder ? (
+                            <span style={{ fontSize: `${Math.min(capa.anchoMm, capa.altoMm) * 0.4 * scale}px`, userSelect: "none" }}>
+                              🖼️
+                            </span>
+                          ) : (
+                            <img
+                              src={src}
+                              alt={capa.nombre}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
+                                pointerEvents: "none",
+                              }}
+                            />
+                          )}
+                        </div>
+                      );
+                    }
+
                     return null;
                   })
                 ) : activeTab === "trasera" && traseraUrl ? (
@@ -669,14 +787,14 @@ export default function EditCardModal({
                 <div className="inspector-panel">
                   <div className="inspector-layer-header">
                     <span className="inspector-layer-icon">
-                      {selectedCapa.tipo === "background" ? "🎨" : "📝"}
+                      {selectedCapa.tipo === "background" ? "🎨" : selectedCapa.tipo === "image" ? "🖼️" : "📝"}
                     </span>
                     <h3>{selectedCapa.nombre}</h3>
                   </div>
                   <hr className="inspector-separator" />
 
-                  {/* Sub-pestañas si es capa de texto */}
-                  {selectedCapa.tipo === "text" && (
+                  {/* Sub-pestañas si es capa de texto o imagen */}
+                  {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image") && (
                     <div className="inspector-tabs">
                       <button
                         type="button"
@@ -696,7 +814,7 @@ export default function EditCardModal({
                   )}
 
                   {/* CONTENIDO TAB */}
-                  {inspectorTab === "contenido" || selectedCapa.tipo !== "text" ? (
+                  {inspectorTab === "contenido" || (selectedCapa.tipo !== "text" && selectedCapa.tipo !== "image") ? (
                     <>
                       {/* Controles para capas de Fondo */}
                       {selectedCapa.tipo === "background" && (
@@ -779,20 +897,212 @@ export default function EditCardModal({
                           )}
                         </div>
                       )}
+
+                      {/* Controles para capas de Imagen en Contenido (Override por Carta) */}
+                      {selectedCapa.tipo === "image" && (
+                        <div className="inspector-section">
+                          <label className="inspector-label">Imagen de esta Carta (Anulación)</label>
+                          
+                          {tempCapasOverridesActivos[selectedCapa.id]?.src ? (
+                            <div className="image-override-preview-container">
+                              <img
+                                src={tempCapasOverridesActivos[selectedCapa.id].src}
+                                alt="Vista previa de anulación"
+                                className="inspector-image-preview"
+                                style={{
+                                  width: "100%",
+                                  maxHeight: "150px",
+                                  objectFit: "contain",
+                                  borderRadius: "6px",
+                                  backgroundColor: "#f1f5f9",
+                                  border: "1px solid #cbd5e1",
+                                  marginBottom: "8px",
+                                }}
+                              />
+                              <button
+                                type="button"
+                                className="btn-danger-sec"
+                                style={{ width: "100%" }}
+                                onClick={() => {
+                                  setTempCapasOverridesActivos((prev) => {
+                                    const next = { ...prev };
+                                    if (next[selectedCapa.id]) {
+                                      const { src, ...rest } = next[selectedCapa.id];
+                                      if (Object.keys(rest).length === 0) {
+                                        delete next[selectedCapa.id];
+                                      } else {
+                                        next[selectedCapa.id] = rest;
+                                      }
+                                    }
+                                    return next;
+                                  });
+                                }}
+                              >
+                                Quitar Anulación (Heredar plantilla)
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="image-upload-dropzone">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                id={`file-override-${selectedCapa.id}`}
+                                style={{ display: "none" }}
+                                onChange={(e) => {
+                                  if (e.target.files && e.target.files[0]) {
+                                    const file = e.target.files[0];
+                                    if (!file.type.startsWith("image/")) {
+                                      alert("Por favor, selecciona un archivo de imagen válido.");
+                                      return;
+                                    }
+                                    const url = URL.createObjectURL(file);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        src: url,
+                                      },
+                                    }));
+                                  }
+                                }}
+                              />
+                              <label
+                                htmlFor={`file-override-${selectedCapa.id}`}
+                                className="dropzone-label"
+                                style={{
+                                  display: "flex",
+                                  flexDirection: "column",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                  padding: "20px",
+                                  border: "2px dashed #cbd5e1",
+                                  borderRadius: "6px",
+                                  cursor: "pointer",
+                                  backgroundColor: "#f8fafc",
+                                  textAlign: "center",
+                                }}
+                              >
+                                <span style={{ fontSize: "24px" }}>📤</span>
+                                <span style={{ fontSize: "12px", marginTop: "8px", fontWeight: 500 }}>
+                                  Subir imagen para esta carta
+                                </span>
+                              </label>
+                              {selectedCapa.src ? (
+                                <p style={{ fontSize: "11px", color: "#64748b", marginTop: "6px", textAlign: "center" }}>
+                                  Heredando imagen por defecto de la plantilla
+                                </p>
+                              ) : (
+                                <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "6px", textAlign: "center" }}>
+                                  Sin imagen cargada
+                                </p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </>
                   ) : (
-                    /* DISEÑO TAB (Solo para capas de texto) */
+                    /* DISEÑO TAB */
                     <div className="inspector-panel" style={{ gap: "12px" }}>
-                      <div className="inspector-section">
-                        <label className="inspector-label">Nombre de Variable (Clave)</label>
-                        <input
-                          type="text"
-                          className="inspector-input"
-                          value={fieldKey || ""}
-                          placeholder="ej. titulo"
-                          onChange={(e) => handleUpdateCapaClave(selectedCapa.id, fieldKey, e.target.value)}
-                        />
-                      </div>
+                      {selectedCapa.tipo === "text" && (
+                        <div className="inspector-section">
+                          <label className="inspector-label">Nombre de Variable (Clave)</label>
+                          <input
+                            type="text"
+                            className="inspector-input"
+                            value={fieldKey || ""}
+                            placeholder="ej. titulo"
+                            onChange={(e) => handleUpdateCapaClave(selectedCapa.id, fieldKey, e.target.value)}
+                          />
+                        </div>
+                      )}
+
+                      {selectedCapa.tipo === "image" && (
+                        <>
+                          <div className="inspector-section">
+                            <label className="inspector-label">Imagen por Defecto (Plantilla)</label>
+                            {selectedCapa.src ? (
+                              <div className="image-template-preview-container">
+                                <img
+                                  src={selectedCapa.src}
+                                  alt="Imagen plantilla"
+                                  style={{
+                                    width: "100%",
+                                    maxHeight: "150px",
+                                    objectFit: "contain",
+                                    borderRadius: "6px",
+                                    backgroundColor: "#f1f5f9",
+                                    border: "1px solid #cbd5e1",
+                                    marginBottom: "8px",
+                                  }}
+                                />
+                                <button
+                                  type="button"
+                                  className="btn-danger-sec"
+                                  style={{ width: "100%" }}
+                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "src", "")}
+                                >
+                                  Quitar Imagen
+                                </button>
+                              </div>
+                            ) : (
+                              <div className="image-upload-dropzone">
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  id={`file-template-${selectedCapa.id}`}
+                                  style={{ display: "none" }}
+                                  onChange={(e) => {
+                                    if (e.target.files && e.target.files[0]) {
+                                      const file = e.target.files[0];
+                                      if (!file.type.startsWith("image/")) {
+                                        alert("Por favor, selecciona un archivo de imagen válido.");
+                                        return;
+                                      }
+                                      const url = URL.createObjectURL(file);
+                                      handleUpdateCapaProp(selectedCapa.id, "src", url);
+                                    }
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`file-template-${selectedCapa.id}`}
+                                  className="dropzone-label"
+                                  style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    padding: "20px",
+                                    border: "2px dashed #cbd5e1",
+                                    borderRadius: "6px",
+                                    cursor: "pointer",
+                                    backgroundColor: "#f8fafc",
+                                    textAlign: "center",
+                                  }}
+                                >
+                                  <span style={{ fontSize: "24px" }}>📤</span>
+                                  <span style={{ fontSize: "12px", marginTop: "8px", fontWeight: 500 }}>
+                                    Subir imagen por defecto
+                                  </span>
+                                </label>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="inspector-section">
+                            <label className="inspector-label">Modo de Ajuste</label>
+                            <select
+                              className="inspector-input"
+                              value={selectedCapa.modoAjuste || "cover"}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "modoAjuste", e.target.value)}
+                            >
+                              <option value="cover">Cover (Rellenar)</option>
+                              <option value="contain">Contain (Contener)</option>
+                              <option value="stretch">Stretch (Estirar)</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
 
                       <div className="layout-form-grid">
                         <div className="inspector-section">
@@ -837,100 +1147,104 @@ export default function EditCardModal({
                         </div>
                       </div>
 
-                      <div className="inspector-section">
-                        <label className="inspector-label">Tipografía (Familia)</label>
-                        <select
-                          className="inspector-input"
-                          value={selectedCapa.fontFamily || "sans-serif"}
-                          onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "fontFamily", e.target.value)}
-                        >
-                          <option value="sans-serif">Inter (Sans Serif)</option>
-                          <option value="Outfit">Outfit</option>
-                          <option value="Arial">Arial</option>
-                          <option value="Times New Roman">Times New Roman</option>
-                          <option value="Courier New">Courier New (Monospace)</option>
-                        </select>
-                      </div>
-
-                      <div className="layout-form-grid">
-                        <div className="inspector-section">
-                          <label className="inspector-label">Tamaño Fuente (pt)</label>
-                          <input
-                            type="number"
-                            step="1"
-                            min="4"
-                            className="inspector-input"
-                            value={selectedCapa.fontSizePt || 12}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "fontSizePt", Number(e.target.value))}
-                          />
-                        </div>
-                        <div className="inspector-section">
-                          <label className="inspector-label">Color de Texto</label>
-                          <input
-                            type="color"
-                            className="color-picker-input"
-                            style={{ width: "100%", height: "38px" }}
-                            value={selectedCapa.color || "#000000"}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "color", e.target.value)}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="inspector-section">
-                        <label className="inspector-label">Estilos y Alineación</label>
-                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                          <div className="style-toggle-buttons">
-                            <button
-                              type="button"
-                              className={`style-btn ${selectedCapa.bold ? "active" : ""}`}
-                              onClick={() => handleUpdateCapaProp(selectedCapa.id, "bold", !selectedCapa.bold)}
+                      {selectedCapa.tipo === "text" && (
+                        <>
+                          <div className="inspector-section">
+                            <label className="inspector-label">Tipografía (Familia)</label>
+                            <select
+                              className="inspector-input"
+                              value={selectedCapa.fontFamily || "sans-serif"}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "fontFamily", e.target.value)}
                             >
-                              Negrita (B)
-                            </button>
-                            <button
-                              type="button"
-                              className={`style-btn ${selectedCapa.italic ? "active" : ""}`}
-                              onClick={() => handleUpdateCapaProp(selectedCapa.id, "italic", !selectedCapa.italic)}
-                            >
-                              Cursiva (I)
-                            </button>
+                              <option value="sans-serif">Inter (Sans Serif)</option>
+                              <option value="Outfit">Outfit</option>
+                              <option value="Arial">Arial</option>
+                              <option value="Times New Roman">Times New Roman</option>
+                              <option value="Courier New">Courier New (Monospace)</option>
+                            </select>
                           </div>
-                          <div className="alignment-group">
-                            <button
-                              type="button"
-                              className={`align-btn ${selectedCapa.alineacion === "left" ? "active" : ""}`}
-                              onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "left")}
-                              title="Alinear Izquierda"
-                            >
-                              ⬅️
-                            </button>
-                            <button
-                              type="button"
-                              className={`align-btn ${selectedCapa.alineacion === "center" ? "active" : ""}`}
-                              onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "center")}
-                              title="Alinear Centro"
-                            >
-                              ↔️
-                            </button>
-                            <button
-                              type="button"
-                              className={`align-btn ${selectedCapa.alineacion === "right" ? "active" : ""}`}
-                              onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "right")}
-                              title="Alinear Derecha"
-                            >
-                              ➡️
-                            </button>
-                            <button
-                              type="button"
-                              className={`align-btn ${selectedCapa.alineacion === "justify" ? "active" : ""}`}
-                              onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "justify")}
-                              title="Justificado"
-                            >
-                              ↕️
-                            </button>
+
+                          <div className="layout-form-grid">
+                            <div className="inspector-section">
+                              <label className="inspector-label">Tamaño Fuente (pt)</label>
+                              <input
+                                type="number"
+                                step="1"
+                                min="4"
+                                className="inspector-input"
+                                value={selectedCapa.fontSizePt || 12}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "fontSizePt", Number(e.target.value))}
+                              />
+                            </div>
+                            <div className="inspector-section">
+                              <label className="inspector-label">Color de Texto</label>
+                              <input
+                                type="color"
+                                className="color-picker-input"
+                                style={{ width: "100%", height: "38px" }}
+                                value={selectedCapa.color || "#000000"}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "color", e.target.value)}
+                              />
+                            </div>
                           </div>
-                        </div>
-                      </div>
+
+                          <div className="inspector-section">
+                            <label className="inspector-label">Estilos y Alineación</label>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                              <div className="style-toggle-buttons">
+                                <button
+                                  type="button"
+                                  className={`style-btn ${selectedCapa.bold ? "active" : ""}`}
+                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "bold", !selectedCapa.bold)}
+                                >
+                                  Negrita (B)
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`style-btn ${selectedCapa.italic ? "active" : ""}`}
+                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "italic", !selectedCapa.italic)}
+                                >
+                                  Cursiva (I)
+                                </button>
+                              </div>
+                              <div className="alignment-group">
+                                <button
+                                  type="button"
+                                  className={`align-btn ${selectedCapa.alineacion === "left" ? "active" : ""}`}
+                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "left")}
+                                  title="Alinear Izquierda"
+                                >
+                                  ⬅️
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`align-btn ${selectedCapa.alineacion === "center" ? "active" : ""}`}
+                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "center")}
+                                  title="Alinear Centro"
+                                >
+                                  ↔️
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`align-btn ${selectedCapa.alineacion === "right" ? "active" : ""}`}
+                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "right")}
+                                  title="Alinear Derecha"
+                                >
+                                  ➡️
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`align-btn ${selectedCapa.alineacion === "justify" ? "active" : ""}`}
+                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "justify")}
+                                  title="Justificado"
+                                >
+                                  ↕️
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -949,11 +1263,11 @@ export default function EditCardModal({
         </div>
       </div>
 
-      {/* Popup / Overlay para añadir elementos de texto */}
+      {/* Popup / Overlay para añadir elementos */}
       {showAddElementPopup && (
         <div className="add-element-popup-backdrop" onClick={() => setShowAddElementPopup(false)}>
           <div className="add-element-popup-container" onClick={(e) => e.stopPropagation()}>
-            <h4 className="add-element-popup-title">Añadir Elemento de Texto</h4>
+            <h4 className="add-element-popup-title">Añadir Elemento</h4>
             
             <div className="add-element-options">
               <div
@@ -969,6 +1283,13 @@ export default function EditCardModal({
               >
                 <span className="add-element-option-icon">📄</span>
                 <span className="add-element-option-label">Texto multilínea</span>
+              </div>
+              <div
+                className={`add-element-option ${selectedNewType === "image" ? "selected" : ""}`}
+                onClick={() => setSelectedNewType("image")}
+              >
+                <span className="add-element-option-icon">🖼️</span>
+                <span className="add-element-option-label">Imagen</span>
               </div>
             </div>
 

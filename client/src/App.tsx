@@ -389,6 +389,35 @@ export default function App() {
       if (card.imagenTrasera) {
         imagenTraseraPath = await addBlobToZip(card.imagenTrasera, "trasera");
       }
+
+      // Procesar overrides frontal
+      const processedOverrides: Record<string, any> = {};
+      if (card.capasOverrides) {
+        for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
+          if (overrideVal && typeof overrideVal === "object") {
+            const nextOverride = { ...overrideVal };
+            if (nextOverride.src && nextOverride.src.startsWith("blob:")) {
+              nextOverride.src = await addBlobToZip(nextOverride.src, `override_${capaId}`);
+            }
+            processedOverrides[capaId] = nextOverride;
+          }
+        }
+      }
+
+      // Procesar overrides trasera
+      const processedOverridesTrasera: Record<string, any> = {};
+      if (card.capasOverridesTrasera) {
+        for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
+          if (overrideVal && typeof overrideVal === "object") {
+            const nextOverride = { ...overrideVal };
+            if (nextOverride.src && nextOverride.src.startsWith("blob:")) {
+              nextOverride.src = await addBlobToZip(nextOverride.src, `override_trasera_${capaId}`);
+            }
+            processedOverridesTrasera[capaId] = nextOverride;
+          }
+        }
+      }
+
       processedCards.push({
         id: card.id,
         nombre: card.nombre,
@@ -397,10 +426,10 @@ export default function App() {
         cantidad: card.cantidad,
         plantillaId: card.plantillaId,
         valoresCampos: card.valoresCampos,
-        capasOverrides: card.capasOverrides,
+        capasOverrides: processedOverrides,
         plantillaTraseraId: card.plantillaTraseraId,
         valoresCamposTrasera: card.valoresCamposTrasera,
-        capasOverridesTrasera: card.capasOverridesTrasera,
+        capasOverridesTrasera: processedOverridesTrasera,
       });
     }
 
@@ -411,9 +440,38 @@ export default function App() {
 
     // Guardar las plantillas personalizadas en una carpeta "templates/" del ZIP
     const templatesFolder = zip.folder("templates")!;
-    importedTemplates.forEach((template) => {
-      templatesFolder.file(`${template.id}.json`, JSON.stringify(template, null, 2));
-    });
+    const processedTemplatesMap: Record<string, any> = {};
+    const processedImportedTemplates: any[] = [];
+
+    for (const template of importedTemplates) {
+      const clonedTemplate = JSON.parse(JSON.stringify(template));
+      if (clonedTemplate.capas) {
+        for (let i = 0; i < clonedTemplate.capas.length; i++) {
+          const capa = clonedTemplate.capas[i];
+          if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+            capa.src = await addBlobToZip(capa.src, `template_${template.id}_image_${i}`);
+          }
+        }
+      }
+      templatesFolder.file(`${template.id}.json`, JSON.stringify(clonedTemplate, null, 2));
+      processedImportedTemplates.push(clonedTemplate);
+      processedTemplatesMap[template.id] = clonedTemplate;
+    }
+
+    // Procesar cualquier otra plantilla en templatesMap que no esté en importedTemplates (p.ej. por defecto)
+    for (const [id, template] of Object.entries(templatesMap)) {
+      if (processedTemplatesMap[id]) continue;
+      const clonedTemplate = JSON.parse(JSON.stringify(template));
+      if (clonedTemplate.capas) {
+        for (let i = 0; i < clonedTemplate.capas.length; i++) {
+          const capa = clonedTemplate.capas[i];
+          if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+            capa.src = await addBlobToZip(capa.src, `template_${id}_image_${i}`);
+          }
+        }
+      }
+      processedTemplatesMap[id] = clonedTemplate;
+    }
 
     const proyecto = {
       version: "2.0.0",
@@ -427,8 +485,7 @@ export default function App() {
       modoTraseras: generarReversos ? (imagenTraseraComun ? "comun" : "individual") : "ninguno",
       imagenTraseraComun: commonBackPath,
       cards: processedCards,
-      // Conservar para compatibilidad hacia atrás
-      templates: templatesMap,
+      templates: processedTemplatesMap,
     };
 
     zip.file("project.json", JSON.stringify(proyecto, null, 2));
@@ -551,6 +608,35 @@ export default function App() {
 
         const traseraUrl = await resolverAssetBlob(card.imagenTrasera);
 
+        // Resolver overrides
+        const processedOverrides: Record<string, any> = {};
+        if (card.capasOverrides) {
+          for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
+            if (overrideVal && typeof overrideVal === "object") {
+              const nextOverride: any = { ...overrideVal };
+              if (nextOverride.src && nextOverride.src.startsWith("asset://")) {
+                const url = await resolverAssetBlob(nextOverride.src);
+                if (url) nextOverride.src = url;
+              }
+              processedOverrides[capaId] = nextOverride;
+            }
+          }
+        }
+
+        const processedOverridesTrasera: Record<string, any> = {};
+        if (card.capasOverridesTrasera) {
+          for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
+            if (overrideVal && typeof overrideVal === "object") {
+              const nextOverride: any = { ...overrideVal };
+              if (nextOverride.src && nextOverride.src.startsWith("asset://")) {
+                const url = await resolverAssetBlob(nextOverride.src);
+                if (url) nextOverride.src = url;
+              }
+              processedOverridesTrasera[capaId] = nextOverride;
+            }
+          }
+        }
+
         nuevasCartas.push({
           id: card.id || `${Date.now()}-${Math.random()}`,
           nombre: card.nombre,
@@ -559,10 +645,10 @@ export default function App() {
           cantidad: card.cantidad || 1,
           plantillaId: card.plantillaId,
           valoresCampos: card.valoresCampos,
-          capasOverrides: card.capasOverrides,
+          capasOverrides: processedOverrides,
           plantillaTraseraId: card.plantillaTraseraId,
           valoresCamposTrasera: card.valoresCamposTrasera,
-          capasOverridesTrasera: card.capasOverridesTrasera,
+          capasOverridesTrasera: processedOverridesTrasera,
         });
       }
 
@@ -579,6 +665,15 @@ export default function App() {
             const content = await tFile.async("text");
             const tData = JSON.parse(content);
             if (tData.id && tData.nombre) {
+              // Resolver assets de la plantilla
+              if (tData.capas) {
+                for (const capa of tData.capas) {
+                  if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+                    const url = await resolverAssetBlob(capa.src);
+                    if (url) capa.src = url;
+                  }
+                }
+              }
               newImported.push(tData);
               loadedTemplatesMap[tData.id] = tData;
             }
@@ -588,12 +683,22 @@ export default function App() {
         }
       } else if (proyecto.templates) {
         // Compatibilidad hacia atrás
-        Object.entries(proyecto.templates).forEach(([id, tData]: [string, any]) => {
-          if (id !== "simple" && id !== "vacia") {
+        for (const [id, template] of Object.entries(proyecto.templates)) {
+          const tData = JSON.parse(JSON.stringify(template));
+          if (id !== "simple" && id !== "vacia" && tData.id && tData.nombre) {
+            // Resolver assets de la plantilla
+            if (tData.capas) {
+              for (const capa of tData.capas) {
+                if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+                  const url = await resolverAssetBlob(capa.src);
+                  if (url) capa.src = url;
+                }
+              }
+            }
             newImported.push(tData);
             loadedTemplatesMap[id] = tData;
           }
-        });
+        }
       }
 
       setTemplatesMap((prev) => ({
@@ -636,6 +741,38 @@ export default function App() {
       }
       const templateJsonText = await templateFile.async("text");
       const templateData = validarYParsearPlantilla(templateJsonText);
+
+      // Resolver assets de la plantilla
+      const cacheBlobUrls = new Map<string, string>();
+      const resolverAssetBlob = async (assetPath: string | null): Promise<string | null> => {
+        if (!assetPath) return null;
+        if (!assetPath.startsWith("asset://")) return assetPath;
+        if (cacheBlobUrls.has(assetPath)) {
+          return cacheBlobUrls.get(assetPath)!;
+        }
+        const filename = assetPath.replace("asset://", "");
+        const zipImgFile = zip.file(`assets/${filename}`);
+        if (!zipImgFile) {
+          console.error(`No se encontró el asset ${filename} en el ZIP`);
+          return null;
+        }
+        const blob = await zipImgFile.async("blob");
+        const objectUrl = URL.createObjectURL(blob);
+        cacheBlobUrls.set(assetPath, objectUrl);
+        return objectUrl;
+      };
+
+      if (templateData.capas) {
+        for (let i = 0; i < templateData.capas.length; i++) {
+          const capa = templateData.capas[i];
+          if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+            const objectUrl = await resolverAssetBlob(capa.src);
+            if (objectUrl) {
+              capa.src = objectUrl;
+            }
+          }
+        }
+      }
 
       setTemplatesMap((prev) => ({
         ...prev,
@@ -1779,6 +1916,45 @@ export default function App() {
                                       );
                                     }
 
+                                    if (capa.tipo === "image") {
+                                      const src = cardData.capasOverrides?.[capa.id]?.src !== undefined
+                                        ? cardData.capasOverrides[capa.id]?.src
+                                        : capa.src;
+                                      
+                                      const showPlaceholder = !src;
+
+                                      return (
+                                        <div
+                                          key={capa.id}
+                                          style={{
+                                            ...style,
+                                            display: "flex",
+                                            alignItems: "center",
+                                            justifyContent: "center",
+                                            overflow: "hidden",
+                                            backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
+                                            border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
+                                          }}
+                                        >
+                                          {showPlaceholder ? (
+                                            <span style={{ fontSize: `${Math.min(capa.anchoMm, capa.altoMm) * 0.4 * zoomFactor}px`, userSelect: "none" }}>
+                                              🖼️
+                                            </span>
+                                          ) : (
+                                            <img
+                                              src={src}
+                                              alt={capa.nombre}
+                                              style={{
+                                                width: "100%",
+                                                height: "100%",
+                                                objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
+                                              }}
+                                            />
+                                          )}
+                                        </div>
+                                      );
+                                    }
+
                                     return null;
                                   })}
                                 </div>
@@ -1939,6 +2115,45 @@ export default function App() {
                                                backgroundColor: colorFill,
                                              }}
                                            />
+                                         );
+                                       }
+
+                                       if (capa.tipo === "image") {
+                                         const src = cardData.capasOverridesTrasera?.[capa.id]?.src !== undefined
+                                           ? cardData.capasOverridesTrasera[capa.id]?.src
+                                           : capa.src;
+                                         
+                                         const showPlaceholder = !src;
+
+                                         return (
+                                           <div
+                                             key={capa.id}
+                                             style={{
+                                               ...style,
+                                               display: "flex",
+                                               alignItems: "center",
+                                               justifyContent: "center",
+                                               overflow: "hidden",
+                                               backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
+                                               border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
+                                             }}
+                                           >
+                                             {showPlaceholder ? (
+                                               <span style={{ fontSize: `${Math.min(capa.anchoMm, capa.altoMm) * 0.4 * zoomFactor}px`, userSelect: "none" }}>
+                                                 🖼️
+                                               </span>
+                                             ) : (
+                                               <img
+                                                 src={src}
+                                                 alt={capa.nombre}
+                                                 style={{
+                                                   width: "100%",
+                                                   height: "100%",
+                                                   objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
+                                                 }}
+                                               />
+                                             )}
+                                           </div>
                                          );
                                        }
 

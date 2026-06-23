@@ -139,6 +139,31 @@ function generarHtmlImpresion(
             const fontSizePx = fontSizePt * 0.352778 * MM_TO_PX;
             return `<div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${capa.anchoMm * MM_TO_PX}px; height: ${capa.altoMm * MM_TO_PX}px; font-family: ${capa.fontFamily === 'sans-serif' || !capa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : capa.fontFamily}; font-size: ${fontSizePx}px; color: ${capa.color || '#000000'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; padding: 2px; pointer-events: none;">${textoInterp}</div>`;
           }
+
+          if (capa.tipo === "image") {
+            const overrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
+            const rawSrc = overrides?.[capa.id]?.src !== undefined ? overrides[capa.id]?.src : capa.src;
+            const imgPath = resolverAssetPath(rawSrc);
+            
+            const xPos = capa.xMm - imgLeft;
+            const yPos = capa.yMm - imgTop;
+            
+            if (imgPath) {
+              const objectFit = capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover");
+              return `
+                <div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${capa.anchoMm * MM_TO_PX}px; height: ${capa.altoMm * MM_TO_PX}px; overflow: hidden; pointer-events: none;">
+                  <img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block;" />
+                </div>
+              `;
+            } else {
+              const emojiSize = Math.min(capa.anchoMm, capa.altoMm) * 0.4 * MM_TO_PX;
+              return `
+                <div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${capa.anchoMm * MM_TO_PX}px; height: ${capa.altoMm * MM_TO_PX}px; background-color: #e2e8f0; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none; box-sizing: border-box;">
+                  <span style="font-size: ${emojiSize}px; line-height: 1; font-family: sans-serif;">🖼️</span>
+                </div>
+              `;
+            }
+          }
           
           return "";
         }).join("\n");
