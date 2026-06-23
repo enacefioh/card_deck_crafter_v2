@@ -60,9 +60,8 @@ function generarHtmlImpresion(
     if (!src) return "";
     if (src.startsWith("asset://")) {
       const filename = src.replace("asset://", "");
-      const physicalPath = path.join(tempDir, "assets", filename).replace(/\\/g, "/");
-      const prefix = physicalPath.startsWith("/") ? "file://" : "file:///";
-      return `${prefix}${physicalPath}`;
+      const absPath = path.join(tempDir, "assets", filename);
+      return `file:///${absPath.replace(/\\/g, "/")}`;
     }
     return src;
   };
@@ -182,11 +181,14 @@ function generarHtmlImpresion(
       // Si no es plantilla, renderizar imagen normal
       const imgPath = resolverAssetPath(slot.imagenSrc);
       const fitMode = cardConfig.modoAjuste || "cover";
-      const bgImgStyle = imgPath ? `background-image: url('${imgPath}'); background-size: ${fitMode}; background-repeat: no-repeat; background-position: center;` : "";
+      const objectFit = fitMode === "cover" ? "cover" : "contain";
+      const imgHtml = imgPath ? `<img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block;" />` : "";
 
       return `
         <div class="card-slot" style="left: ${x * MM_TO_PX}px; top: ${y * MM_TO_PX}px; width: ${width * MM_TO_PX}px; height: ${height * MM_TO_PX}px;">
-          <div class="card-image-render" style="left: ${imgLeft * MM_TO_PX}px; top: ${imgTop * MM_TO_PX}px; width: ${imgWidth * MM_TO_PX}px; height: ${imgHeight * MM_TO_PX}px; ${bgImgStyle}"></div>
+          <div class="card-image-render" style="left: ${imgLeft * MM_TO_PX}px; top: ${imgTop * MM_TO_PX}px; width: ${imgWidth * MM_TO_PX}px; height: ${imgHeight * MM_TO_PX}px; overflow: hidden;">
+            ${imgHtml}
+          </div>
           ${borderHtml}
           ${marksHtml}
         </div>
@@ -391,11 +393,23 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
         "--disable-setuid-sandbox",
         "--allow-file-access-from-files",
         "--enable-local-file-accesses",
+        "--disable-web-security",
         "--force-device-scale-factor=1"
       ]
     });
     
     const page = await browser.newPage();
+    
+    // Registrar logs y errores de Puppeteer para depuración en terminal
+    page.on("console", (msg) => {
+      console.log(`[PUPPETEER CONSOLE] [${msg.type()}] ${msg.text()}`);
+    });
+    page.on("pageerror", (err) => {
+      console.error(`[PUPPETEER PAGE ERROR] ${err.toString()}`);
+    });
+    page.on("requestfailed", (req) => {
+      console.error(`[PUPPETEER REQUEST FAILED] ${req.url()} - ${req.failure()?.errorText || ""}`);
+    });
     
     // Configurar viewport exacto para evitar reajustes de Chromium basados en viewport por defecto
     const MM_TO_PX = 3.779527559;
@@ -409,6 +423,23 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
     
     // Cargar el HTML local
     await page.goto(fileUrl, { waitUntil: "networkidle0" });
+
+    // Esperar a que todas las imágenes en la página se carguen completamente (crucial para recursos locales file://)
+    await page.evaluate(async () => {
+      const images = Array.from(document.querySelectorAll("img"));
+      await Promise.all(
+        images.map((img) => {
+          if (img.complete) return Promise.resolve();
+          return new Promise((resolve) => {
+            img.addEventListener("load", resolve);
+            img.addEventListener("error", resolve);
+          });
+        })
+      );
+    });
+
+    // Pequeño retardo de 500ms para garantizar el renderizado final
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     // Guardar una captura de pantalla para depuración de alineación visual en el navegador headless
     await page.screenshot({

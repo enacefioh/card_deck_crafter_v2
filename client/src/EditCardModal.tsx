@@ -969,6 +969,25 @@ export default function EditCardModal({
                               <label
                                 htmlFor={`file-override-${selectedCapa.id}`}
                                 className="dropzone-label"
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={(e) => {
+                                  e.preventDefault();
+                                  if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                    const file = e.dataTransfer.files[0];
+                                    if (!file.type.startsWith("image/")) {
+                                      alert("Por favor, selecciona un archivo de imagen válido.");
+                                      return;
+                                    }
+                                    const url = URL.createObjectURL(file);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        src: url,
+                                      },
+                                    }));
+                                  }
+                                }}
                                 style={{
                                   display: "flex",
                                   flexDirection: "column",
@@ -1020,6 +1039,16 @@ export default function EditCardModal({
                       {selectedCapa.tipo === "image" && (
                         <>
                           <div className="inspector-section">
+                            <label className="inspector-label">Nombre de Variable / Capa</label>
+                            <input
+                              type="text"
+                              className="inspector-input"
+                              value={selectedCapa.nombre || ""}
+                              placeholder="ej. Ilustración"
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
+                            />
+                          </div>
+                          <div className="inspector-section">
                             <label className="inspector-label">Imagen por Defecto (Plantilla)</label>
                             {selectedCapa.src ? (
                               <div className="image-template-preview-container">
@@ -1067,6 +1096,19 @@ export default function EditCardModal({
                                 <label
                                   htmlFor={`file-template-${selectedCapa.id}`}
                                   className="dropzone-label"
+                                  onDragOver={(e) => e.preventDefault()}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                      const file = e.dataTransfer.files[0];
+                                      if (!file.type.startsWith("image/")) {
+                                        alert("Por favor, selecciona un archivo de imagen válido.");
+                                        return;
+                                      }
+                                      const url = URL.createObjectURL(file);
+                                      handleUpdateCapaProp(selectedCapa.id, "src", url);
+                                    }
+                                  }}
                                   style={{
                                     display: "flex",
                                     flexDirection: "column",
