@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { CardConfig, Carta } from "shared";
 import JSZip from "jszip";
-import { actualizarClavePlantillaYValores } from "./utils/projectUtils";
+import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion } from "./utils/projectUtils";
 import "./EditCardModal.css";
 
 interface EditCardModalProps {
@@ -75,6 +75,22 @@ export default function EditCardModal({
   // Popup de añadir elementos
   const [showAddElementPopup, setShowAddElementPopup] = useState<boolean>(false);
   const [selectedNewType, setSelectedNewType] = useState<"single" | "multi" | "image">("single");
+
+  // Estado del menú desplegable de opciones de plantilla
+  const [showDropdown, setShowDropdown] = useState<boolean>(false);
+
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (showDropdown && !target.closest(".template-actions-group")) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("click", handleOutsideClick);
+    return () => {
+      document.removeEventListener("click", handleOutsideClick);
+    };
+  }, [showDropdown]);
 
   // Resolver estructuras activas según la pestaña activa
   const plantillaActiva = activeTab === "frontal" ? tempPlantilla : tempPlantillaTrasera;
@@ -344,103 +360,96 @@ export default function EditCardModal({
     setShowAddElementPopup(false);
   };
 
-  // --- Exportar Plantilla (.cdc2t) ---
-  const handleExportTemplate = async () => {
+  // --- Guardar y Exportar Plantilla ---
+  const ejecutarExportacion = async (guardarEnProyecto: boolean, descargarArchivo: boolean) => {
     if (!plantillaActiva) return;
 
     const name = window.prompt("Nombre de la plantilla:", plantillaActiva.nombre || "Mi Plantilla");
     if (!name) return;
 
-    const isBuiltIn = plantillaActiva.id === "vacia" || plantillaActiva.id === "simple";
-    const newId = isBuiltIn 
-      ? `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
-      : plantillaActiva.id;
+    const valoresActivos = activeTab === "frontal" ? tempValoresCampos : tempValoresCamposTrasera;
+    const updatedTemplate = prepararPlantillaParaExportacion(plantillaActiva, name, valoresActivos);
 
-    // Actualizar camposConfig con los valores actuales en la carta como valores por defecto (TKT-010)
-    const updatedCamposConfig = (plantillaActiva.camposConfig || []).map((campo: any) => {
-      const currentVal = activeTab === "frontal"
-        ? tempValoresCampos[campo.clave]
-        : tempValoresCamposTrasera[campo.clave];
-      return {
-        ...campo,
-        valorDefecto: currentVal !== undefined ? currentVal : (campo.valorDefecto || "")
-      };
-    });
-
-    const updatedTemplate = {
-      ...plantillaActiva,
-      id: newId,
-      nombre: name,
-      camposConfig: updatedCamposConfig
-    };
-
-    // Actualizar estado local
-    if (activeTab === "frontal") {
-      setTempPlantilla(updatedTemplate);
-    } else {
-      setTempPlantillaTrasera(updatedTemplate);
+    if (guardarEnProyecto) {
+      if (activeTab === "frontal") {
+        setTempPlantilla(updatedTemplate);
+      } else {
+        setTempPlantillaTrasera(updatedTemplate);
+      }
     }
 
     try {
-      const zip = new JSZip();
-      const assetsFolder = zip.folder("assets")!;
-      const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
+      let zipBlob: Blob | null = null;
+      let finalTemplate = updatedTemplate;
 
-      // Clonar capas para no mutar el estado local
-      const zipCapas = await Promise.all(
-        updatedTemplate.capas.map(async (capa: any) => {
-          if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
-            if (imagenMap.has(capa.src)) {
-              return { ...capa, src: imagenMap.get(capa.src)! };
+      if (descargarArchivo) {
+        const zip = new JSZip();
+        const assetsFolder = zip.folder("assets")!;
+        const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
+
+        const zipCapas = await Promise.all(
+          updatedTemplate.capas.map(async (capa: any) => {
+            if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+              if (imagenMap.has(capa.src)) {
+                return { ...capa, src: imagenMap.get(capa.src)! };
+              }
+              try {
+                const res = await fetch(capa.src);
+                const blob = await res.blob();
+                
+                let extension = "png";
+                if (blob.type === "image/jpeg") extension = "jpg";
+                else if (blob.type === "image/webp") extension = "webp";
+                else if (blob.type === "image/gif") extension = "gif";
+                
+                const filename = `template_image_${imagenMap.size}.${extension}`;
+                assetsFolder.file(filename, blob);
+                
+                const assetPath = `asset://${filename}`;
+                imagenMap.set(capa.src, assetPath);
+                return { ...capa, src: assetPath };
+              } catch (err) {
+                console.error("Error al empaquetar imagen de plantilla:", capa.src, err);
+                return capa;
+              }
             }
-            try {
-              const res = await fetch(capa.src);
-              const blob = await res.blob();
-              
-              let extension = "png";
-              if (blob.type === "image/jpeg") extension = "jpg";
-              else if (blob.type === "image/webp") extension = "webp";
-              else if (blob.type === "image/gif") extension = "gif";
-              
-              const filename = `template_image_${imagenMap.size}.${extension}`;
-              assetsFolder.file(filename, blob);
-              
-              const assetPath = `asset://${filename}`;
-              imagenMap.set(capa.src, assetPath);
-              return { ...capa, src: assetPath };
-            } catch (err) {
-              console.error("Error al empaquetar imagen de plantilla:", capa.src, err);
-              return capa;
-            }
-          }
-          return capa;
-        })
-      );
+            return capa;
+          })
+        );
 
-      const templateToSave = {
-        ...updatedTemplate,
-        capas: zipCapas,
-      };
+        finalTemplate = {
+          ...updatedTemplate,
+          capas: zipCapas,
+        };
 
-      zip.file("template.json", JSON.stringify(templateToSave, null, 2));
-      const zipBlob = await zip.generateAsync({ type: "blob" });
+        zip.file("template.json", JSON.stringify(finalTemplate, null, 2));
+        zipBlob = await zip.generateAsync({ type: "blob" });
+      }
 
-      const downloadUrl = URL.createObjectURL(zipBlob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `${name.replace(/\s+/g, "_").toLowerCase()}.cdc2t`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(downloadUrl);
+      if (descargarArchivo && zipBlob) {
+        const downloadUrl = URL.createObjectURL(zipBlob);
+        const link = document.createElement("a");
+        link.href = downloadUrl;
+        link.download = `${name.replace(/\s+/g, "_").toLowerCase()}.cdc2t`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(downloadUrl);
+      }
 
-      alert(`Plantilla "${name}" exportada con éxito como archivo .cdc2t.`);
-
-      if (onExportTemplate) {
+      if (guardarEnProyecto && onExportTemplate) {
         onExportTemplate(updatedTemplate);
       }
+
+      if (guardarEnProyecto && descargarArchivo) {
+        alert(`Plantilla "${name}" guardada en el proyecto y exportada con éxito como archivo .cdc2t.`);
+      } else if (guardarEnProyecto) {
+        alert(`Plantilla "${name}" guardada en el proyecto.`);
+      } else if (descargarArchivo) {
+        alert(`Plantilla "${name}" exportada con éxito como archivo .cdc2t.`);
+      }
     } catch (err: any) {
-      alert(`Error al exportar plantilla: ${err.message || err}`);
+      alert(`Error al procesar la plantilla: ${err.message || err}`);
     }
   };
 
@@ -883,13 +892,49 @@ export default function EditCardModal({
                 >
                   <span>➕</span> Añadir Elemento
                 </button>
-                <button
-                  type="button"
-                  className="btn-export-template"
-                  onClick={handleExportTemplate}
-                >
-                  <span>💾</span> Exportar Plantilla
-                </button>
+                <div className="template-actions-group">
+                  <button
+                    type="button"
+                    className="btn-main-save"
+                    onClick={() => ejecutarExportacion(true, false)}
+                    title="Guardar plantilla en el proyecto"
+                  >
+                    <span>💾</span> Guardar Plantilla
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-options-dropdown"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setShowDropdown(!showDropdown);
+                    }}
+                    title="Opciones de plantilla"
+                  >
+                    🔽
+                  </button>
+                  {showDropdown && (
+                    <div className="options-dropdown-menu">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDropdown(false);
+                          ejecutarExportacion(true, true);
+                        }}
+                      >
+                        <span>📥</span> Guardar y Exportar (.cdc2t)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDropdown(false);
+                          ejecutarExportacion(false, true);
+                        }}
+                      >
+                        <span>📤</span> Exportar sin Guardar
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </aside>

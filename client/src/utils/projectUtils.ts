@@ -197,5 +197,31 @@ export function validarYParsearPlantilla(jsonText: string): any {
   return templateData;
 }
 
+export function prepararPlantillaParaExportacion(
+  plantilla: any,
+  nuevoNombre: string,
+  valoresCarta: Record<string, string>
+): any {
+  const isBuiltIn = plantilla.id === "vacia" || plantilla.id === "simple";
+  const newId = isBuiltIn 
+    ? `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+    : plantilla.id;
+
+  const updatedCamposConfig = (plantilla.camposConfig || []).map((campo: any) => {
+    const currentVal = valoresCarta[campo.clave];
+    return {
+      ...campo,
+      valorDefecto: currentVal !== undefined ? currentVal : (campo.valorDefecto || "")
+    };
+  });
+
+  return {
+    ...plantilla,
+    id: newId,
+    nombre: nuevoNombre,
+    camposConfig: updatedCamposConfig
+  };
+}
+
 
 

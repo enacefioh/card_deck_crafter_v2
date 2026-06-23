@@ -5,7 +5,8 @@ import {
   duplicarCartas,
   insertarCartaDesdePlantilla,
   actualizarClavePlantillaYValores,
-  validarYParsearPlantilla
+  validarYParsearPlantilla,
+  prepararPlantillaParaExportacion
 } from "./projectUtils";
 
 describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
@@ -582,6 +583,64 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(res.yMm).toBe(0);
       expect(res.anchoMm).toBe(63.5);
       expect(res.altoMm).toBe(88.9);
+    });
+  });
+
+  describe("prepararPlantillaParaExportacion", () => {
+    const plantillaMock = {
+      id: "vacia",
+      nombre: "Plantilla Vacía",
+      capas: [],
+      camposConfig: [
+        { clave: "titulo", nombreLegible: "Título", tipo: "text", valorDefecto: "Valor Default" },
+        { clave: "descripcion", nombreLegible: "Descripción", tipo: "text", valorDefecto: "" }
+      ]
+    };
+
+    it("debe generar un ID nuevo si la plantilla original es built-in ('vacia')", () => {
+      const res = prepararPlantillaParaExportacion(plantillaMock, "Nueva Plantilla", {
+        titulo: "Mi Titulo"
+      });
+      expect(res.id).not.toBe("vacia");
+      expect(res.id.startsWith("template_")).toBe(true);
+      expect(res.nombre).toBe("Nueva Plantilla");
+    });
+
+    it("debe conservar el ID si la plantilla original NO es built-in", () => {
+      const plantillaPersonalizada = {
+        ...plantillaMock,
+        id: "template_12345"
+      };
+      const res = prepararPlantillaParaExportacion(plantillaPersonalizada, "Otro Nombre", {});
+      expect(res.id).toBe("template_12345");
+      expect(res.nombre).toBe("Otro Nombre");
+    });
+
+    it("debe actualizar los valores por defecto (valorDefecto) con los valores provistos de la carta", () => {
+      const valoresCarta = {
+        titulo: "Nuevo Titulo de Carta",
+        descripcion: "Nueva Descripcion"
+      };
+      const res = prepararPlantillaParaExportacion(plantillaMock, "Test Valores", valoresCarta);
+      
+      const tituloCampo = res.camposConfig.find((c: any) => c.clave === "titulo");
+      const descCampo = res.camposConfig.find((c: any) => c.clave === "descripcion");
+
+      expect(tituloCampo.valorDefecto).toBe("Nuevo Titulo de Carta");
+      expect(descCampo.valorDefecto).toBe("Nueva Descripcion");
+    });
+
+    it("debe mantener el valorDefecto original o cadena vacía si no hay valor correspondiente en la carta", () => {
+      const valoresCarta = {
+        titulo: "Solo Titulo"
+      };
+      const res = prepararPlantillaParaExportacion(plantillaMock, "Test Parcial", valoresCarta);
+      
+      const tituloCampo = res.camposConfig.find((c: any) => c.clave === "titulo");
+      const descCampo = res.camposConfig.find((c: any) => c.clave === "descripcion");
+
+      expect(tituloCampo.valorDefecto).toBe("Solo Titulo");
+      expect(descCampo.valorDefecto).toBe(""); // Conserva el original o vacío
     });
   });
 });
