@@ -288,6 +288,15 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(res.valoresCampos.fuerza).toBe("99");
       expect(res.valoresCampos.poder).toBe("99");
     });
+
+    it("no debe borrar el valor si la clave saneada resulta ser idéntica a la clave anterior (ej. al escribir un carácter inválido)", () => {
+      const valores = { poder: "99" };
+      const res = actualizarClavePlantillaYValores(plantillaMock, valores, "capa1", "poder", "poder!");
+      
+      expect(res.plantilla.capas[0].contenidoRaw).toBe("{{poder}}");
+      expect(res.plantilla.camposConfig[0].clave).toBe("poder");
+      expect(res.valoresCampos.poder).toBe("99");
+    });
   });
 
   describe("validarYParsearPlantilla", () => {

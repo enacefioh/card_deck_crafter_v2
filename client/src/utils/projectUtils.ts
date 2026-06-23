@@ -124,22 +124,24 @@ export function actualizarClavePlantillaYValores(
 
   let updatedCamposConfig = [...(plantilla.camposConfig || [])];
   if (oldClave) {
-    const isClaveUsedElsewhere = updatedCapas.some((c: any) => 
-      c.id !== capaId && c.tipo === "text" && c.contenidoRaw?.includes(`{{${oldClave}}}`)
-    );
-    
-    if (!isClaveUsedElsewhere) {
-      updatedCamposConfig = updatedCamposConfig.map((f: any) => 
-        f.clave === oldClave ? { ...f, clave: sanitizedClave, nombreLegible: sanitizedClave } : f
+    if (sanitizedClave !== oldClave) {
+      const isClaveUsedElsewhere = updatedCapas.some((c: any) => 
+        c.id !== capaId && c.tipo === "text" && c.contenidoRaw?.includes(`{{${oldClave}}}`)
       );
-    } else {
-      if (!updatedCamposConfig.some((f: any) => f.clave === sanitizedClave)) {
-        updatedCamposConfig.push({
-          clave: sanitizedClave,
-          nombreLegible: sanitizedClave,
-          tipo: "text",
-          valorDefecto: "Texto de ejemplo..."
-        });
+      
+      if (!isClaveUsedElsewhere) {
+        updatedCamposConfig = updatedCamposConfig.map((f: any) => 
+          f.clave === oldClave ? { ...f, clave: sanitizedClave, nombreLegible: sanitizedClave } : f
+        );
+      } else {
+        if (!updatedCamposConfig.some((f: any) => f.clave === sanitizedClave)) {
+          updatedCamposConfig.push({
+            clave: sanitizedClave,
+            nombreLegible: sanitizedClave,
+            tipo: "text",
+            valorDefecto: "Texto de ejemplo..."
+          });
+        }
       }
     }
   } else {
@@ -155,13 +157,15 @@ export function actualizarClavePlantillaYValores(
 
   const updatedValores = { ...valoresCampos };
   if (oldClave) {
-    updatedValores[sanitizedClave] = valoresCampos[oldClave] || "";
+    if (sanitizedClave !== oldClave) {
+      updatedValores[sanitizedClave] = valoresCampos[oldClave] || "";
 
-    const isClaveUsedElsewhere = updatedCapas.some((c: any) => 
-      c.id !== capaId && c.tipo === "text" && c.contenidoRaw?.includes(`{{${oldClave}}}`)
-    );
-    if (!isClaveUsedElsewhere) {
-      delete updatedValores[oldClave];
+      const isClaveUsedElsewhere = updatedCapas.some((c: any) => 
+        c.id !== capaId && c.tipo === "text" && c.contenidoRaw?.includes(`{{${oldClave}}}`)
+      );
+      if (!isClaveUsedElsewhere) {
+        delete updatedValores[oldClave];
+      }
     }
   } else {
     updatedValores[sanitizedClave] = "";

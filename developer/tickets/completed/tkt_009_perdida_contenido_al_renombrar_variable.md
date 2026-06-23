@@ -33,3 +33,14 @@ Al editar una capa de tipo texto en la pestaña **Diseño** y modificar el campo
 - [ ] Guardar los cambios.
 - [ ] Verificar que la carta editada conserva su texto ("Dragón") bajo el nuevo nombre.
 - [ ] Verificar que las otras dos cartas ("Globin" y "Elfo") **siguen mostrando sus textos correspondientes** en el lienzo central y no quedan vacías.
+
+---
+
+## 4. Revisión / Extensión (Acentos y Caracteres Especiales)
+- **Fecha de Revisión**: 2026-06-23
+- **Problema Detectado**: Al escribir un carácter acentuado (como `í` en `Título`), el filtro de saneamiento de claves (`replace(/[^a-zA-Z0-9_]/g, "")`) eliminaba el carácter especial, haciendo que la nueva clave saneada coincidiera con la clave del paso de tecleado anterior. Esto provocaba que `sanitizedClave === oldClave` fuera verdadero.
+- **El Bug**: Dentro de `actualizarClavePlantillaYValores` en `projectUtils.ts`, el borrado de la clave anterior (`delete updatedValores[oldClave]`) se ejecutaba incondicionalmente, por lo que al coincidir `sanitizedClave` y `oldClave`, se borraba el valor del diccionario de campos, vaciando el texto de la carta al teclear el acento.
+- **Solución**: Se añadió una validación para realizar el renombrado de la clave y el posterior borrado de la clave antigua en el diccionario de valores y la configuración de campos **solo si** `sanitizedClave !== oldClave`.
+- **Archivos Modificados**:
+  * [`client/src/utils/projectUtils.ts`](file:///c:/Users/victo/proyectos/cdc2/client/src/utils/projectUtils.ts)
+  * [`client/src/utils/projectUtils.test.ts`](file:///c:/Users/victo/proyectos/cdc2/client/src/utils/projectUtils.test.ts) (Test unitario añadido)

@@ -1,7 +1,7 @@
 # Ticket - TKT-010: Capturar Valores de Campos como Valores por Defecto al Exportar Plantilla
 
 - **ID del Ticket**: TKT-010
-- **Estado**: ⏳ Activo
+- **Estado**: ✅ Completado
 - **Fecha de Registro**: 2026-06-23
 - **Severidad**: Baja (Mejora de UX y Conveniencia)
 

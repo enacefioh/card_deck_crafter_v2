@@ -356,10 +356,22 @@ export default function EditCardModal({
       ? `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
       : plantillaActiva.id;
 
+    // Actualizar camposConfig con los valores actuales en la carta como valores por defecto (TKT-010)
+    const updatedCamposConfig = (plantillaActiva.camposConfig || []).map((campo: any) => {
+      const currentVal = activeTab === "frontal"
+        ? tempValoresCampos[campo.clave]
+        : tempValoresCamposTrasera[campo.clave];
+      return {
+        ...campo,
+        valorDefecto: currentVal !== undefined ? currentVal : (campo.valorDefecto || "")
+      };
+    });
+
     const updatedTemplate = {
       ...plantillaActiva,
       id: newId,
-      nombre: name
+      nombre: name,
+      camposConfig: updatedCamposConfig
     };
 
     // Actualizar estado local
