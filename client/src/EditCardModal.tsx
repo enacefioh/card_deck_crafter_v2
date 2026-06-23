@@ -351,8 +351,14 @@ export default function EditCardModal({
     const name = window.prompt("Nombre de la plantilla:", plantillaActiva.nombre || "Mi Plantilla");
     if (!name) return;
 
+    const isBuiltIn = plantillaActiva.id === "vacia" || plantillaActiva.id === "simple";
+    const newId = isBuiltIn 
+      ? `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
+      : plantillaActiva.id;
+
     const updatedTemplate = {
       ...plantillaActiva,
+      id: newId,
       nombre: name
     };
 

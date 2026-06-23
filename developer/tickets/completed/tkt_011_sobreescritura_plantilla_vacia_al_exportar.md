@@ -1,7 +1,7 @@
 # Ticket - TKT-011: Sobreescritura de Plantillas por Defecto al Exportar desde una Carta
 
 - **ID del Ticket**: TKT-011
-- **Estado**: ⏳ Activo
+- **Estado**: ✅ Completado
 - **Fecha de Registro**: 2026-06-23
 - **Severidad**: Alta (Afecta a la creación de nuevas cartas con plantillas por defecto)
 
