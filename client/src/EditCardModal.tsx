@@ -80,7 +80,10 @@ export default function EditCardModal({
 
   // Popup de añadir elementos
   const [showAddElementPopup, setShowAddElementPopup] = useState<boolean>(false);
-  const [selectedNewType, setSelectedNewType] = useState<"single" | "multi" | "image">("single");
+  const [selectedNewType, setSelectedNewType] = useState<"single" | "multi" | "image" | "image-switch">("single");
+  const [showSwitchResourcesPopup, setShowSwitchResourcesPopup] = useState<boolean>(false);
+  const [tempSwitchCapaId, setTempSwitchCapaId] = useState<string | null>(null);
+  const [tempSelectedOptionIds, setTempSelectedOptionIds] = useState<string[]>([]);
 
   // Estado del menú desplegable de opciones de plantilla
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
@@ -277,6 +280,7 @@ export default function EditCardModal({
 
     const isMultiline = selectedNewType === "multi";
     const isImage = selectedNewType === "image";
+    const isImageSwitch = selectedNewType === "image-switch";
     const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newClave = `campo_${Date.now().toString().slice(-4)}`;
 
@@ -293,6 +297,23 @@ export default function EditCardModal({
         anchoMm: size,
         altoMm: size,
         src: "",
+        modoAjuste: "cover" as const,
+        tinteColor: null,
+      };
+    } else if (isImageSwitch) {
+      const size = Math.round((cardConfig.anchoMm * 0.3) * 10) / 10;
+      newLayer = {
+        id: newId,
+        nombre: "Nueva Imagen Switch",
+        visible: true,
+        tipo: "image-switch" as const,
+        xMm: Math.round(((cardConfig.anchoMm - size) / 2) * 10) / 10,
+        yMm: Math.round(((cardConfig.altoMm - size) / 2) * 10) / 10,
+        anchoMm: size,
+        altoMm: size,
+        src: "",
+        options: [],
+        selectedOptionId: undefined,
         modoAjuste: "cover" as const,
         tinteColor: null,
       };
@@ -317,7 +338,7 @@ export default function EditCardModal({
       };
     }
 
-    const newCampo = !isImage ? {
+    const newCampo = !isImage && !isImageSwitch ? {
       clave: newClave,
       nombreLegible: isMultiline ? "Texto Multilínea" : "Texto de una Línea",
       tipo: "text" as const,
@@ -367,7 +388,7 @@ export default function EditCardModal({
     }
 
     setSelectedLayerId(newId);
-    setInspectorTab(isImage ? "contenido" : "diseño");
+    setInspectorTab(isImage || isImageSwitch ? "contenido" : "diseño");
     setShowAddElementPopup(false);
   };
 
@@ -400,6 +421,58 @@ export default function EditCardModal({
 
         const zipCapas = await Promise.all(
           updatedTemplate.capas.map(async (capa: any) => {
+            if (capa.tipo === "image-switch" && capa.options) {
+              const nextOptions = await Promise.all(
+                capa.options.map(async (opt: any) => {
+                  if (opt.src && opt.src.startsWith("blob:")) {
+                    if (imagenMap.has(opt.src)) {
+                      return { ...opt, src: imagenMap.get(opt.src)! };
+                    }
+                    try {
+                      const res = await fetch(opt.src);
+                      const blob = await res.blob();
+                      let extension = "png";
+                      if (blob.type === "image/jpeg") extension = "jpg";
+                      else if (blob.type === "image/webp") extension = "webp";
+                      else if (blob.type === "image/gif") extension = "gif";
+                      const filename = `template_image_switch_option_${imagenMap.size}.${extension}`;
+                      assetsFolder.file(filename, blob);
+                      const assetPath = `asset://${filename}`;
+                      imagenMap.set(opt.src, assetPath);
+                      return { ...opt, src: assetPath };
+                    } catch (err) {
+                      console.error("Error al empaquetar imagen de opción switch:", opt.src, err);
+                      return opt;
+                    }
+                  }
+                  return opt;
+                })
+              );
+              let nextCapa = { ...capa, options: nextOptions };
+              if (capa.src && capa.src.startsWith("blob:")) {
+                if (imagenMap.has(capa.src)) {
+                  nextCapa.src = imagenMap.get(capa.src)!;
+                } else {
+                  try {
+                    const res = await fetch(capa.src);
+                    const blob = await res.blob();
+                    let extension = "png";
+                    if (blob.type === "image/jpeg") extension = "jpg";
+                    else if (blob.type === "image/webp") extension = "webp";
+                    else if (blob.type === "image/gif") extension = "gif";
+                    const filename = `template_image_${imagenMap.size}.${extension}`;
+                    assetsFolder.file(filename, blob);
+                    const assetPath = `asset://${filename}`;
+                    imagenMap.set(capa.src, assetPath);
+                    nextCapa.src = assetPath;
+                  } catch (err) {
+                    console.error("Error al empaquetar imagen de plantilla:", capa.src, err);
+                  }
+                }
+              }
+              return nextCapa;
+            }
+
             if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
               if (imagenMap.has(capa.src)) {
                 return { ...capa, src: imagenMap.get(capa.src)! };
@@ -696,12 +769,13 @@ export default function EditCardModal({
     if (capa.tipo === "background") return;
 
     const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const newNombre = `${capa.nombre || (capa.tipo === "image" ? "Imagen" : "Texto")} (Copia)`;
+    const newNombre = `${capa.nombre || (capa.tipo === "image" ? "Imagen" : capa.tipo === "image-switch" ? "Imagen Switch" : "Texto")} (Copia)`;
     
     const duplicatedCapa = {
       ...capa,
       id: newId,
       nombre: newNombre,
+      options: capa.tipo === "image-switch" && capa.options ? capa.options.map((opt: any) => ({ ...opt })) : undefined,
     };
 
     const updater = (prev: any) => {
@@ -903,9 +977,9 @@ export default function EditCardModal({
                         title = fieldConfig?.nombreLegible || key;
                       }
                       subtitle = capa.altoMm > 15 ? "Texto multilínea" : "Texto de una línea";
-                    } else if (capa.tipo === "image") {
-                      title = capa.nombre || "Imagen";
-                      subtitle = "Capa de Imagen";
+                    } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
+                      title = capa.nombre || (capa.tipo === "image" ? "Imagen" : "Imagen Switch");
+                      subtitle = capa.tipo === "image" ? "Capa de Imagen" : "Imagen Switch";
                     }
 
                     return (
@@ -919,7 +993,7 @@ export default function EditCardModal({
                         onMouseLeave={() => setHoveredLayerId(null)}
                       >
                         <span className="hierarchy-icon">
-                          {capa.tipo === "background" ? "🎨" : capa.tipo === "image" ? "🖼️" : "📝"}
+                          {capa.tipo === "background" ? "🎨" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : "📝"}
                         </span>
                         <div className="hierarchy-text-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                           <span className="hierarchy-label" style={{ fontWeight: 600, fontSize: "13px" }}>{title}</span>
@@ -1141,7 +1215,7 @@ export default function EditCardModal({
                       );
                     }
 
-                    if (capa.tipo === "image") {
+                    if (capa.tipo === "image" || capa.tipo === "image-switch") {
                       const src = tempCapasOverridesActivos[capa.id]?.src !== undefined
                         ? tempCapasOverridesActivos[capa.id]?.src
                         : capa.src;
@@ -1214,14 +1288,14 @@ export default function EditCardModal({
                 <div className="inspector-panel">
                   <div className="inspector-layer-header">
                     <span className="inspector-layer-icon">
-                      {selectedCapa.tipo === "background" ? "🎨" : selectedCapa.tipo === "image" ? "🖼️" : "📝"}
+                      {selectedCapa.tipo === "background" ? "🎨" : (selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") ? "🖼️" : "📝"}
                     </span>
                     <h3>{selectedCapa.nombre}</h3>
                   </div>
                   <hr className="inspector-separator" />
 
                   {/* Sub-pestañas si es capa de texto o imagen */}
-                  {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image") && (
+                  {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") && (
                     <div className="inspector-tabs">
                       <button
                         type="button"
@@ -1241,7 +1315,7 @@ export default function EditCardModal({
                   )}
 
                   {/* CONTENIDO TAB */}
-                  {inspectorTab === "contenido" || (selectedCapa.tipo !== "text" && selectedCapa.tipo !== "image") ? (
+                  {inspectorTab === "contenido" || (selectedCapa.tipo !== "text" && selectedCapa.tipo !== "image" && selectedCapa.tipo !== "image-switch") ? (
                     <>
                       {/* Controles para capas de Fondo */}
                       {selectedCapa.tipo === "background" && (
@@ -1458,6 +1532,129 @@ export default function EditCardModal({
                           )}
                         </div>
                       )}
+
+                      {/* Controles para capas de Imagen Switch en Contenido */}
+                      {selectedCapa.tipo === "image-switch" && (
+                        <div className="inspector-section">
+                          <label className="inspector-label">Imagen Switch (Anulación)</label>
+                          
+                          {!selectedCapa.options || selectedCapa.options.length === 0 ? (
+                            <div className="switch-no-options-notice" style={{
+                              padding: "20px 16px",
+                              backgroundColor: "var(--bg-app)",
+                              border: "1px dashed var(--border-color)",
+                              borderRadius: "8px",
+                              textAlign: "center",
+                              fontSize: "12.5px",
+                              color: "var(--text-secondary)",
+                              lineHeight: "1.4",
+                              marginTop: "8px"
+                            }}>
+                              <span style={{ fontSize: "22px", display: "block", marginBottom: "8px" }}>ℹ️</span>
+                              Elige las imágenes para este switch en la pestaña de <strong>Diseño</strong>.
+                            </div>
+                          ) : (
+                            <>
+                              {/* Vista previa de imagen activa */}
+                              <div className="image-override-preview-container">
+                                <img
+                                  src={tempCapasOverridesActivos[selectedCapa.id]?.src || selectedCapa.src || ""}
+                                  alt="Vista previa activa"
+                                  className="inspector-image-preview"
+                                  style={{
+                                    width: "100%",
+                                    maxHeight: "120px",
+                                    objectFit: "contain",
+                                    borderRadius: "6px",
+                                    backgroundColor: "#f1f5f9",
+                                    border: "1px solid #cbd5e1",
+                                    marginBottom: "8px",
+                                  }}
+                                />
+                                {tempCapasOverridesActivos[selectedCapa.id]?.src && (
+                                  <button
+                                    type="button"
+                                    className="btn-danger-sec"
+                                    style={{ width: "100%", marginBottom: "12px" }}
+                                    onClick={() => {
+                                      setTempCapasOverridesActivos((prev) => {
+                                        const next = { ...prev };
+                                        if (next[selectedCapa.id]) {
+                                          delete next[selectedCapa.id];
+                                        }
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    Restablecer a defecto
+                                  </button>
+                                )}
+                              </div>
+
+                              {/* Carrusel horizontal de opciones */}
+                              <label className="inspector-label" style={{ marginTop: "8px" }}>Seleccionar Opción:</label>
+                              <div className="switch-options-carousel">
+                                {(selectedCapa.options || []).map((opt: any) => {
+                                  const isSelected = tempCapasOverridesActivos[selectedCapa.id]
+                                    ? tempCapasOverridesActivos[selectedCapa.id].selectedOptionId === opt.id
+                                    : selectedCapa.selectedOptionId === opt.id;
+                                  return (
+                                    <div
+                                      key={opt.id}
+                                      className={`switch-carousel-item ${isSelected ? "active" : ""}`}
+                                      onClick={() => {
+                                        setTempCapasOverridesActivos((prev) => ({
+                                          ...prev,
+                                          [selectedCapa.id]: {
+                                            src: opt.src,
+                                            selectedOptionId: opt.id
+                                          }
+                                        }));
+                                      }}
+                                    >
+                                      <div className="switch-carousel-img-container">
+                                        <img src={opt.src} alt={opt.nombre} className="switch-carousel-img" />
+                                      </div>
+                                      <span className="switch-carousel-text" title={opt.nombre}>{opt.nombre}</span>
+                                    </div>
+                                  );
+                                })}
+
+                                {/* Botón + para subir archivo personalizado desde el PC */}
+                                <div className="switch-carousel-item-upload">
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    id={`switch-file-pc-${selectedCapa.id}`}
+                                    style={{ display: "none" }}
+                                    onChange={(e) => {
+                                      if (e.target.files && e.target.files[0]) {
+                                        const file = e.target.files[0];
+                                        if (!file.type.startsWith("image/")) {
+                                          alert("Por favor, selecciona un archivo de imagen válido.");
+                                          return;
+                                        }
+                                        const url = URL.createObjectURL(file);
+                                        setTempCapasOverridesActivos((prev) => ({
+                                          ...prev,
+                                          [selectedCapa.id]: {
+                                            src: url,
+                                            selectedOptionId: undefined // custom image override
+                                          }
+                                        }));
+                                      }
+                                    }}
+                                  />
+                                  <label htmlFor={`switch-file-pc-${selectedCapa.id}`} className="switch-carousel-upload-btn">
+                                    <span className="switch-carousel-plus-icon">+</span>
+                                    <span className="switch-carousel-text">Subir PC</span>
+                                  </label>
+                                </div>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </>
                   ) : (
                     /* DISEÑO TAB */
@@ -1579,6 +1776,54 @@ export default function EditCardModal({
                                 </button>
                               </div>
                             )}
+                          </div>
+
+                          <div className="inspector-section">
+                            <label className="inspector-label">Modo de Ajuste</label>
+                            <select
+                              className="inspector-input"
+                              value={selectedCapa.modoAjuste || "cover"}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "modoAjuste", e.target.value)}
+                            >
+                              <option value="cover">Cover (Rellenar)</option>
+                              <option value="contain">Contain (Contener)</option>
+                              <option value="stretch">Stretch (Estirar)</option>
+                            </select>
+                          </div>
+                        </>
+                      )}
+
+                      {selectedCapa.tipo === "image-switch" && (
+                        <>
+                          <div className="inspector-section">
+                            <label className="inspector-label">Nombre de Variable / Capa</label>
+                            <input
+                              type="text"
+                              className="inspector-input"
+                              value={selectedCapa.nombre || ""}
+                              placeholder="ej. Icono Switch"
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
+                            />
+                          </div>
+
+                          <div className="inspector-section">
+                            <label className="inspector-label">Recursos Asignados al Switch</label>
+                            <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "8px" }}>
+                              {selectedCapa.options?.length || 0} imágenes asignadas
+                            </div>
+                            <button
+                              type="button"
+                              className="btn-secundario-galeria"
+                              style={{ width: "100%" }}
+                              onClick={() => {
+                                const targetCapa = plantillaActiva.capas.find((c: any) => c.id === selectedCapa.id);
+                                setTempSwitchCapaId(selectedCapa.id);
+                                setTempSelectedOptionIds(targetCapa?.options?.map((opt: any) => opt.id) || []);
+                                setShowSwitchResourcesPopup(true);
+                              }}
+                            >
+                              ⚙️ Seleccionar recursos para este elemento
+                            </button>
                           </div>
 
                           <div className="inspector-section">
@@ -1869,6 +2114,13 @@ export default function EditCardModal({
                 <span className="add-element-option-icon">🖼️</span>
                 <span className="add-element-option-label">Imagen</span>
               </div>
+              <div
+                className={`add-element-option ${selectedNewType === "image-switch" ? "selected" : ""}`}
+                onClick={() => setSelectedNewType("image-switch")}
+              >
+                <span className="add-element-option-icon">🔄</span>
+                <span className="add-element-option-label">Imagen Switch</span>
+              </div>
             </div>
 
             <div className="add-element-popup-actions">
@@ -2053,6 +2305,138 @@ export default function EditCardModal({
                 onClick={() => { setShowGallerySelector(false); setActiveSelectorTarget(null); }}
               >
                 Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Seleccionar Recursos para Capa Switch */}
+      {showSwitchResourcesPopup && plantillaActiva && tempSwitchCapaId && (
+        <div className="gallery-popup-backdrop" onClick={() => { setShowSwitchResourcesPopup(false); setTempSwitchCapaId(null); }}>
+          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+            <div className="gallery-popup-title-bar">
+              <h4 className="gallery-popup-title">Seleccionar recursos para el Switch</h4>
+              <button
+                type="button"
+                className="btn-close-modal"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+                onClick={() => { setShowSwitchResourcesPopup(false); setTempSwitchCapaId(null); }}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="gallery-popup-subtitle">
+              Selecciona las imágenes de la galería que estarán disponibles en esta capa.
+            </p>
+
+            <div className="gallery-assets-grid" style={{ maxHeight: "300px" }}>
+              {plantillaActiva.assets && plantillaActiva.assets.length > 0 ? (
+                plantillaActiva.assets.map((asset: any) => {
+                  const isChecked = tempSelectedOptionIds.includes(asset.id);
+                  return (
+                    <div
+                      key={asset.id}
+                      className={`gallery-asset-item ${isChecked ? "selected" : ""}`}
+                      onClick={() => {
+                        setTempSelectedOptionIds((prev) => {
+                          if (prev.includes(asset.id)) {
+                            return prev.filter((id) => id !== asset.id);
+                          } else {
+                            return [...prev, asset.id];
+                          }
+                        });
+                      }}
+                      title={asset.nombre}
+                      style={{ cursor: "pointer", position: "relative" }}
+                    >
+                      <div className="gallery-asset-thumb-container" style={{ position: "relative" }}>
+                        <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {}} // handled by parent click
+                          style={{
+                            position: "absolute",
+                            top: "6px",
+                            right: "6px",
+                            width: "16px",
+                            height: "16px",
+                            cursor: "pointer",
+                            accentColor: "var(--accent-primary)"
+                          }}
+                        />
+                      </div>
+                      <div className="gallery-asset-name">{asset.nombre}</div>
+                    </div>
+                  );
+                })
+              ) : (
+                <div style={{
+                  gridColumn: "1 / -1",
+                  padding: "40px 20px",
+                  textAlign: "center",
+                  color: "var(--text-secondary)",
+                  fontSize: "12px"
+                }}>
+                  La galería de esta plantilla está vacía. Añade imágenes primero desde el gestor de galería.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px", gap: "8px" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ padding: "6px 16px", fontSize: "12px" }}
+                onClick={() => { setShowSwitchResourcesPopup(false); setTempSwitchCapaId(null); }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: "6px 16px", fontSize: "12px" }}
+                onClick={() => {
+                  // Guardar las opciones seleccionadas en la propiedad options de la capa
+                  const targetCapa = plantillaActiva.capas.find((c: any) => c.id === tempSwitchCapaId);
+                  const nextOptions = (plantillaActiva.assets || [])
+                    .filter((asset: any) => tempSelectedOptionIds.includes(asset.id))
+                    .map((asset: any) => ({
+                      id: asset.id,
+                      nombre: asset.nombre,
+                      src: asset.src
+                    }));
+
+                  // Si no hay opción seleccionada por defecto, o la que había ya no existe, elegimos la primera o undefined
+                  let selectedOptionId = targetCapa?.selectedOptionId;
+                  if (!nextOptions.some((opt: any) => opt.id === selectedOptionId)) {
+                    selectedOptionId = nextOptions[0]?.id;
+                  }
+
+                  // Actualizar capa options
+                  handleUpdateCapaProp(tempSwitchCapaId, "options", nextOptions);
+                  if (selectedOptionId) {
+                    handleUpdateCapaProp(tempSwitchCapaId, "selectedOptionId", selectedOptionId);
+                    // También actualizamos la imagen por defecto `src` de la plantilla
+                    const defaultSrc = nextOptions.find((opt: any) => opt.id === selectedOptionId)?.src || "";
+                    handleUpdateCapaProp(tempSwitchCapaId, "src", defaultSrc);
+                  } else {
+                    handleUpdateCapaProp(tempSwitchCapaId, "selectedOptionId", undefined);
+                    handleUpdateCapaProp(tempSwitchCapaId, "src", "");
+                  }
+
+                  setShowSwitchResourcesPopup(false);
+                  setTempSwitchCapaId(null);
+                }}
+              >
+                Guardar
               </button>
             </div>
           </div>

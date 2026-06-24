@@ -102,7 +102,7 @@ function generarHtmlImpresion(
             `;
           }
 
-          if (capa.tipo === "image") {
+          if (capa.tipo === "image" || capa.tipo === "image-switch") {
             const overrides = cardData.capasOverrides;
             const rawSrc = overrides?.[capa.id]?.src !== undefined ? overrides[capa.id]?.src : capa.src;
             const imgPath = resolverAssetPath(rawSrc);

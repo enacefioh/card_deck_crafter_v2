@@ -424,8 +424,16 @@ export default function App() {
         if (clonedPlantilla.capas) {
           for (let i = 0; i < clonedPlantilla.capas.length; i++) {
             const capa = clonedPlantilla.capas[i];
-            if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+            if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
               capa.src = await addBlobToZip(capa.src, `card_${card.id}_template_image_${i}`);
+            }
+            if (capa.tipo === "image-switch" && capa.options) {
+              for (let o = 0; o < capa.options.length; o++) {
+                const opt = capa.options[o];
+                if (opt.src && opt.src.startsWith("blob:")) {
+                  opt.src = await addBlobToZip(opt.src, `card_${card.id}_template_image_switch_option_${i}_${o}`);
+                }
+              }
             }
           }
         }
@@ -446,8 +454,16 @@ export default function App() {
         if (clonedPlantillaTrasera.capas) {
           for (let i = 0; i < clonedPlantillaTrasera.capas.length; i++) {
             const capa = clonedPlantillaTrasera.capas[i];
-            if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+            if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
               capa.src = await addBlobToZip(capa.src, `card_${card.id}_back_template_image_${i}`);
+            }
+            if (capa.tipo === "image-switch" && capa.options) {
+              for (let o = 0; o < capa.options.length; o++) {
+                const opt = capa.options[o];
+                if (opt.src && opt.src.startsWith("blob:")) {
+                  opt.src = await addBlobToZip(opt.src, `card_${card.id}_back_template_image_switch_option_${i}_${o}`);
+                }
+              }
             }
           }
         }
@@ -494,8 +510,16 @@ export default function App() {
       if (clonedTemplate.capas) {
         for (let i = 0; i < clonedTemplate.capas.length; i++) {
           const capa = clonedTemplate.capas[i];
-          if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+          if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
             capa.src = await addBlobToZip(capa.src, `template_${template.id}_image_${i}`);
+          }
+          if (capa.tipo === "image-switch" && capa.options) {
+            for (let o = 0; o < capa.options.length; o++) {
+              const opt = capa.options[o];
+              if (opt.src && opt.src.startsWith("blob:")) {
+                opt.src = await addBlobToZip(opt.src, `template_${template.id}_image_switch_option_${i}_${o}`);
+              }
+            }
           }
         }
       }
@@ -519,8 +543,16 @@ export default function App() {
       if (clonedTemplate.capas) {
         for (let i = 0; i < clonedTemplate.capas.length; i++) {
           const capa = clonedTemplate.capas[i];
-          if (capa.tipo === "image" && capa.src && capa.src.startsWith("blob:")) {
+          if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
             capa.src = await addBlobToZip(capa.src, `template_${id}_image_${i}`);
+          }
+          if (capa.tipo === "image-switch" && capa.options) {
+            for (let o = 0; o < capa.options.length; o++) {
+              const opt = clonedTemplate.capas[i].options[o];
+              if (opt.src && opt.src.startsWith("blob:")) {
+                opt.src = await addBlobToZip(opt.src, `template_${id}_image_switch_option_${i}_${o}`);
+              }
+            }
           }
         }
       }
@@ -704,9 +736,17 @@ export default function App() {
           const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
           if (clonedPlantilla.capas) {
             for (const capa of clonedPlantilla.capas) {
-              if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("asset://")) {
                 const url = await resolverAssetBlob(capa.src);
                 if (url) capa.src = url;
+              }
+              if (capa.tipo === "image-switch" && capa.options) {
+                for (const opt of capa.options) {
+                  if (opt.src && opt.src.startsWith("asset://")) {
+                    const url = await resolverAssetBlob(opt.src);
+                    if (url) opt.src = url;
+                  }
+                }
               }
             }
           }
@@ -726,9 +766,17 @@ export default function App() {
           const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
           if (clonedPlantillaTrasera.capas) {
             for (const capa of clonedPlantillaTrasera.capas) {
-              if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("asset://")) {
                 const url = await resolverAssetBlob(capa.src);
                 if (url) capa.src = url;
+              }
+              if (capa.tipo === "image-switch" && capa.options) {
+                for (const opt of capa.options) {
+                  if (opt.src && opt.src.startsWith("asset://")) {
+                    const url = await resolverAssetBlob(opt.src);
+                    if (url) opt.src = url;
+                  }
+                }
               }
             }
           }
@@ -776,9 +824,17 @@ export default function App() {
               // Resolver assets de la plantilla
               if (tData.capas) {
                 for (const capa of tData.capas) {
-                  if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+                  if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("asset://")) {
                     const url = await resolverAssetBlob(capa.src);
                     if (url) capa.src = url;
+                  }
+                  if (capa.tipo === "image-switch" && capa.options) {
+                    for (const opt of capa.options) {
+                      if (opt.src && opt.src.startsWith("asset://")) {
+                        const url = await resolverAssetBlob(opt.src);
+                        if (url) opt.src = url;
+                      }
+                    }
                   }
                 }
               }
@@ -805,9 +861,17 @@ export default function App() {
             // Resolver assets de la plantilla
             if (tData.capas) {
               for (const capa of tData.capas) {
-                if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+                if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("asset://")) {
                   const url = await resolverAssetBlob(capa.src);
                   if (url) capa.src = url;
+                }
+                if (capa.tipo === "image-switch" && capa.options) {
+                  for (const opt of capa.options) {
+                    if (opt.src && opt.src.startsWith("asset://")) {
+                      const url = await resolverAssetBlob(opt.src);
+                      if (url) opt.src = url;
+                    }
+                  }
                 }
               }
             }
@@ -889,10 +953,21 @@ export default function App() {
       if (templateData.capas) {
         for (let i = 0; i < templateData.capas.length; i++) {
           const capa = templateData.capas[i];
-          if (capa.tipo === "image" && capa.src && capa.src.startsWith("asset://")) {
+          if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("asset://")) {
             const objectUrl = await resolverAssetBlob(capa.src);
             if (objectUrl) {
               capa.src = objectUrl;
+            }
+          }
+          if (capa.tipo === "image-switch" && capa.options) {
+            for (let o = 0; o < capa.options.length; o++) {
+              const opt = capa.options[o];
+              if (opt.src && opt.src.startsWith("asset://")) {
+                const objectUrl = await resolverAssetBlob(opt.src);
+                if (objectUrl) {
+                  opt.src = objectUrl;
+                }
+              }
             }
           }
         }
@@ -2087,7 +2162,7 @@ export default function App() {
                                       );
                                     }
 
-                                    if (capa.tipo === "image") {
+                                    if (capa.tipo === "image" || capa.tipo === "image-switch") {
                                       const overrideSrc = cardData.capasOverrides?.[capa.id]?.src;
                                       const activeSrc = overrideSrc || capa.src;
                                       return (
@@ -2270,8 +2345,8 @@ export default function App() {
                                          );
                                        }
 
-                                       if (capa.tipo === "image") {
-                                         const overrideSrc = cardData.capasOverridesTrasera?.[capa.id]?.src;
+                                        if (capa.tipo === "image" || capa.tipo === "image-switch") {
+                                          const overrideSrc = cardData.capasOverridesTrasera?.[capa.id]?.src;
                                          const activeSrc = overrideSrc || capa.src;
                                          return (
                                            <div

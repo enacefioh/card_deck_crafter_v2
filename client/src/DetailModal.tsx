@@ -110,7 +110,7 @@ export default function DetailModal({
                             );
                           }
 
-                          if (capa.tipo === "image") {
+                          if (capa.tipo === "image" || capa.tipo === "image-switch") {
                             const src = carta.capasOverrides?.[capa.id]?.src !== undefined
                               ? carta.capasOverrides[capa.id]?.src
                               : capa.src;

@@ -679,6 +679,54 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(descCampo.valorDefecto).toBe(""); // Conserva el original o vacío
     });
   });
+
+  describe("Soporte de Capas de Imagen Switch (SRS-015)", () => {
+    it("debe duplicar cartas con capas image-switch realizando una clonación profunda de sus opciones", () => {
+      const mockCarta: any = {
+        id: "carta_switch",
+        nombre: "Carta Switch",
+        valoresCampos: {},
+        plantilla: {
+          id: "plantilla_switch",
+          nombre: "Plantilla con Switch",
+          capas: [
+            {
+              id: "capa_switch_1",
+              tipo: "image-switch",
+              nombre: "Switch de Prueba",
+              xMm: 10,
+              yMm: 10,
+              anchoMm: 30,
+              altoMm: 30,
+              src: "asset://img1.png",
+              options: [
+                { id: "opt_1", nombre: "Opción 1", src: "asset://img1.png" },
+                { id: "opt_2", nombre: "Opción 2", src: "asset://img2.png" }
+              ],
+              selectedOptionId: "opt_1"
+            }
+          ],
+          camposConfig: []
+        }
+      };
+
+      const resultado = duplicarCartas([mockCarta], ["carta_switch"]);
+      expect(resultado.length).toBe(2);
+      const copia = resultado[1];
+      expect(copia.nombre).toBe("Carta Switch (Copia)");
+      
+      // Debe conservar la estructura de capas de imagen-switch
+      const originalCapa = mockCarta.plantilla.capas[0];
+      const copiaCapa = copia.plantilla.capas[0];
+      expect(copiaCapa.tipo).toBe("image-switch");
+      expect(copiaCapa.options.length).toBe(2);
+      expect(copiaCapa.options[0].id).toBe("opt_1");
+
+      // No deben compartir la misma referencia de objeto de options
+      expect(copiaCapa.options).not.toBe(originalCapa.options);
+      expect(copiaCapa.options[0]).not.toBe(originalCapa.options[0]);
+    });
+  });
 });
 
 

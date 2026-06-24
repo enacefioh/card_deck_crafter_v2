@@ -146,7 +146,7 @@ function generarHtmlImpresion(
             return `<div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${capa.anchoMm * MM_TO_PX}px; height: ${capa.altoMm * MM_TO_PX}px; font-family: ${capa.fontFamily === 'sans-serif' || !capa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : capa.fontFamily}; font-size: ${fontSizePx}px; color: ${capa.color || '#000000'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; padding: 2px; pointer-events: none;">${textoInterp}</div>`;
           }
 
-          if (capa.tipo === "image") {
+          if (capa.tipo === "image" || capa.tipo === "image-switch") {
             const overrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
             const rawSrc = overrides?.[capa.id]?.src !== undefined ? overrides[capa.id]?.src : capa.src;
             const imgPath = resolverAssetPath(rawSrc);
