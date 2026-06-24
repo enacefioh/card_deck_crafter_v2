@@ -85,6 +85,11 @@ export default function EditCardModal({
   // Estado del menú desplegable de opciones de plantilla
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
 
+  // Estados para Galería de la Plantilla (SRS-020)
+  const [showGalleryManager, setShowGalleryManager] = useState<boolean>(false);
+  const [showGallerySelector, setShowGallerySelector] = useState<boolean>(false);
+  const [activeSelectorTarget, setActiveSelectorTarget] = useState<{ type: "override" | "default"; capaId: string } | null>(null);
+
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
@@ -423,9 +428,40 @@ export default function EditCardModal({
           })
         );
 
+        const zipAssets = updatedTemplate.assets ? await Promise.all(
+          updatedTemplate.assets.map(async (asset: any) => {
+            if (asset.src && asset.src.startsWith("blob:")) {
+              if (imagenMap.has(asset.src)) {
+                return { ...asset, src: imagenMap.get(asset.src)! };
+              }
+              try {
+                const res = await fetch(asset.src);
+                const blob = await res.blob();
+                
+                let extension = "png";
+                if (blob.type === "image/jpeg") extension = "jpg";
+                else if (blob.type === "image/webp") extension = "webp";
+                else if (blob.type === "image/gif") extension = "gif";
+                
+                const filename = `template_asset_${imagenMap.size}.${extension}`;
+                assetsFolder.file(filename, blob);
+                
+                const assetPath = `asset://${filename}`;
+                imagenMap.set(asset.src, assetPath);
+                return { ...asset, src: assetPath };
+              } catch (err) {
+                console.error("Error al empaquetar asset de plantilla:", asset.src, err);
+                return asset;
+              }
+            }
+            return asset;
+          })
+        ) : undefined;
+
         finalTemplate = {
           ...updatedTemplate,
           capas: zipCapas,
+          assets: zipAssets,
         };
 
         zip.file("template.json", JSON.stringify(finalTemplate, null, 2));
@@ -457,6 +493,74 @@ export default function EditCardModal({
     } catch (err: any) {
       alert(`Error al procesar la plantilla: ${err.message || err}`);
     }
+  };
+
+  // --- Funciones para Galería de la Plantilla (SRS-020) ---
+  const handleUploadGalleryFiles = (files: FileList) => {
+    const newAssets: Array<{ id: string; nombre: string; src: string }> = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!file.type.startsWith("image/")) {
+        alert(`El archivo "${file.name}" no es una imagen válida.`);
+        continue;
+      }
+      const id = "asset_" + Math.random().toString(36).substr(2, 9) + "_" + Date.now();
+      const nombre = file.name;
+      const src = URL.createObjectURL(file);
+      newAssets.push({ id, nombre, src });
+    }
+
+    if (newAssets.length === 0) return;
+
+    const updater = (prev: any) => {
+      if (!prev) return prev;
+      const currentAssets = prev.assets || [];
+      return {
+        ...prev,
+        assets: [...currentAssets, ...newAssets]
+      };
+    };
+
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+  };
+
+  const handleDeleteGalleryAsset = (assetId: string) => {
+    const updater = (prev: any) => {
+      if (!prev) return prev;
+      const currentAssets = prev.assets || [];
+      return {
+        ...prev,
+        assets: currentAssets.filter((asset: any) => asset.id !== assetId)
+      };
+    };
+
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+  };
+
+  const handleSelectGalleryAsset = (assetSrc: string) => {
+    if (!activeSelectorTarget) return;
+    const { type, capaId } = activeSelectorTarget;
+    if (type === "override") {
+      setTempCapasOverridesActivos((prev) => ({
+        ...prev,
+        [capaId]: {
+          ...(prev[capaId] || {}),
+          src: assetSrc,
+        },
+      }));
+    } else {
+      handleUpdateCapaProp(capaId, "src", assetSrc);
+    }
+    setShowGallerySelector(false);
+    setActiveSelectorTarget(null);
   };
 
   // --- Modificar Propiedad de Capa ---
@@ -1329,6 +1433,18 @@ export default function EditCardModal({
                                   Subir imagen para esta carta
                                 </span>
                               </label>
+
+                              <button
+                                type="button"
+                                className="btn-secundario-galeria"
+                                onClick={() => {
+                                  setActiveSelectorTarget({ type: "override", capaId: selectedCapa.id });
+                                  setShowGallerySelector(true);
+                                }}
+                              >
+                                📂 Cargar desde Galería
+                              </button>
+
                               {selectedCapa.src ? (
                                 <p style={{ fontSize: "11px", color: "#64748b", marginTop: "6px", textAlign: "center" }}>
                                   Heredando imagen por defecto de la plantilla
@@ -1450,6 +1566,17 @@ export default function EditCardModal({
                                     Subir imagen por defecto
                                   </span>
                                 </label>
+
+                                <button
+                                  type="button"
+                                  className="btn-secundario-galeria"
+                                  onClick={() => {
+                                    setActiveSelectorTarget({ type: "default", capaId: selectedCapa.id });
+                                    setShowGallerySelector(true);
+                                  }}
+                                >
+                                  📂 Cargar desde Galería
+                                </button>
                               </div>
                             )}
                           </div>
@@ -1696,6 +1823,19 @@ export default function EditCardModal({
                 </div>
               )}
             </div>
+
+            {/* Botón Galería de la Plantilla */}
+            {plantillaActiva && (
+              <div className="inspector-footer-gallery">
+                <button
+                  type="button"
+                  className="btn-gallery-manager-trigger"
+                  onClick={() => setShowGalleryManager(true)}
+                >
+                  🖼️ Galería de la Plantilla
+                </button>
+              </div>
+            )}
           </aside>
 
         </div>
@@ -1747,6 +1887,172 @@ export default function EditCardModal({
                 onClick={handleAddElement}
               >
                 Añadir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Gestor de la Galería de la Plantilla */}
+      {showGalleryManager && plantillaActiva && (
+        <div className="gallery-popup-backdrop" onClick={() => setShowGalleryManager(false)}>
+          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+            <div className="gallery-popup-title-bar">
+              <h4 className="gallery-popup-title">Galería de la Plantilla</h4>
+              <button
+                type="button"
+                className="btn-close-modal"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+                onClick={() => setShowGalleryManager(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="gallery-popup-subtitle">
+              Recursos locales de la plantilla: "{plantillaActiva.nombre || "Sin Nombre"}"
+            </p>
+
+            <div
+              className="gallery-manager-dropzone"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files) {
+                  handleUploadGalleryFiles(e.dataTransfer.files);
+                }
+              }}
+            >
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                id="gallery-file-upload"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleUploadGalleryFiles(e.target.files);
+                  }
+                }}
+              />
+              <label htmlFor="gallery-file-upload" className="gallery-dropzone-label">
+                <span style={{ fontSize: "20px", marginBottom: "4px" }}>📤</span>
+                <span>Arrastra imágenes aquí o haz clic para subir</span>
+                <span className="gallery-dropzone-subtext">Formatos permitidos: PNG, JPG, JPEG, WEBP, SVG</span>
+              </label>
+            </div>
+
+            <div className="gallery-assets-grid">
+              {plantillaActiva.assets && plantillaActiva.assets.length > 0 ? (
+                plantillaActiva.assets.map((asset: any) => (
+                  <div key={asset.id} className="gallery-asset-item" title={asset.nombre}>
+                    <button
+                      type="button"
+                      className="gallery-asset-delete-btn"
+                      onClick={() => handleDeleteGalleryAsset(asset.id)}
+                      title="Eliminar recurso de la galería"
+                    >
+                      ✕
+                    </button>
+                    <div className="gallery-asset-thumb-container">
+                      <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                    </div>
+                    <div className="gallery-asset-name">{asset.nombre}</div>
+                  </div>
+                ))
+              ) : (
+                <div style={{
+                  gridColumn: "1 / -1",
+                  padding: "40px 20px",
+                  textAlign: "center",
+                  color: "var(--text-secondary)",
+                  fontSize: "12px"
+                }}>
+                  No hay imágenes en la galería de esta plantilla. Arrastra archivos arriba para empezar.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: "6px 16px", fontSize: "12px" }}
+                onClick={() => setShowGalleryManager(false)}
+              >
+                Listo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Selector de Imagen desde Galería */}
+      {showGallerySelector && plantillaActiva && (
+        <div className="gallery-popup-backdrop" onClick={() => { setShowGallerySelector(false); setActiveSelectorTarget(null); }}>
+          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+            <div className="gallery-popup-title-bar">
+              <h4 className="gallery-popup-title">Seleccionar de la Galería</h4>
+              <button
+                type="button"
+                className="btn-close-modal"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+                onClick={() => { setShowGallerySelector(false); setActiveSelectorTarget(null); }}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="gallery-popup-subtitle">
+              Elige una imagen para asignar a la capa
+            </p>
+
+            <div className="gallery-assets-grid" style={{ maxHeight: "350px" }}>
+              {plantillaActiva.assets && plantillaActiva.assets.length > 0 ? (
+                plantillaActiva.assets.map((asset: any) => (
+                  <div
+                    key={asset.id}
+                    className="gallery-asset-item"
+                    onClick={() => handleSelectGalleryAsset(asset.src)}
+                    title={`Seleccionar ${asset.nombre}`}
+                  >
+                    <div className="gallery-asset-thumb-container">
+                      <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                    </div>
+                    <div className="gallery-asset-name">{asset.nombre}</div>
+                  </div>
+                ))
+              ) : (
+                <div style={{
+                  gridColumn: "1 / -1",
+                  padding: "40px 20px",
+                  textAlign: "center",
+                  color: "var(--text-secondary)",
+                  fontSize: "12px"
+                }}>
+                  La galería de esta plantilla está vacía. Añade imágenes primero desde el gestor de galería.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ padding: "6px 16px", fontSize: "12px" }}
+                onClick={() => { setShowGallerySelector(false); setActiveSelectorTarget(null); }}
+              >
+                Cancelar
               </button>
             </div>
           </div>

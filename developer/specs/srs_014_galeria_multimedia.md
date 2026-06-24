@@ -1,25 +1,36 @@
-# Especificación Técnica - SRS-014: Galería Multimedia Virtual
+# Especificación Técnica - SRS-014: Galería Multimedia de Proyecto
 
-Este documento describe la estructura y diseño propuesto para la gestión y reutilización de recursos visuales mediante una galería multimedia virtual a nivel de proyecto.
-
-## 1. Objetivos
-- Proveer una base de datos/galería local de imágenes cargadas en el proyecto para evitar subidas duplicadas del mismo archivo.
-- Permitir al usuario seleccionar imágenes ya existentes en el proyecto al configurar capas de imagen (tanto estáticas como dinámicas).
-- Empaquetar y exportar únicamente los recursos multimedia utilizados en el archivo de proyecto `.cdc2`.
-
-## 2. Flujo de Trabajo Propuesto
-- **Carga de Imagen**: Al subir una imagen desde el dispositivo, el recurso se almacena en la galería del proyecto asignándole un identificador único (ej: `media_1234.png`).
-- **Selector de Imagen**: Al editar una capa de imagen (en pestaña Diseño o Contenido), se presentan dos opciones:
-  1. "Subir desde el dispositivo"
-  2. "Seleccionar de la Galería del Proyecto" (desplegando una cuadrícula de miniaturas de imágenes ya cargadas).
-
-## 3. Empaquetado e Integración (.cdc2t y .cdc2)
-- Al exportar una plantilla `.cdc2t`: Los recursos estáticos referenciados se extraen de la galería y se empaquetan en una subcarpeta `assets/` del archivo de la plantilla.
-- Al guardar el proyecto `.cdc2`: La galería completa (o los archivos referenciados en uso) se guardan en la carpeta `assets/` del ZIP de proyecto.
+## 1. Introducción y Objetivos
+- **Propósito**: Permitir que el proyecto en su totalidad (`.cdc2`) contenga una galería global de recursos de imagen (ilustraciones de cartas, retratos de personajes, logotipos del juego, etc.). Estas imágenes se guardarán a nivel del archivo del proyecto para que no se pierdan al compartir el `.cdc2` y se puedan reutilizar en cualquier carta del proyecto independientemente de su plantilla.
+- **Objetivos de Diseño**:
+  - **Reutilización**: Compartir recursos visuales comunes a nivel de toda la baraja para evitar duplicación de archivos.
+  - **Portabilidad**: Al guardar el proyecto `.cdc2`, todos los assets de la galería de proyecto se comprimirán dentro de la carpeta `project_assets/` del ZIP, asegurando que el proyecto funcione en cualquier ordenador sin depender de rutas locales de archivos.
 
 ---
 
-## 4. Casos de Uso (Estructura Vacía para Completar)
-*(Para ser desarrollado por el usuario)*
-- **Caso de Uso 1**: Cargar imagen reutilizando un asset de la galería.
-- **Caso de Uso 2**: Limpieza de galería (eliminar recursos no utilizados).
+## 2. Requisitos Funcionales y Casos de Uso
+
+### RF-1: Estructura del Proyecto y Almacenamiento
+- **RF-1.1**: El objeto `ProyectoCDC2` se extenderá con una propiedad `assets` (un array de recursos globales del proyecto):
+  ```typescript
+  interface ProjectAsset {
+    id: string;
+    nombre: string;
+    src: string; // Blob URL local en memoria
+  }
+  ```
+- **RF-1.2**: Al guardar el proyecto, se guardarán los archivos en la carpeta `project_assets/` del ZIP y sus referencias se almacenarán como `project_asset://<nombre_archivo>`.
+
+### RF-2: Panel de "Galería del Proyecto" en el Menú Principal
+- **RF-2.1**: En la barra de menú superior o panel lateral principal del proyecto, se añadirá una pestaña o botón de **Galería del Proyecto**.
+- **RF-2.2**: Abrirá un panel/popup central donde el usuario podrá importar en lote decenas de ilustraciones para las cartas, borrarlas o renombrarlas.
+
+### RF-3: Uso de Imágenes del Proyecto en las Cartas
+- **RF-3.1**: En el editor de cartas (`EditCardModal.tsx`), el selector de archivos de imagen de fondo o ilustraciones ofrecerá la opción **Cargar desde Galería del Proyecto**.
+- **RF-3.2**: Mostrará las imágenes de la galería del proyecto en mosaico.
+- **RF-3.3**: Al seleccionar una, se asignará a la capa de ilustración/imagen de la carta.
+
+---
+
+## 3. Estado de la Especificación
+- **Estado**: **Pendiente / Diferido** (Se desarrollará en una iteración posterior a la SRS-020).

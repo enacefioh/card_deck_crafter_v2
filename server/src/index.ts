@@ -109,11 +109,18 @@ function generarHtmlImpresion(
 
       // Buscar si es una carta de plantilla
       const cardData = proyecto.cards.find((c: Carta) => c.id === slot.cartaId);
-      const plantillaId = esTrasera ? cardData?.plantillaTraseraId : cardData?.plantillaId;
-      if (cardData && plantillaId && proyecto.templates && proyecto.templates[plantillaId]) {
-        const plantilla = proyecto.templates[plantillaId];
-        
-        const layersHtml = plantilla.capas.map((capa: any) => {
+      if (cardData) {
+        let plantilla = esTrasera ? cardData.plantillaTrasera : cardData.plantilla;
+        if (!plantilla) {
+          const plantillaId = esTrasera ? cardData.plantillaTraseraId : cardData.plantillaId;
+          if (plantillaId && proyecto.templates && proyecto.templates[plantillaId]) {
+            plantilla = proyecto.templates[plantillaId];
+          }
+        }
+
+        if (plantilla) {
+          const capas = plantilla.capas || [];
+          const layersHtml = capas.map((capa: any) => {
           if (capa.tipo === "background") {
             const overrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
             const colorFill = overrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
@@ -176,6 +183,7 @@ function generarHtmlImpresion(
             ${marksHtml}
           </div>
         `;
+        }
       }
 
       // Si no es plantilla, renderizar imagen normal

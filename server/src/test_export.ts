@@ -62,6 +62,52 @@ async function testExport() {
             colorFill: "#0f172a"
           }
         }
+      },
+      {
+        id: "carta-2",
+        nombre: "Carta de Prueba 2 (Diseño Independiente)",
+        imagenFrontal: null,
+        imagenTrasera: null,
+        cantidad: 4,
+        valoresCampos: {
+          titulo: "Carta Independiente",
+          descripcion: "Esta carta utiliza plantilla embebida directamente en su objeto (SRS-019)."
+        },
+        plantilla: {
+          nombre: "Plantilla Embebida",
+          capas: [
+            {
+              id: "capa-bg-embed",
+              tipo: "background",
+              colorFill: "#fef08a"
+            },
+            {
+              id: "capa-titulo-embed",
+              tipo: "text",
+              xMm: 5,
+              yMm: 10,
+              anchoMm: 53.5,
+              altoMm: 15,
+              fontFamily: "Arial",
+              fontSizePt: 16,
+              alineacion: "center",
+              bold: true,
+              contenidoRaw: "{{titulo}}"
+            },
+            {
+              id: "capa-desc-embed",
+              tipo: "text",
+              xMm: 5,
+              yMm: 30,
+              anchoMm: 53.5,
+              altoMm: 45,
+              fontFamily: "Arial",
+              fontSizePt: 12,
+              alineacion: "left",
+              contenidoRaw: "{{descripcion}}"
+            }
+          ]
+        }
       }
     ],
     templates: {

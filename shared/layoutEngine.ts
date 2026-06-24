@@ -46,12 +46,22 @@ export interface Carta {
     nombre: string;
     capas: any[];
     camposConfig: any[];
+    assets?: Array<{
+      id: string;
+      nombre: string;
+      src: string;
+    }>;
   };
   plantillaTrasera?: {
     id: string;
     nombre: string;
     capas: any[];
     camposConfig: any[];
+    assets?: Array<{
+      id: string;
+      nombre: string;
+      src: string;
+    }>;
   };
 }
 

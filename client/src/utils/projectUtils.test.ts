@@ -156,8 +156,18 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
         {
           id: "A",
           nombre: "Carta A",
-          plantilla: { id: "p1", nombre: "P1", capas: [{ id: "l1", tipo: "text" }] },
-          plantillaTrasera: { id: "p2", nombre: "P2", capas: [] }
+          plantilla: {
+            id: "p1",
+            nombre: "P1",
+            capas: [{ id: "l1", tipo: "text" }],
+            assets: [{ id: "ast1", nombre: "mana.png", src: "blob:1" }]
+          },
+          plantillaTrasera: {
+            id: "p2",
+            nombre: "P2",
+            capas: [],
+            assets: [{ id: "ast2", nombre: "back.png", src: "blob:2" }]
+          }
         }
       ];
       const resultado = duplicarCartas(cartasConPlantilla, ["A"]);
@@ -167,10 +177,14 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(copia.plantilla).toBeDefined();
       expect(copia.plantilla).toEqual(cartasConPlantilla[0].plantilla);
       expect(copia.plantilla).not.toBe(cartasConPlantilla[0].plantilla); // Referencia distinta
+      expect(copia.plantilla.assets).not.toBe(cartasConPlantilla[0].plantilla.assets); // Referencia del array distinta
+      expect(copia.plantilla.assets[0]).not.toBe(cartasConPlantilla[0].plantilla.assets[0]); // Referencia del objeto del array distinta
 
       expect(copia.plantillaTrasera).toBeDefined();
       expect(copia.plantillaTrasera).toEqual(cartasConPlantilla[0].plantillaTrasera);
       expect(copia.plantillaTrasera).not.toBe(cartasConPlantilla[0].plantillaTrasera); // Referencia distinta
+      expect(copia.plantillaTrasera.assets).not.toBe(cartasConPlantilla[0].plantillaTrasera.assets);
+      expect(copia.plantillaTrasera.assets[0]).not.toBe(cartasConPlantilla[0].plantillaTrasera.assets[0]);
     });
   });
 
