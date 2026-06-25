@@ -8,7 +8,7 @@ Este documento describe la especificación técnica para implementar un control 
 *   **Propósito**: Añadir un control deslizante (slider) de zoom en la columna de previsualización del modal de edición de carta, permitiendo inspeccionar detalles finos a altas escalas o ver la carta al completo en pantallas de menores dimensiones.
 *   **Objetivos de Diseño**:
     *   **Consistencia**: El zoom por defecto del editor debe alinearse inicialmente con el zoom configurado por el usuario en el lienzo de páginas de la aplicación principal.
-    *   **Interactividad**: El cambio en el control de zoom debe actualizar inmediatamente las dimensiones del marco de previsualización y el escalado de todas sus capas interactivas sin romper la funcionalidad de arrastrar y redimensionar.
+    *   **Interactividad**: El cambio en el control de zoom debe actualizar inmediatamente las dimensiones del marco de previsualización y el escalado de todas sus capas.
 
 ---
 
@@ -16,13 +16,12 @@ Este documento describe la especificación técnica para implementar un control 
 
 *   **RF-1: Inicialización Dinámica del Zoom**:
     *   Al abrir el modal, la escala de previsualización (`scale`) se debe inicializar utilizando el valor actual de `zoomFactor` (lienzo principal).
-    *   Si se proporciona una escala previa en el estado del editor, se mantendrá durante la sesión del modal.
+    *   Si se proporciona una escala previa en el estado del editor, se mantendrá durante la sesión actual.
 *   **RF-2: Control Deslizante de Zoom**:
     *   Se debe renderizar un control de tipo `<input type="range">` al lado del título "Previsualización" en el editor de cartas.
-    *   Rango de valores permitido: de `1.5` a `6.0` con saltos (`step`) de `0.1`.
+    *   Rango de valores permitido: de `0.5` a `6.0` con saltos (`step`) de `0.1`.
     *   Debe mostrar visualmente el factor de escala (ej. `3.5x`).
-*   **RF-3: Escalado Responsivo del Lienzo**:
-    *   El lienzo de la carta (`edit-card-preview-frame`), los contornos de sangrado, las líneas de corte, las posiciones de las capas y sus tamaños de fuente en píxeles virtuales se deben redimensionar dinámicamente según el factor de escala actual.
+
 
 ---
 

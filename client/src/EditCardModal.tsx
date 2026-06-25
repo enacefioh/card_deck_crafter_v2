@@ -118,7 +118,7 @@ export default function EditCardModal({
   const setTempCapasOverridesActivos = activeTab === "frontal" ? setTempCapasOverrides : setTempCapasOverridesTrasera;
 
   // Escala para la edición interactiva en el modal (inicializada con zoomFactor)
-  const [scale] = useState<number>(() => initialZoom || 3.5);
+  const [scale, setScale] = useState<number>(() => initialZoom || 3.5);
 
   // --- Comprobar si hay cambios sin guardar ---
   const hasChanges = () => {
@@ -1199,7 +1199,22 @@ export default function EditCardModal({
 
           {/* COLUMNA 2: Previsualización de Carta */}
           <main className="preview-column">
-            <div className="column-title">Previsualización</div>
+            <div className="column-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>Previsualización</span>
+              <div className="editor-zoom-control" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                <label style={{ margin: 0, fontSize: "11px", fontWeight: "normal", textTransform: "none" }}>Zoom</label>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="6.0"
+                  step="0.1"
+                  value={scale}
+                  onChange={(e) => setScale(Number(e.target.value))}
+                  style={{ width: "100px", margin: 0, cursor: "pointer" }}
+                />
+                <span style={{ fontSize: "11px", fontFamily: "monospace", textTransform: "none" }}>{scale.toFixed(1)}x</span>
+              </div>
+            </div>
             <div className="column-content preview-canvas-wrapper">
               <div
                 className="edit-card-preview-frame"
