@@ -78,12 +78,23 @@ function generarHtmlImpresion(
       const borderMm = slot.bordeCorteMm;
       const borderColor = slot.bordeCorteColor || "#000000";
 
+      const noOverlap = borderMm > 0;
+      const scaleX = noOverlap ? (width - 2 * borderMm) / width : 1;
+      const scaleY = noOverlap ? (height - 2 * borderMm) / height : 1;
+
+      // Para plantillas
+      const templateLeft = noOverlap ? (borderMm - sangrado * scaleX) : -sangrado;
+      const templateTop = noOverlap ? (borderMm - sangrado * scaleY) : -sangrado;
+      const templateWidth = width + 2 * sangrado;
+      const templateHeight = height + 2 * sangrado;
+
+      // Para imágenes normales
       let imgLeft = -sangrado;
       let imgTop = -sangrado;
       let imgWidth = width + 2 * sangrado;
       let imgHeight = height + 2 * sangrado;
 
-      if (cardConfig.reducirArteAlBorde && borderMm > 0) {
+      if (noOverlap) {
         imgLeft = borderMm - sangrado;
         imgTop = borderMm - sangrado;
         imgWidth = width - 2 * borderMm + 2 * sangrado;
@@ -125,7 +136,7 @@ function generarHtmlImpresion(
             const overrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
             const colorFill = overrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
             return `
-              <div style="position: absolute; left: 0px; top: 0px; width: ${imgWidth * MM_TO_PX}px; height: ${imgHeight * MM_TO_PX}px; background-color: ${colorFill}; pointer-events: none;"></div>
+              <div style="position: absolute; left: 0px; top: 0px; width: ${templateWidth * MM_TO_PX}px; height: ${templateHeight * MM_TO_PX}px; background-color: ${colorFill}; pointer-events: none;"></div>
             `;
           }
           
@@ -138,8 +149,8 @@ function generarHtmlImpresion(
             const styleOpt = capa.italic ? "italic" : "normal";
             
             // Desplazamiento por sangrado
-            const xPos = capa.xMm - imgLeft;
-            const yPos = capa.yMm - imgTop;
+            const xPos = capa.xMm + sangrado;
+            const yPos = capa.yMm + sangrado;
             
             // Mismo cálculo exacto de escala que en el frontend
             const fontSizePx = fontSizePt * 0.352778 * MM_TO_PX;
@@ -151,8 +162,8 @@ function generarHtmlImpresion(
             const rawSrc = overrides?.[capa.id]?.src !== undefined ? overrides[capa.id]?.src : capa.src;
             const imgPath = resolverAssetPath(rawSrc);
             
-            const xPos = capa.xMm - imgLeft;
-            const yPos = capa.yMm - imgTop;
+            const xPos = capa.xMm + sangrado;
+            const yPos = capa.yMm + sangrado;
             
             if (imgPath) {
               const objectFit = capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover");
@@ -176,7 +187,7 @@ function generarHtmlImpresion(
 
         return `
           <div class="card-slot" style="left: ${x * MM_TO_PX}px; top: ${y * MM_TO_PX}px; width: ${width * MM_TO_PX}px; height: ${height * MM_TO_PX}px;">
-            <div class="card-template-render-wrapper" style="position: absolute; left: ${imgLeft * MM_TO_PX}px; top: ${imgTop * MM_TO_PX}px; width: ${imgWidth * MM_TO_PX}px; height: ${imgHeight * MM_TO_PX}px; overflow: hidden; background-color: #ffffff;">
+            <div class="card-template-render-wrapper" style="position: absolute; left: ${templateLeft * MM_TO_PX}px; top: ${templateTop * MM_TO_PX}px; width: ${templateWidth * MM_TO_PX}px; height: ${templateHeight * MM_TO_PX}px; overflow: hidden; background-color: #ffffff; ${noOverlap ? `transform: scale(${scaleX}, ${scaleY}); transform-origin: top left;` : ""}">
               ${layersHtml}
             </div>
             ${borderHtml}

@@ -75,16 +75,22 @@ export default function DetailModal({
                 {carta.plantillaId ? (
                   (() => {
                     const plantilla = templatesMap[carta.plantillaId];
+                    const borderMm = cardConfig.bordeCorteMm;
+                    const noOverlap = borderMm > 0;
+                    const scaleX = noOverlap ? (cardConfig.anchoMm - 2 * borderMm) / cardConfig.anchoMm : 1;
+                    const scaleY = noOverlap ? (cardConfig.altoMm - 2 * borderMm) / cardConfig.altoMm : 1;
                     return plantilla ? (
                       <div
                         className="card-template-render"
                         style={{
                           position: "absolute",
-                          left: 0,
-                          top: 0,
-                          width: "100%",
-                          height: "100%",
+                          left: noOverlap ? `${borderMm * 2.5}px` : 0,
+                          top: noOverlap ? `${borderMm * 2.5}px` : 0,
+                          width: `${cardConfig.anchoMm * 2.5}px`,
+                          height: `${cardConfig.altoMm * 2.5}px`,
                           overflow: "hidden",
+                          transform: noOverlap ? `scale(${scaleX}, ${scaleY})` : "none",
+                          transformOrigin: "top left",
                         }}
                       >
                         {plantilla.capas.map((capa: any) => {
@@ -183,19 +189,29 @@ export default function DetailModal({
                     );
                   })()
                 ) : (
-                  <div
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      top: 0,
-                      width: "100%",
-                      height: "100%",
-                      backgroundImage: `url(${carta.imagenFrontal})`,
-                      backgroundSize: cardConfig.modoAjuste || "cover",
-                      backgroundRepeat: "no-repeat",
-                      backgroundPosition: "center",
-                    }}
-                  />
+                  (() => {
+                    const borderMm = cardConfig.bordeCorteMm;
+                    const noOverlap = borderMm > 0;
+                    const imgLeft = noOverlap ? borderMm : 0;
+                    const imgTop = noOverlap ? borderMm : 0;
+                    const imgWidth = noOverlap ? (cardConfig.anchoMm - 2 * borderMm) : cardConfig.anchoMm;
+                    const imgHeight = noOverlap ? (cardConfig.altoMm - 2 * borderMm) : cardConfig.altoMm;
+                    return (
+                      <div
+                        style={{
+                          position: "absolute",
+                          left: `${imgLeft * 2.5}px`,
+                          top: `${imgTop * 2.5}px`,
+                          width: `${imgWidth * 2.5}px`,
+                          height: `${imgHeight * 2.5}px`,
+                          backgroundImage: `url(${carta.imagenFrontal})`,
+                          backgroundSize: cardConfig.modoAjuste || "cover",
+                          backgroundRepeat: "no-repeat",
+                          backgroundPosition: "center",
+                        }}
+                      />
+                    );
+                  })()
                 )}
               </div>
             </div>
@@ -203,27 +219,170 @@ export default function DetailModal({
             {generarReversos && (
               <div className="preview-box">
                 <span className="preview-label">Cara Trasera</span>
-                {traseraUrl ? (
-                  <div
-                    className="preview-image"
-                    style={{
-                      backgroundImage: `url(${traseraUrl})`,
-                      width: `${cardConfig.anchoMm * 2.5}px`,
-                      height: `${cardConfig.altoMm * 2.5}px`,
-                      border: `${cardConfig.bordeCorteMm > 0 ? cardConfig.bordeCorteMm * 2.5 : 1}px solid ${cardConfig.bordeCorteColor || "#000"}`,
-                    }}
-                  />
-                ) : (
-                  <div
-                    className="preview-image placeholder-back"
-                    style={{
-                      width: `${cardConfig.anchoMm * 2.5}px`,
-                      height: `${cardConfig.altoMm * 2.5}px`,
-                    }}
-                  >
-                    <span>Sin reverso configurado</span>
-                  </div>
-                )}
+                <div
+                  className="preview-image"
+                  style={{
+                    position: "relative",
+                    width: `${cardConfig.anchoMm * 2.5}px`,
+                    height: `${cardConfig.altoMm * 2.5}px`,
+                    border: `${cardConfig.bordeCorteMm > 0 ? cardConfig.bordeCorteMm * 2.5 : 1}px solid ${cardConfig.bordeCorteColor || "#000"}`,
+                    overflow: "hidden",
+                    backgroundColor: "#ffffff",
+                  }}
+                >
+                  {carta.plantillaTraseraId ? (
+                    (() => {
+                      const plantilla = templatesMap[carta.plantillaTraseraId];
+                      const borderMm = cardConfig.bordeCorteMm;
+                      const noOverlap = borderMm > 0;
+                      const scaleX = noOverlap ? (cardConfig.anchoMm - 2 * borderMm) / cardConfig.anchoMm : 1;
+                      const scaleY = noOverlap ? (cardConfig.altoMm - 2 * borderMm) / cardConfig.altoMm : 1;
+                      return plantilla ? (
+                        <div
+                          className="card-template-render"
+                          style={{
+                            position: "absolute",
+                            left: noOverlap ? `${borderMm * 2.5}px` : 0,
+                            top: noOverlap ? `${borderMm * 2.5}px` : 0,
+                            width: `${cardConfig.anchoMm * 2.5}px`,
+                            height: `${cardConfig.altoMm * 2.5}px`,
+                            overflow: "hidden",
+                            transform: noOverlap ? `scale(${scaleX}, ${scaleY})` : "none",
+                            transformOrigin: "top left",
+                          }}
+                        >
+                          {plantilla.capas.map((capa: any) => {
+                            const style: React.CSSProperties = {
+                              position: "absolute",
+                              left: `${capa.xMm * 2.5}px`,
+                              top: `${capa.yMm * 2.5}px`,
+                              width: `${capa.anchoMm * 2.5}px`,
+                              height: `${capa.altoMm * 2.5}px`,
+                              pointerEvents: "none",
+                            };
+
+                            if (capa.tipo === "background") {
+                              const colorFill = carta.capasOverridesTrasera?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
+                              return (
+                                <div
+                                  key={capa.id}
+                                  style={{
+                                    ...style,
+                                    backgroundColor: colorFill,
+                                  }}
+                                />
+                              );
+                            }
+
+                            if (capa.tipo === "image" || capa.tipo === "image-switch") {
+                              const src = carta.capasOverridesTrasera?.[capa.id]?.src !== undefined
+                                ? carta.capasOverridesTrasera[capa.id]?.src
+                                : capa.src;
+                              const showPlaceholder = !src;
+                              return (
+                                <div
+                                  key={capa.id}
+                                  style={{
+                                    ...style,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    overflow: "hidden",
+                                    backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
+                                    border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
+                                  }}
+                                >
+                                  {showPlaceholder ? (
+                                    <span style={{ fontSize: `${Math.min(capa.anchoMm, capa.altoMm) * 0.4 * 2.5}px`, userSelect: "none" }}>
+                                      🖼️
+                                    </span>
+                                  ) : (
+                                    <img
+                                      src={src}
+                                      alt={capa.nombre}
+                                      style={{
+                                        width: "100%",
+                                        height: "100%",
+                                        objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
+                                      }}
+                                    />
+                                  )}
+                                </div>
+                              );
+                            }
+
+                            if (capa.tipo === "text") {
+                              const textoInterp = renderizarTextoCapa(capa, carta.valoresCamposTrasera);
+                              const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * 2.5;
+                              return (
+                                <div
+                                  key={capa.id}
+                                  style={{
+                                    ...style,
+                                    fontFamily: capa.fontFamily || "sans-serif",
+                                    fontSize: `${fontSizePx}px`,
+                                    color: capa.color || "#000000",
+                                    textAlign: (capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left") as any,
+                                    fontWeight: capa.bold ? "bold" : "normal",
+                                    fontStyle: capa.italic ? "italic" : "normal",
+                                    whiteSpace: "pre-wrap",
+                                    wordBreak: "break-word",
+                                    lineHeight: 1.2,
+                                  }}
+                                >
+                                  {textoInterp}
+                                </div>
+                              );
+                            }
+
+                            return null;
+                          })}
+                        </div>
+                      ) : (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", height: "100%", color: "#c62828" }}>
+                          Cargando plantilla...
+                        </div>
+                      );
+                    })()
+                  ) : traseraUrl ? (
+                    (() => {
+                      const borderMm = cardConfig.bordeCorteMm;
+                      const noOverlap = borderMm > 0;
+                      const imgLeft = noOverlap ? borderMm : 0;
+                      const imgTop = noOverlap ? borderMm : 0;
+                      const imgWidth = noOverlap ? (cardConfig.anchoMm - 2 * borderMm) : cardConfig.anchoMm;
+                      const imgHeight = noOverlap ? (cardConfig.altoMm - 2 * borderMm) : cardConfig.altoMm;
+                      return (
+                        <div
+                          style={{
+                            position: "absolute",
+                            left: `${imgLeft * 2.5}px`,
+                            top: `${imgTop * 2.5}px`,
+                            width: `${imgWidth * 2.5}px`,
+                            height: `${imgHeight * 2.5}px`,
+                            backgroundImage: `url(${traseraUrl})`,
+                            backgroundSize: cardConfig.modoAjuste || "cover",
+                            backgroundRepeat: "no-repeat",
+                            backgroundPosition: "center",
+                          }}
+                        />
+                      );
+                    })()
+                  ) : (
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        width: "100%",
+                        height: "100%",
+                        color: "#94a3b8",
+                      }}
+                    >
+                      <span>Sin reverso configurado</span>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

@@ -1675,16 +1675,7 @@ export default function App() {
               </select>
             </div>
 
-            {cardConfig.bordeCorteMm > 0 && (
-              <label className="checkbox-field" style={{ marginTop: "8px" }}>
-                <input
-                  type="checkbox"
-                  checked={cardConfig.reducirArteAlBorde || false}
-                  onChange={(e) => setCardConfig((prev) => ({ ...prev, reducirArteAlBorde: e.target.checked }))}
-                />
-                <span className="checkbox-label">Ajustar imagen al borde (No solapar)</span>
-              </label>
-            )}
+
           </section>
 
           {/* Opciones de Reverso */}
@@ -2102,17 +2093,23 @@ export default function App() {
                             if (!cardData) return null;
                             const plantilla = cardData.plantilla || (cardData.plantillaId ? templatesMap[cardData.plantillaId] : null);
                             if (plantilla) {
+                              const borderMm = slot.bordeCorteMm;
+                              const noOverlap = borderMm > 0;
+                              const scaleX = noOverlap ? (slot.anchoMm - 2 * borderMm) / slot.anchoMm : 1;
+                              const scaleY = noOverlap ? (slot.altoMm - 2 * borderMm) / slot.altoMm : 1;
                               return (
                                 <div
                                   className="card-template-render"
                                   style={{
                                     position: "absolute",
-                                    left: 0,
-                                    top: 0,
-                                    width: "100%",
-                                    height: "100%",
+                                    left: noOverlap ? `${borderMm * zoomFactor}px` : 0,
+                                    top: noOverlap ? `${borderMm * zoomFactor}px` : 0,
+                                    width: `${slot.anchoMm * zoomFactor}px`,
+                                    height: `${slot.altoMm * zoomFactor}px`,
                                     overflow: "hidden",
                                     backgroundColor: "#ffffff",
+                                    transform: noOverlap ? `scale(${scaleX}, ${scaleY})` : "none",
+                                    transformOrigin: "top left",
                                   }}
                                 >
                                   {plantilla.capas.map((capa: any) => {
@@ -2191,7 +2188,7 @@ export default function App() {
                               );
                             } else {
                               const borderMm = slot.bordeCorteMm;
-                              const noOverlap = cardConfig.reducirArteAlBorde && borderMm > 0;
+                              const noOverlap = borderMm > 0;
                               
                               const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
                               const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
@@ -2309,17 +2306,23 @@ export default function App() {
                                if (!cardData) return null;
                                const plantilla = cardData.plantillaTrasera || (cardData.plantillaTraseraId ? templatesMap[cardData.plantillaTraseraId] : null);
                                if (plantilla) {
+                                 const borderMm = slot.bordeCorteMm;
+                                 const noOverlap = borderMm > 0;
+                                 const scaleX = noOverlap ? (slot.anchoMm - 2 * borderMm) / slot.anchoMm : 1;
+                                 const scaleY = noOverlap ? (slot.altoMm - 2 * borderMm) / slot.altoMm : 1;
                                  return (
                                    <div
                                      className="card-template-render"
                                      style={{
                                        position: "absolute",
-                                       left: 0,
-                                       top: 0,
-                                       width: "100%",
-                                       height: "100%",
+                                       left: noOverlap ? `${borderMm * zoomFactor}px` : 0,
+                                       top: noOverlap ? `${borderMm * zoomFactor}px` : 0,
+                                       width: `${slot.anchoMm * zoomFactor}px`,
+                                       height: `${slot.altoMm * zoomFactor}px`,
                                        overflow: "hidden",
                                        backgroundColor: "#ffffff",
+                                       transform: noOverlap ? `scale(${scaleX}, ${scaleY})` : "none",
+                                       transformOrigin: "top left",
                                      }}
                                    >
                                      {plantilla.capas.map((capa: any) => {
@@ -2397,8 +2400,8 @@ export default function App() {
                                    </div>
                                  );
                                } else {
-                                 const borderMm = slot.bordeCorteMm;
-                                 const noOverlap = cardConfig.reducirArteAlBorde && borderMm > 0;
+                                  const borderMm = slot.bordeCorteMm;
+                                  const noOverlap = borderMm > 0;
                                  
                                  const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
                                  const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;

@@ -44,12 +44,23 @@ function generarHtmlImpresion(
       const borderMm = slot.bordeCorteMm;
       const borderColor = slot.bordeCorteColor || "#000000";
 
+      const noOverlap = borderMm > 0;
+      const scaleX = noOverlap ? (width - 2 * borderMm) / width : 1;
+      const scaleY = noOverlap ? (height - 2 * borderMm) / height : 1;
+
+      // Para plantillas
+      const templateLeft = noOverlap ? (borderMm - sangrado * scaleX) : -sangrado;
+      const templateTop = noOverlap ? (borderMm - sangrado * scaleY) : -sangrado;
+      const templateWidth = width + 2 * sangrado;
+      const templateHeight = height + 2 * sangrado;
+
+      // Para imágenes normales
       let imgLeft = -sangrado;
       let imgTop = -sangrado;
       let imgWidth = width + 2 * sangrado;
       let imgHeight = height + 2 * sangrado;
 
-      if (cardConfig.reducirArteAlBorde && borderMm > 0) {
+      if (noOverlap) {
         imgLeft = borderMm - sangrado;
         imgTop = borderMm - sangrado;
         imgWidth = width - 2 * borderMm + 2 * sangrado;
@@ -81,7 +92,7 @@ function generarHtmlImpresion(
           if (capa.tipo === "background") {
             const colorFill = cardData.capasOverrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
             return `
-              <div style="position: absolute; left: 0mm; top: 0mm; width: ${imgWidth}mm; height: ${imgHeight}mm; background-color: ${colorFill}; pointer-events: none;"></div>
+              <div style="position: absolute; left: 0mm; top: 0mm; width: ${templateWidth}mm; height: ${templateHeight}mm; background-color: ${colorFill}; pointer-events: none;"></div>
             `;
           }
           
@@ -92,8 +103,8 @@ function generarHtmlImpresion(
             const weight = capa.bold ? "bold" : "normal";
             const styleOpt = capa.italic ? "italic" : "normal";
             
-            const xPos = capa.xMm - imgLeft;
-            const yPos = capa.yMm - imgTop;
+            const xPos = capa.xMm + sangrado;
+            const yPos = capa.yMm + sangrado;
             
             return `
               <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${capa.anchoMm}mm; height: ${capa.altoMm}mm; font-family: ${capa.fontFamily || 'sans-serif'}; font-size: ${fontSizePt * 0.352778}mm; color: ${capa.color || '#000000'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; pointer-events: none;">
@@ -107,8 +118,8 @@ function generarHtmlImpresion(
             const rawSrc = overrides?.[capa.id]?.src !== undefined ? overrides[capa.id]?.src : capa.src;
             const imgPath = resolverAssetPath(rawSrc);
             
-            const xPos = capa.xMm - imgLeft;
-            const yPos = capa.yMm - imgTop;
+            const xPos = capa.xMm + sangrado;
+            const yPos = capa.yMm + sangrado;
             
             if (imgPath) {
               const objectFit = capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover");
@@ -132,7 +143,7 @@ function generarHtmlImpresion(
 
         return `
           <div class="card-slot" style="left: ${x}mm; top: ${y}mm; width: ${width}mm; height: ${height}mm;">
-            <div class="card-template-render-wrapper" style="position: absolute; left: ${imgLeft}mm; top: ${imgTop}mm; width: ${imgWidth}mm; height: ${imgHeight}mm; overflow: hidden; background-color: #ffffff;">
+            <div class="card-template-render-wrapper" style="position: absolute; left: ${templateLeft}mm; top: ${templateTop}mm; width: ${templateWidth}mm; height: ${templateHeight}mm; overflow: hidden; background-color: #ffffff; ${noOverlap ? `transform: scale(${scaleX}, ${scaleY}); transform-origin: top left;` : ""}">
               ${layersHtml}
             </div>
             ${borderHtml}

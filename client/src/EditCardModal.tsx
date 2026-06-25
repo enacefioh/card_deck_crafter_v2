@@ -1206,9 +1206,7 @@ export default function EditCardModal({
                 style={{
                   width: `${cardConfig.anchoMm * scale}px`,
                   height: `${cardConfig.altoMm * scale}px`,
-                  border: `${
-                    cardConfig.bordeCorteMm > 0 ? cardConfig.bordeCorteMm * scale : 1
-                  }px solid ${cardConfig.bordeCorteColor || "#000000"}`,
+                  border: "1px solid #cbd5e1",
                   position: "relative",
                   overflow: "hidden",
                   boxShadow: "0 10px 25px rgba(0, 0, 0, 0.4)",
