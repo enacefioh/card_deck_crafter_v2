@@ -20,6 +20,8 @@ interface EditCardModalProps {
   ) => void;
   onClose: () => void;
   onExportTemplate?: (template: any) => void;
+  initialZoom?: number;
+  onAssignBackTemplate?: () => void;
 }
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
@@ -41,6 +43,8 @@ export default function EditCardModal({
   onSave,
   onClose,
   onExportTemplate,
+  initialZoom,
+  onAssignBackTemplate,
 }: EditCardModalProps) {
   // --- Estados de Plantilla Editables Localmente ---
   const [tempPlantilla, setTempPlantilla] = useState<any>(() => {
@@ -113,8 +117,8 @@ export default function EditCardModal({
   const tempCapasOverridesActivos = activeTab === "frontal" ? tempCapasOverrides : tempCapasOverridesTrasera;
   const setTempCapasOverridesActivos = activeTab === "frontal" ? setTempCapasOverrides : setTempCapasOverridesTrasera;
 
-  // Escala fija para la edición interactiva en el modal
-  const scale = 3.5;
+  // Escala para la edición interactiva en el modal (inicializada con zoomFactor)
+  const [scale] = useState<number>(() => initialZoom || 3.5);
 
   // --- Comprobar si hay cambios sin guardar ---
   const hasChanges = () => {
@@ -261,6 +265,24 @@ export default function EditCardModal({
 
     return () => clearTimeout(focusTimer);
   }, [selectedLayerId, inspectorTab]);
+
+  // --- Sincronizar reverso cuando se asigna una plantilla de reverso desde el exterior (TKT-013) ---
+  useEffect(() => {
+    if (carta.plantillaTrasera && !tempPlantillaTrasera) {
+      setTempPlantillaTrasera(JSON.parse(JSON.stringify(carta.plantillaTrasera)));
+      setTempValoresCamposTrasera((prev) => ({
+        ...prev,
+        ...(carta.valoresCamposTrasera || {}),
+      }));
+    } else if (carta.plantillaTraseraId && templatesMap[carta.plantillaTraseraId] && !tempPlantillaTrasera) {
+      const p = templatesMap[carta.plantillaTraseraId];
+      setTempPlantillaTrasera(JSON.parse(JSON.stringify(p)));
+      setTempValoresCamposTrasera((prev) => ({
+        ...prev,
+        ...(carta.valoresCamposTrasera || {}),
+      }));
+    }
+  }, [carta.plantillaTrasera, carta.plantillaTraseraId, templatesMap]);
 
   // --- Manejo de Guardar ---
   const handleSave = () => {
@@ -1324,8 +1346,17 @@ export default function EditCardModal({
                     }}
                   />
                 ) : (
-                  <div className="preview-empty-text">
-                    {activeTab === "frontal" ? "Nada que editar" : "Sin reverso configurado"}
+                  <div className="preview-empty-text" style={{ display: "flex", flexDirection: "column", gap: "12px", alignItems: "center", justifyContent: "center", height: "100%" }}>
+                    <span>{activeTab === "frontal" ? "Nada que editar" : "Sin reverso configurado"}</span>
+                    {activeTab === "trasera" && onAssignBackTemplate && (
+                      <button
+                        className="btn-primary"
+                        onClick={onAssignBackTemplate}
+                        style={{ fontSize: "12px", padding: "6px 12px", cursor: "pointer" }}
+                      >
+                        📄 Usar Plantilla de Reverso
+                      </button>
+                    )}
                   </div>
                 )}
               </div>

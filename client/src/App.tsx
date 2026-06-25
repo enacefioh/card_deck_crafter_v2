@@ -2518,6 +2518,8 @@ export default function App() {
           imagenTraseraComun={imagenTraseraComun}
           onSave={handleSaveCardEdits}
           onClose={() => setEditingCardId(null)}
+          initialZoom={zoomFactor}
+          onAssignBackTemplate={() => abrirModalPlantillaParaTrasera()}
           onExportTemplate={(plantilla) => {
             setTemplatesMap((prev) => ({
               ...prev,

@@ -1,7 +1,7 @@
 # Ticket - TKT-013: Acceso Directo para Añadir Reverso desde Plantilla en el Editor
 
 - **ID del Ticket**: TKT-013
-- **Estado**: 🔴 Activo (Pendiente)
+- **Estado**: 🟢 Completado
 - **Fecha de Registro**: 2026-06-25
 - **Severidad**: Baja (Mejora de Usabilidad / Acceso directo)
 
