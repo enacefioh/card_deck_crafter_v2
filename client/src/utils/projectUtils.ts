@@ -204,10 +204,7 @@ export function prepararPlantillaParaExportacion(
   nuevoNombre: string,
   valoresCarta: Record<string, string>
 ): any {
-  const isBuiltIn = plantilla.id === "vacia" || plantilla.id === "simple";
-  const newId = isBuiltIn 
-    ? `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`
-    : plantilla.id;
+  const newId = `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   const updatedCamposConfig = (plantilla.camposConfig || []).map((campo: any) => {
     const currentVal = valoresCarta[campo.clave];

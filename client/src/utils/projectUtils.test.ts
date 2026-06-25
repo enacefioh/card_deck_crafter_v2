@@ -642,13 +642,14 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(res.nombre).toBe("Nueva Plantilla");
     });
 
-    it("debe conservar el ID si la plantilla original NO es built-in", () => {
+    it("debe generar un ID nuevo incluso si la plantilla original NO es built-in", () => {
       const plantillaPersonalizada = {
         ...plantillaMock,
         id: "template_12345"
       };
       const res = prepararPlantillaParaExportacion(plantillaPersonalizada, "Otro Nombre", {});
-      expect(res.id).toBe("template_12345");
+      expect(res.id).not.toBe("template_12345");
+      expect(res.id.startsWith("template_")).toBe(true);
       expect(res.nombre).toBe("Otro Nombre");
     });
 
