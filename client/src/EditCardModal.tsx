@@ -778,19 +778,71 @@ export default function EditCardModal({
       options: capa.tipo === "image-switch" && capa.options ? capa.options.map((opt: any) => ({ ...opt })) : undefined,
     };
 
+    let newClave: string | null = null;
+    let oldClave: string | null = null;
+    let copiedCampoConfig: any = null;
+    let initialVal = "";
+
+    if (capa.tipo === "text") {
+      const match = capa.contenidoRaw?.match(/\{\{\s*(\w+)\s*\}\}/);
+      oldClave = match ? match[1] : null;
+      if (oldClave) {
+        newClave = `campo_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
+        duplicatedCapa.contenidoRaw = `{{${newClave}}}`;
+        
+        // Buscar configuración de campo original
+        const origCampo = plantillaActiva.camposConfig?.find((f: any) => f.clave === oldClave);
+        if (origCampo) {
+          copiedCampoConfig = {
+            ...origCampo,
+            clave: newClave,
+            nombreLegible: `${origCampo.nombreLegible || oldClave} (Copia)`
+          };
+          initialVal = (activeTab === "frontal" ? tempValoresCampos[oldClave] : tempValoresCamposTrasera[oldClave]) || origCampo.valorDefecto || "";
+        } else {
+          copiedCampoConfig = {
+            clave: newClave,
+            nombreLegible: `${newClave} (Copia)`,
+            tipo: "text",
+            valorDefecto: ""
+          };
+          initialVal = (activeTab === "frontal" ? tempValoresCampos[oldClave] : tempValoresCamposTrasera[oldClave]) || "";
+        }
+      }
+    }
+
     const updater = (prev: any) => {
       const nextCapas = [...prev.capas];
       nextCapas.splice(index + 1, 0, duplicatedCapa);
+      
+      let nextCamposConfig = [...(prev.camposConfig || [])];
+      if (copiedCampoConfig) {
+        nextCamposConfig.push(copiedCampoConfig);
+      }
+
       return {
         ...prev,
-        capas: nextCapas
+        capas: nextCapas,
+        camposConfig: nextCamposConfig
       };
     };
 
     if (activeTab === "frontal") {
       setTempPlantilla(updater);
+      if (newClave) {
+        setTempValoresCampos((prev: any) => ({
+          ...prev,
+          [newClave!]: initialVal
+        }));
+      }
     } else {
       setTempPlantillaTrasera(updater);
+      if (newClave) {
+        setTempValoresCamposTrasera((prev: any) => ({
+          ...prev,
+          [newClave!]: initialVal
+        }));
+      }
     }
 
     setSelectedLayerId(newId);

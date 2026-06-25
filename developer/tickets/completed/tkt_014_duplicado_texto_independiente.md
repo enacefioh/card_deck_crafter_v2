@@ -1,7 +1,7 @@
 # Ticket - TKT-014: Independizar Variables de Texto al Duplicar Capas
 
 - **ID del Ticket**: TKT-014
-- **Estado**: 🔴 Activo (Pendiente)
+- **Estado**: 🟢 Completado
 - **Fecha de Registro**: 2026-06-25
 - **Severidad**: Alta (Error de consistencia de datos / Comportamiento incorrecto)
 
