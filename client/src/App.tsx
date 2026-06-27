@@ -85,10 +85,19 @@ export default function App() {
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [templateModalMode, setTemplateModalMode] = useState<"addCard" | "assignBack">("addCard");
 
+  // --- Estados de la Galería Multimedia del Proyecto (SRS-014) ---
+  const [projectAssets, setProjectAssetsInternal] = useState<any[]>([]);
+  const [showProjectGallery, setShowProjectGallery] = useState<boolean>(false);
+
   // --- Estado de cambios sin guardar (IsDirty) ---
   const [isDirty, setIsDirty] = useState<boolean>(false);
 
   // Wrappers para marcar como modificado (isDirty = true) al realizar acciones desde la UI
+  const setProjectAssets = (value: React.SetStateAction<any[]>) => {
+    setProjectAssetsInternal(value);
+    setIsDirty(true);
+  };
+
   const setCanvasConfig = (value: React.SetStateAction<CanvasConfig>) => {
     setCanvasConfigInternal(value);
     setIsDirty(true);
@@ -209,6 +218,42 @@ export default function App() {
         anchoMm: preset.ancho,
         altoMm: preset.alto,
       }));
+    }
+  };
+
+  // --- Funciones para la Galería del Proyecto (SRS-014) ---
+  const handleUploadProjectAssets = (files: FileList) => {
+    const nuevos: any[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (file.type.startsWith("image/")) {
+        const id = `proj_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        nuevos.push({
+          id,
+          nombre: file.name,
+          src: URL.createObjectURL(file),
+        });
+      }
+    }
+    if (nuevos.length > 0) {
+      setProjectAssets((prev) => [...prev, ...nuevos]);
+    }
+  };
+
+  const handleDeleteProjectAsset = (id: string) => {
+    if (window.confirm("¿Seguro que deseas eliminar esta imagen de la galería del proyecto? Las cartas que la usen podrían dejar de mostrarla.")) {
+      setProjectAssets((prev) => prev.filter((asset) => asset.id !== id));
+    }
+  };
+
+  const handleRenameProjectAsset = (id: string) => {
+    const asset = projectAssets.find((a) => a.id === id);
+    if (!asset) return;
+    const nuevoNombre = window.prompt("Introduce el nuevo nombre para la imagen:", asset.nombre);
+    if (nuevoNombre && nuevoNombre.trim() !== "") {
+      setProjectAssets((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, nombre: nuevoNombre.trim() } : a))
+      );
     }
   };
 
@@ -351,9 +396,46 @@ export default function App() {
   const generarProyectoZip = async (): Promise<Blob> => {
     const zip = new JSZip();
     const assetsFolder = zip.folder("assets")!;
+    const projectAssetsFolder = zip.folder("project_assets")!;
     const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
+    const projectAssetMap = new Map<string, string>(); // blobUrl -> projectAssetPath
+    const processedProjectAssets = [];
+
+    // Procesar recursos de la galería del proyecto
+    for (const asset of projectAssets) {
+      if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
+        try {
+          const res = await fetch(asset.src);
+          const blob = await res.blob();
+          
+          let extension = "png";
+          if (blob.type === "image/jpeg") extension = "jpg";
+          else if (blob.type === "image/webp") extension = "webp";
+          else if (blob.type === "image/gif") extension = "gif";
+          
+          const filename = `${asset.id}.${extension}`;
+          projectAssetsFolder.file(filename, blob);
+          
+          const assetPath = `project_asset://${filename}`;
+          projectAssetMap.set(asset.src, assetPath);
+          processedProjectAssets.push({
+            id: asset.id,
+            nombre: asset.nombre,
+            src: assetPath,
+          });
+        } catch (err) {
+          console.error("Error al procesar recurso de la galería del proyecto:", asset, err);
+        }
+      } else if (asset.src && asset.src.startsWith("project_asset://")) {
+        projectAssetMap.set(asset.src, asset.src);
+        processedProjectAssets.push(asset);
+      }
+    }
 
     const addBlobToZip = async (blobUrl: string, baseName: string): Promise<string> => {
+      if (projectAssetMap.has(blobUrl)) {
+        return projectAssetMap.get(blobUrl)!;
+      }
       if (imagenMap.has(blobUrl)) {
         return imagenMap.get(blobUrl)!;
       }
@@ -580,6 +662,7 @@ export default function App() {
       imagenTraseraComun: commonBackPath,
       cards: processedCards,
       templates: processedTemplatesMap,
+      assets: processedProjectAssets,
     };
 
     zip.file("project.json", JSON.stringify(proyecto, null, 2));
@@ -668,11 +751,28 @@ export default function App() {
       }
 
       const cacheBlobUrls = new Map<string, string>();
+      const matchesAssetScheme = (src: string | null | undefined): boolean => {
+        if (!src) return false;
+        return src.startsWith("asset://") || src.startsWith("project_asset://");
+      };
 
       const resolverAssetBlob = async (assetPath: string | null): Promise<string | null> => {
         if (!assetPath) return null;
         if (cacheBlobUrls.has(assetPath)) {
           return cacheBlobUrls.get(assetPath)!;
+        }
+
+        if (assetPath.startsWith("project_asset://")) {
+          const filename = assetPath.replace("project_asset://", "");
+          const zipImgFile = zip.file(`project_assets/${filename}`);
+          if (!zipImgFile) {
+            console.error(`No se encontró el project asset ${filename} en el ZIP`);
+            return null;
+          }
+          const blob = await zipImgFile.async("blob");
+          const objectUrl = URL.createObjectURL(blob);
+          cacheBlobUrls.set(assetPath, objectUrl);
+          return objectUrl;
         }
 
         const filename = assetPath.replace("asset://", "");
@@ -708,7 +808,7 @@ export default function App() {
           for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
             if (overrideVal && typeof overrideVal === "object") {
               const nextOverride: any = { ...overrideVal };
-              if (nextOverride.src && nextOverride.src.startsWith("asset://")) {
+              if (nextOverride.src && matchesAssetScheme(nextOverride.src)) {
                 const url = await resolverAssetBlob(nextOverride.src);
                 if (url) nextOverride.src = url;
               }
@@ -722,7 +822,7 @@ export default function App() {
           for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
             if (overrideVal && typeof overrideVal === "object") {
               const nextOverride: any = { ...overrideVal };
-              if (nextOverride.src && nextOverride.src.startsWith("asset://")) {
+              if (nextOverride.src && matchesAssetScheme(nextOverride.src)) {
                 const url = await resolverAssetBlob(nextOverride.src);
                 if (url) nextOverride.src = url;
               }
@@ -736,13 +836,13 @@ export default function App() {
           const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
           if (clonedPlantilla.capas) {
             for (const capa of clonedPlantilla.capas) {
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("asset://")) {
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
                 const url = await resolverAssetBlob(capa.src);
                 if (url) capa.src = url;
               }
               if (capa.tipo === "image-switch" && capa.options) {
                 for (const opt of capa.options) {
-                  if (opt.src && opt.src.startsWith("asset://")) {
+                  if (opt.src && matchesAssetScheme(opt.src)) {
                     const url = await resolverAssetBlob(opt.src);
                     if (url) opt.src = url;
                   }
@@ -752,7 +852,7 @@ export default function App() {
           }
           if (clonedPlantilla.assets) {
             for (const asset of clonedPlantilla.assets) {
-              if (asset.src && asset.src.startsWith("asset://")) {
+              if (asset.src && matchesAssetScheme(asset.src)) {
                 const url = await resolverAssetBlob(asset.src);
                 if (url) asset.src = url;
               }
@@ -766,13 +866,13 @@ export default function App() {
           const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
           if (clonedPlantillaTrasera.capas) {
             for (const capa of clonedPlantillaTrasera.capas) {
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("asset://")) {
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
                 const url = await resolverAssetBlob(capa.src);
                 if (url) capa.src = url;
               }
               if (capa.tipo === "image-switch" && capa.options) {
                 for (const opt of capa.options) {
-                  if (opt.src && opt.src.startsWith("asset://")) {
+                  if (opt.src && matchesAssetScheme(opt.src)) {
                     const url = await resolverAssetBlob(opt.src);
                     if (url) opt.src = url;
                   }
@@ -782,7 +882,7 @@ export default function App() {
           }
           if (clonedPlantillaTrasera.assets) {
             for (const asset of clonedPlantillaTrasera.assets) {
-              if (asset.src && asset.src.startsWith("asset://")) {
+              if (asset.src && matchesAssetScheme(asset.src)) {
                 const url = await resolverAssetBlob(asset.src);
                 if (url) asset.src = url;
               }
@@ -824,13 +924,13 @@ export default function App() {
               // Resolver assets de la plantilla
               if (tData.capas) {
                 for (const capa of tData.capas) {
-                  if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("asset://")) {
+                  if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
                     const url = await resolverAssetBlob(capa.src);
                     if (url) capa.src = url;
                   }
                   if (capa.tipo === "image-switch" && capa.options) {
                     for (const opt of capa.options) {
-                      if (opt.src && opt.src.startsWith("asset://")) {
+                      if (opt.src && matchesAssetScheme(opt.src)) {
                         const url = await resolverAssetBlob(opt.src);
                         if (url) opt.src = url;
                       }
@@ -840,7 +940,7 @@ export default function App() {
               }
               if (tData.assets) {
                 for (const asset of tData.assets) {
-                  if (asset.src && asset.src.startsWith("asset://")) {
+                  if (asset.src && matchesAssetScheme(asset.src)) {
                     const url = await resolverAssetBlob(asset.src);
                     if (url) asset.src = url;
                   }
@@ -861,13 +961,13 @@ export default function App() {
             // Resolver assets de la plantilla
             if (tData.capas) {
               for (const capa of tData.capas) {
-                if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("asset://")) {
+                if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
                   const url = await resolverAssetBlob(capa.src);
                   if (url) capa.src = url;
                 }
                 if (capa.tipo === "image-switch" && capa.options) {
                   for (const opt of capa.options) {
-                    if (opt.src && opt.src.startsWith("asset://")) {
+                    if (opt.src && matchesAssetScheme(opt.src)) {
                       const url = await resolverAssetBlob(opt.src);
                       if (url) opt.src = url;
                     }
@@ -877,7 +977,7 @@ export default function App() {
             }
             if (tData.assets) {
               for (const asset of tData.assets) {
-                if (asset.src && asset.src.startsWith("asset://")) {
+                if (asset.src && matchesAssetScheme(asset.src)) {
                   const url = await resolverAssetBlob(asset.src);
                   if (url) asset.src = url;
                 }
@@ -888,6 +988,24 @@ export default function App() {
           }
         }
       }
+
+      // Cargar los recursos globales de la galería del proyecto (SRS-014)
+      const nuevosProjectAssets: any[] = [];
+      if (proyecto.assets) {
+        for (const asset of proyecto.assets) {
+          if (asset.src) {
+            const url = await resolverAssetBlob(asset.src);
+            if (url) {
+              nuevosProjectAssets.push({
+                id: asset.id,
+                nombre: asset.nombre,
+                src: url
+              });
+            }
+          }
+        }
+      }
+      setProjectAssetsInternal(nuevosProjectAssets);
 
       setTemplatesMap((prev) => ({
         ...prev,
@@ -1458,6 +1576,7 @@ export default function App() {
         onCargarProyectoClick={() => fileInputProyectoRef.current?.click()}
         onImportarPlantillaClick={() => fileInputTemplateRef.current?.click()}
         onGuardarProyecto={handleGuardarProyecto}
+        onShowProjectGallery={() => setShowProjectGallery(true)}
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
         onExportarPdf={handleExportarPdf}
         exportandoPdf={exportandoPdf}
@@ -2538,6 +2657,7 @@ export default function App() {
               return [...prev, plantilla];
             });
           }}
+          projectAssets={projectAssets}
         />
       )}
       {showTemplateModal && (
@@ -2609,6 +2729,113 @@ export default function App() {
                 Cancelar
               </button>
             </footer>
+          </div>
+        </div>
+      )}
+      {showProjectGallery && (
+        <div className="gallery-popup-backdrop" onClick={() => setShowProjectGallery(false)}>
+          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+            <div className="gallery-popup-title-bar">
+              <h4 className="gallery-popup-title">Galería del Proyecto</h4>
+              <button
+                type="button"
+                className="btn-close-modal"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+                onClick={() => setShowProjectGallery(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="gallery-popup-subtitle">
+              Recursos de imagen compartidos en todo el proyecto
+            </p>
+
+            <div
+              className="gallery-manager-dropzone"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files) {
+                  handleUploadProjectAssets(e.dataTransfer.files);
+                }
+              }}
+            >
+              <input
+                type="file"
+                multiple
+                accept="image/*"
+                id="project-gallery-file-upload"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleUploadProjectAssets(e.target.files);
+                  }
+                }}
+              />
+              <label htmlFor="project-gallery-file-upload" className="gallery-dropzone-label">
+                <span style={{ fontSize: "20px", marginBottom: "4px" }}>📤</span>
+                <span>Arrastra imágenes aquí o haz clic para subir</span>
+                <span className="gallery-dropzone-subtext">Formatos permitidos: PNG, JPG, JPEG, WEBP, SVG</span>
+              </label>
+            </div>
+
+            <div className="gallery-assets-grid">
+              {projectAssets && projectAssets.length > 0 ? (
+                projectAssets.map((asset: any) => (
+                  <div key={asset.id} className="gallery-asset-item" title={asset.nombre}>
+                    <button
+                      type="button"
+                      className="gallery-asset-delete-btn"
+                      onClick={() => handleDeleteProjectAsset(asset.id)}
+                      title="Eliminar recurso de la galería"
+                    >
+                      ✕
+                    </button>
+                    <div className="gallery-asset-thumb-container">
+                      <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                    </div>
+                    <div className="gallery-asset-name" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "4px", padding: "4px 8px" }}>
+                      <span className="truncate" style={{ flex: 1, textAlign: "left" }} title={asset.nombre}>{asset.nombre}</span>
+                      <button
+                        type="button"
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", padding: 0 }}
+                        onClick={() => handleRenameProjectAsset(asset.id)}
+                        title="Renombrar"
+                      >
+                        ✏️
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{
+                  gridColumn: "1 / -1",
+                  padding: "40px 20px",
+                  textAlign: "center",
+                  color: "var(--text-secondary)",
+                  fontSize: "12px"
+                }}>
+                  No hay imágenes en la galería del proyecto. Arrastra archivos arriba para empezar.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: "6px 16px", fontSize: "12px" }}
+                onClick={() => setShowProjectGallery(false)}
+              >
+                Listo
+              </button>
+            </div>
           </div>
         </div>
       )}

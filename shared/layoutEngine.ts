@@ -65,6 +65,12 @@ export interface Carta {
   };
 }
 
+export interface ProjectAsset {
+  id: string;
+  nombre: string;
+  src: string;
+}
+
 export interface ProyectoCDC2 {
   version: "2.0.0";
   meta: {
@@ -78,6 +84,7 @@ export interface ProyectoCDC2 {
   imagenTraseraComun: string | null;
   cards: Carta[];
   templates?: Record<string, any>;
+  assets?: ProjectAsset[];
 }
 
 export interface LayoutSlot {

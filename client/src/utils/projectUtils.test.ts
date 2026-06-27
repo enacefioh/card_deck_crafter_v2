@@ -26,6 +26,19 @@ describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
     expect(parsed.cards.length).toBe(1);
   });
 
+  it("debe parsear y conservar assets globales del proyecto si están definidos", () => {
+    const proyectoConAssets = {
+      ...proyectoValido,
+      assets: [
+        { id: "proj_asset_1", nombre: "Logo del Juego", src: "project_asset://logo.png" }
+      ]
+    };
+    const parsed = validarYParsearProyecto(JSON.stringify(proyectoConAssets));
+    expect(parsed.assets).toBeDefined();
+    expect(parsed.assets?.length).toBe(1);
+    expect(parsed.assets?.[0].nombre).toBe("Logo del Juego");
+  });
+
   it("debe conservar capasOverrides al parsear el proyecto", () => {
     const proyectoConOverrides = {
       version: "2.0.0",

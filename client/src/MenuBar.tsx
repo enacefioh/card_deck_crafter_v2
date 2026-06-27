@@ -19,6 +19,7 @@ interface MenuBarProps {
   onFocusLienzoConfig: () => void;
   onFocusCartaConfig: () => void;
   onImportarPlantillaClick: () => void;
+  onShowProjectGallery?: () => void;
 
   // Acciones de Selección
   selectedCount: number;
@@ -53,6 +54,7 @@ export default function MenuBar({
   onFocusLienzoConfig,
   onFocusCartaConfig,
   onImportarPlantillaClick,
+  onShowProjectGallery,
   selectedCount,
   puedeMoverArriba,
   puedeMoverAbajo,
@@ -144,6 +146,12 @@ export default function MenuBar({
                 disabled={cartasCount === 0}
               >
                 <span className="menu-item-icon">💾</span> Guardar Proyecto
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onShowProjectGallery || (() => {}))}
+              >
+                <span className="menu-item-icon">🖼️</span> Galería del Proyecto...
               </button>
               <div className="menu-separator" />
               <button className="menu-item" onClick={() => handleAction(onImportarImagenesClick)}>

@@ -16,21 +16,22 @@
   interface ProjectAsset {
     id: string;
     nombre: string;
-    src: string; // Blob URL local en memoria
+    src: string; // Blob URL local en memoria o project_asset://...
   }
   ```
 - **RF-1.2**: Al guardar el proyecto, se guardarán los archivos en la carpeta `project_assets/` del ZIP y sus referencias se almacenarán como `project_asset://<nombre_archivo>`.
 
 ### RF-2: Panel de "Galería del Proyecto" en el Menú Principal
-- **RF-2.1**: En la barra de menú superior o panel lateral principal del proyecto, se añadirá una pestaña o botón de **Galería del Proyecto**.
+- **RF-2.1**: En la barra de menú superior, se añadirá una pestaña o botón de **Galería del Proyecto**.
 - **RF-2.2**: Abrirá un panel/popup central donde el usuario podrá importar en lote decenas de ilustraciones para las cartas, borrarlas o renombrarlas.
 
-### RF-3: Uso de Imágenes del Proyecto en las Cartas
-- **RF-3.1**: En el editor de cartas (`EditCardModal.tsx`), el selector de archivos de imagen de fondo o ilustraciones ofrecerá la opción **Cargar desde Galería del Proyecto**.
-- **RF-3.2**: Mostrará las imágenes de la galería del proyecto en mosaico.
-- **RF-3.3**: Al seleccionar una, se asignará a la capa de ilustración/imagen de la carta.
+### RF-3: Selector de Imágenes Tabulado en las Cartas
+- **RF-3.1**: En el editor de cartas (`EditCardModal.tsx`), al hacer clic en **Cargar desde Galería** (tanto para anulación de imagen de carta como para asignar recursos en una capa de tipo *Switch*), el popup selector de la galería presentará **dos pestañas**:
+  1. **Imágenes del Proyecto**: Mostrará los recursos gráficos subidos a nivel de proyecto (`projectAssets`).
+  2. **Imágenes de la Plantilla**: Mostrará los recursos locales de la plantilla activa (`plantillaActiva.assets`).
+- **RF-3.2**: Al seleccionar una imagen de cualquiera de las pestañas, se asignará a la capa o se agregará a la lista de opciones (en caso del switch).
 
 ---
 
 ## 3. Estado de la Especificación
-- **Estado**: **Pendiente / Diferido** (Se desarrollará en una iteración posterior a la SRS-020).
+- **Estado**: 🟢 Completada y Validada (Sesión actual)

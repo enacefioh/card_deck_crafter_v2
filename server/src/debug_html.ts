@@ -29,7 +29,14 @@ function generarHtmlImpresion(
   const hMm = canvasConfig.altoMm;
   
   const resolverAssetPath = (src: string | null) => {
-    return src || "";
+    if (!src) return "";
+    if (src.startsWith("project_asset://")) {
+      return src.replace("project_asset://", "project_assets/");
+    }
+    if (src.startsWith("asset://")) {
+      return src.replace("asset://", "assets/");
+    }
+    return src;
   };
 
   const paginasHtml: string[] = [];

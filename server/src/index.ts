@@ -58,6 +58,11 @@ function generarHtmlImpresion(
 
   const resolverAssetPath = (src: string | null) => {
     if (!src) return "";
+    if (src.startsWith("project_asset://")) {
+      const filename = src.replace("project_asset://", "");
+      const absPath = path.join(tempDir, "project_assets", filename);
+      return `file:///${absPath.replace(/\\/g, "/")}`;
+    }
     if (src.startsWith("asset://")) {
       const filename = src.replace("asset://", "");
       const absPath = path.join(tempDir, "assets", filename);
