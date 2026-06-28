@@ -96,7 +96,7 @@ export default function EditCardModal({
 
   // Popup de añadir elementos
   const [showAddElementPopup, setShowAddElementPopup] = useState<boolean>(false);
-  const [selectedNewType, setSelectedNewType] = useState<"text" | "image" | "image-switch">("text");
+  const [selectedNewType, setSelectedNewType] = useState<"text" | "image" | "image-switch" | "container">("text");
   const [showSwitchResourcesPopup, setShowSwitchResourcesPopup] = useState<boolean>(false);
   const [tempSwitchCapaId, setTempSwitchCapaId] = useState<string | null>(null);
   const [tempSelectedOptionIds, setTempSelectedOptionIds] = useState<string[]>([]);
@@ -267,6 +267,7 @@ export default function EditCardModal({
     const isText = selectedNewType === "text";
     const isImage = selectedNewType === "image";
     const isImageSwitch = selectedNewType === "image-switch";
+    const isContainer = selectedNewType === "container";
     const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newClave = `campo_${Date.now().toString().slice(-4)}`;
 
@@ -302,6 +303,32 @@ export default function EditCardModal({
         selectedOptionId: undefined,
         modoAjuste: "cover" as const,
         tinteColor: null,
+      };
+    } else if (isContainer) {
+      newLayer = {
+        id: newId,
+        nombre: `contenedor_${Date.now().toString().slice(-4)}`,
+        visible: true,
+        tipo: "container" as const,
+        xMm: Math.round((cardConfig.anchoMm * 0.1) * 10) / 10,
+        yMm: Math.round((cardConfig.altoMm * 0.1) * 10) / 10,
+        anchoMm: 50,
+        altoMm: 50,
+        parentCapaId: null,
+        layout: "none" as const,
+        backgroundColor: "",
+        borderTopWidth: 0,
+        borderRightWidth: 0,
+        borderBottomWidth: 0,
+        borderLeftWidth: 0,
+        borderTopColor: "#000000",
+        borderRightColor: "#000000",
+        borderBottomColor: "#000000",
+        borderLeftColor: "#000000",
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderBottomLeftRadius: 0
       };
     } else {
       const defaultText = "Texto de ejemplo...";
@@ -2624,6 +2651,13 @@ export default function EditCardModal({
               >
                 <span className="add-element-option-icon">🔄</span>
                 <span className="add-element-option-label">Imagen Switch</span>
+              </div>
+              <div
+                className={`add-element-option ${selectedNewType === "container" ? "selected" : ""}`}
+                onClick={() => setSelectedNewType("container")}
+              >
+                <span className="add-element-option-icon">📦</span>
+                <span className="add-element-option-label">Contenedor</span>
               </div>
             </div>
 
