@@ -1368,6 +1368,7 @@ export default function App() {
       }
 
       setCartasInternal([]);
+      setTemplatesMap({});
       setImagenTraseraComunInternal(null);
       setGenerarReversosInternal(false);
       setCanvasType("A4");
