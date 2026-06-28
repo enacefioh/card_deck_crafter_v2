@@ -221,18 +221,34 @@ export default function EditCardModal({
     }
   };
 
-  // --- Escucha de la tecla Escape ---
+  // --- Escucha de atajos de teclado (Escape, Delete, Backspace) ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isTyping = activeEl && (
+        activeEl.tagName === "INPUT" ||
+        activeEl.tagName === "TEXTAREA" ||
+        activeEl.getAttribute("contenteditable") === "true"
+      );
+
       if (e.key === "Escape") {
         handleCancel();
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        const layers = plantillaActiva?.capas || [];
+        const currentSelectedCapa = layers.find((c: any) => c.id === selectedLayerId);
+        if (!isTyping && selectedLayerId && currentSelectedCapa && currentSelectedCapa.tipo !== "background") {
+          e.preventDefault();
+          if (confirm("¿Estás seguro de que deseas eliminar esta capa de la plantilla? Esta acción no se puede deshacer y limpiará los valores de las cartas asociadas.")) {
+            handleDeleteCapa(selectedLayerId);
+          }
+        }
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [tempValoresCampos, tempCapasOverrides, tempValoresCamposTrasera, tempCapasOverridesTrasera, tempPlantilla, tempPlantillaTrasera]);
+  }, [selectedLayerId, plantillaActiva, tempValoresCampos, tempCapasOverrides, tempValoresCamposTrasera, tempCapasOverridesTrasera, tempPlantilla, tempPlantillaTrasera]);
 
 
 
@@ -666,6 +682,14 @@ export default function EditCardModal({
             [propKey]: propVal
           };
         }
+        // Si cambiamos el layout de un contenedor, ponemos a 0 la X e Y de sus hijos directos
+        if (propKey === "layout" && c.parentCapaId === capaId) {
+          return {
+            ...c,
+            xMm: 0,
+            yMm: 0
+          };
+        }
         return c;
       });
       return {
@@ -928,56 +952,109 @@ export default function EditCardModal({
     const capa = plantillaActiva.capas[index];
     if (capa.tipo === "background") return;
 
-    const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const newNombre = `${capa.nombre || (capa.tipo === "image" ? "Imagen" : capa.tipo === "image-switch" ? "Imagen Switch" : "Texto")} (Copia)`;
-    
-    const duplicatedCapa = {
-      ...capa,
-      id: newId,
-      nombre: newNombre,
-      options: capa.tipo === "image-switch" && capa.options ? capa.options.map((opt: any) => ({ ...opt })) : undefined,
-    };
+    // Almacén para capas duplicadas en orden, campos duplicados y sus valores
+    const duplicatedLayers: any[] = [];
+    const idMap = new Map<string, string>();
+    const fieldsToDuplicate: Array<{ oldClave: string; newClave: string; copiedCampoConfig: any; initialVal: string }> = [];
+    const overridesToDuplicate: Array<{ oldId: string; newId: string }> = [];
 
-    let newClave: string | null = null;
-    let oldClave: string | null = null;
-    let copiedCampoConfig: any = null;
-    let initialVal = "";
+    // Función recursiva interna para duplicar nodos y sus hijos
+    const duplicateLayerNode = (node: any, parentNewId: string | null) => {
+      const nodeNewId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      idMap.set(node.id, nodeNewId);
+      overridesToDuplicate.push({ oldId: node.id, newId: nodeNewId });
 
-    if (capa.tipo === "text") {
-      const match = capa.contenidoRaw?.match(/\{\{\s*(\w+)\s*\}\}/);
-      oldClave = match ? match[1] : null;
-      if (oldClave) {
-        newClave = `campo_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`;
-        duplicatedCapa.contenidoRaw = `{{${newClave}}}`;
+      const nodeNewNombre = `${node.nombre || (node.tipo === "image" ? "Imagen" : node.tipo === "image-switch" ? "Imagen Switch" : node.tipo === "container" ? "Contenedor" : "Texto")} (Copia)`;
+
+      const dupNode = {
+        ...node,
+        id: nodeNewId,
+        nombre: nodeNewNombre,
+        parentCapaId: parentNewId,
+        options: node.tipo === "image-switch" && node.options ? node.options.map((opt: any) => ({ ...opt })) : undefined,
+      };
+
+      if (node.tipo === "text") {
+        const oldNombre = node.nombre || "texto";
+        const newNombre = `${oldNombre}_copia_${Math.random().toString(36).substring(2, 5)}`;
         
-        // Buscar configuración de campo original
-        const origCampo = plantillaActiva.camposConfig?.find((f: any) => f.clave === oldClave);
+        dupNode.nombre = newNombre;
+        if (node.contenidoRaw) {
+          if (node.contenidoRaw.includes(`{{${oldNombre}}}`)) {
+            dupNode.contenidoRaw = node.contenidoRaw.replace(`{{${oldNombre}}}`, `{{${newNombre}}}`);
+          } else if (node.contenidoRaw.includes(`{{ ${oldNombre} }}`)) {
+            dupNode.contenidoRaw = node.contenidoRaw.replace(`{{ ${oldNombre} }}`, `{{ ${newNombre} }}`);
+          }
+        }
+
+        const origCampo = plantillaActiva.camposConfig?.find((f: any) => f.clave === oldNombre);
+        let copiedCampoConfig = null;
+        
+        const currentValFront = tempValoresCampos[oldNombre];
+        const currentValBack = tempValoresCamposTrasera[oldNombre];
+        const initialVal = (activeTab === "frontal" ? currentValFront : currentValBack) !== undefined
+          ? (activeTab === "frontal" ? currentValFront : currentValBack)
+          : (origCampo ? origCampo.valorDefecto : node.contenidoRaw || "");
+
         if (origCampo) {
           copiedCampoConfig = {
             ...origCampo,
-            clave: newClave,
-            nombreLegible: `${origCampo.nombreLegible || oldClave} (Copia)`
+            clave: newNombre,
+            nombreLegible: `${origCampo.nombreLegible || oldNombre} (Copia)`
           };
-          initialVal = (activeTab === "frontal" ? tempValoresCampos[oldClave] : tempValoresCamposTrasera[oldClave]) || origCampo.valorDefecto || "";
         } else {
           copiedCampoConfig = {
-            clave: newClave,
-            nombreLegible: `${newClave} (Copia)`,
+            clave: newNombre,
+            nombreLegible: `${newNombre} (Copia)`,
             tipo: "text",
-            valorDefecto: ""
+            valorDefecto: node.contenidoRaw || ""
           };
-          initialVal = (activeTab === "frontal" ? tempValoresCampos[oldClave] : tempValoresCamposTrasera[oldClave]) || "";
         }
+
+        console.log("[CDC DUPLICATE] text layer cloned:", oldNombre, "->", newNombre, "initialVal:", initialVal);
+        fieldsToDuplicate.push({ oldClave: oldNombre, newClave: newNombre, copiedCampoConfig, initialVal });
       }
+
+      duplicatedLayers.push(dupNode);
+
+      // Buscar todos los hijos directos del nodo original
+      const children = (plantillaActiva.capas || []).filter((c: any) => c.parentCapaId === node.id);
+      for (const child of children) {
+        duplicateLayerNode(child, nodeNewId);
+      }
+    };
+
+    // Iniciar duplicación recursiva
+    duplicateLayerNode(capa, capa.parentCapaId);
+
+    // Encontrar el último descendiente de la capa original para insertar la copia justo después
+    const isDescendantOfOriginal = (c: any): boolean => {
+      let currentId = c.parentCapaId;
+      let depth = 0;
+      while (currentId) {
+        depth++;
+        if (currentId === capaId) return true;
+        const parent = plantillaActiva.capas.find((p: any) => p.id === currentId);
+        currentId = parent ? parent.parentCapaId : null;
+        if (depth > 10) break;
+      }
+      return false;
+    };
+
+    let lastDescendantIndex = index;
+    while (lastDescendantIndex + 1 < plantillaActiva.capas.length && isDescendantOfOriginal(plantillaActiva.capas[lastDescendantIndex + 1])) {
+      lastDescendantIndex++;
     }
 
     const updater = (prev: any) => {
       const nextCapas = [...prev.capas];
-      nextCapas.splice(index + 1, 0, duplicatedCapa);
+      nextCapas.splice(lastDescendantIndex + 1, 0, ...duplicatedLayers);
       
       let nextCamposConfig = [...(prev.camposConfig || [])];
-      if (copiedCampoConfig) {
-        nextCamposConfig.push(copiedCampoConfig);
+      for (const field of fieldsToDuplicate) {
+        if (field.copiedCampoConfig) {
+          nextCamposConfig.push(field.copiedCampoConfig);
+        }
       }
 
       return {
@@ -989,23 +1066,46 @@ export default function EditCardModal({
 
     if (activeTab === "frontal") {
       setTempPlantilla(updater);
-      if (newClave) {
+      for (const field of fieldsToDuplicate) {
         setTempValoresCampos((prev: any) => ({
           ...prev,
-          [newClave!]: initialVal
+          [field.newClave]: field.initialVal
         }));
       }
+      // Duplicar overrides de capas
+      setTempCapasOverrides((prev: any) => {
+        const next = { ...prev };
+        for (const item of overridesToDuplicate) {
+          if (prev[item.oldId]) {
+            next[item.newId] = JSON.parse(JSON.stringify(prev[item.oldId]));
+          }
+        }
+        return next;
+      });
     } else {
       setTempPlantillaTrasera(updater);
-      if (newClave) {
+      for (const field of fieldsToDuplicate) {
         setTempValoresCamposTrasera((prev: any) => ({
           ...prev,
-          [newClave!]: initialVal
+          [field.newClave]: field.initialVal
         }));
       }
+      // Duplicar overrides de capas trasera
+      setTempCapasOverridesTrasera((prev: any) => {
+        const next = { ...prev };
+        for (const item of overridesToDuplicate) {
+          if (prev[item.oldId]) {
+            next[item.newId] = JSON.parse(JSON.stringify(prev[item.oldId]));
+          }
+        }
+        return next;
+      });
     }
 
-    setSelectedLayerId(newId);
+    const rootDuplicatedId = idMap.get(capaId);
+    if (rootDuplicatedId) {
+      setSelectedLayerId(rootDuplicatedId);
+    }
   };
 
   // --- Eliminar Capa de la Plantilla (SRS-016) ---
@@ -1456,14 +1556,20 @@ export default function EditCardModal({
                       return filteredLayers.map((capa: any) => {
                         const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
                         const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
+                        const isParentVertical = parentCapa && parentCapa.layout === "vertical";
+                        const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
                         const isSelected = selectedLayerId === capa.id;
                         const isHovered = hoveredLayerId === capa.id;
 
                         const layerStyle: React.CSSProperties = {
                           position: isParentFlex ? "relative" : "absolute",
-                          left: isParentFlex ? undefined : `${capa.xMm * scale}px`,
-                          top: isParentFlex ? undefined : `${capa.yMm * scale}px`,
+                          left: isParentFlex 
+                            ? (isParentVertical ? `${capa.xMm * scale}px` : undefined)
+                            : `${capa.xMm * scale}px`,
+                          top: isParentFlex 
+                            ? (isParentHorizontal ? `${capa.yMm * scale}px` : undefined)
+                            : `${capa.yMm * scale}px`,
                           width: `${capa.anchoMm * scale}px`,
                           height: `${capa.altoMm * scale}px`,
                           cursor: "pointer",
@@ -1528,9 +1634,7 @@ export default function EditCardModal({
                           const flexStyle: React.CSSProperties = isFlex ? {
                             display: "flex",
                             flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
-                          } : {
-                            position: "relative" as any,
-                          };
+                          } : {};
 
                           return (
                             <div
@@ -1732,14 +1836,14 @@ export default function EditCardModal({
                 <div className="inspector-panel">
                   <div className="inspector-layer-header">
                     <span className="inspector-layer-icon">
-                      {selectedCapa.tipo === "background" ? "🎨" : (selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") ? "🖼️" : "📝"}
+                      {selectedCapa.tipo === "background" ? "🎨" : (selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") ? "🖼️" : selectedCapa.tipo === "container" ? "📦" : "📝"}
                     </span>
                     <h3>{selectedCapa.nombre}</h3>
                   </div>
                   <hr className="inspector-separator" />
 
-                  {/* Sub-pestañas si es capa de texto o imagen */}
-                  {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") && (
+                  {/* Sub-pestañas si es capa de texto, imagen o contenedor */}
+                  {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container") && (
                     <div className="inspector-tabs">
                       <button
                         type="button"
@@ -1759,8 +1863,16 @@ export default function EditCardModal({
                   )}
 
                   {/* CONTENIDO TAB */}
-                  {inspectorTab === "contenido" || (selectedCapa.tipo !== "text" && selectedCapa.tipo !== "image" && selectedCapa.tipo !== "image-switch") ? (
+                  {inspectorTab === "contenido" || (selectedCapa.tipo !== "text" && selectedCapa.tipo !== "image" && selectedCapa.tipo !== "image-switch" && selectedCapa.tipo !== "container") ? (
                     <>
+                      {/* Controles para capas de Contenedor (Mensaje informativo en pestaña contenido) */}
+                      {selectedCapa.tipo === "container" && (
+                        <div className="inspector-section">
+                          <p style={{ fontSize: "12.5px", color: "var(--text-secondary)", margin: 0, lineHeight: 1.4 }}>
+                            Los contenedores no poseen contenido de variables. Configura su alineación, dimensiones y estilos estéticos en la pestaña de <strong>Diseño</strong>.
+                          </p>
+                        </div>
+                      )}
                       {/* Controles para capas de Fondo */}
                       {selectedCapa.tipo === "background" && (
                         <div className="inspector-section">
@@ -2218,6 +2330,50 @@ export default function EditCardModal({
                   ) : (
                     /* DISEÑO TAB */
                     <div className="inspector-panel" style={{ gap: "12px" }}>
+                      {selectedCapa.tipo === "container" && (
+                        <>
+                          <div className="inspector-section">
+                            <label className="inspector-label">Nombre del Contenedor</label>
+                            <input
+                              type="text"
+                              className="inspector-input"
+                              value={selectedCapa.nombre || ""}
+                              placeholder="ej. Contenedor de Atributos"
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
+                            />
+                          </div>
+                          <div className="inspector-section">
+                            <label className="inspector-label">Tipo de Layout</label>
+                            <select
+                              className="inspector-input"
+                              value={selectedCapa.layout || "none"}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "layout", e.target.value)}
+                            >
+                              <option value="none">Libre (FrameLayout)</option>
+                              <option value="vertical">Lineal Vertical</option>
+                              <option value="horizontal">Lineal Horizontal</option>
+                            </select>
+                          </div>
+
+                          <div className="inspector-section">
+                            <label className="inspector-label">Contenedor Padre</label>
+                            <select
+                              className="inspector-input"
+                              value={selectedCapa.parentCapaId || ""}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "parentCapaId", e.target.value === "" ? null : e.target.value)}
+                            >
+                              <option value="">(Raíz)</option>
+                              {(plantillaActiva.capas || [])
+                                .filter((c: any) => c.tipo === "container" && c.id !== selectedCapa.id && !isDescendant(c.id, selectedCapa.id))
+                                .map((c: any) => (
+                                  <option key={c.id} value={c.id}>
+                                    {c.nombre || `Contenedor ${c.id}`}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        </>
+                      )}
                       {selectedCapa.tipo === "text" && (
                         <>
                           <div className="inspector-section">
@@ -2667,7 +2823,7 @@ export default function EditCardModal({
                       )}
 
                       {/* Bordes, Esquinas y Fondo (SRS-024) */}
-                      {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") && (
+                      {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container") && (
                         <div className="inspector-section border-corners-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "12px" }}>
                           
                           {/* Sección de Bordes */}

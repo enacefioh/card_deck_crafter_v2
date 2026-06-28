@@ -123,11 +123,21 @@ function generarHtmlImpresion(
             
             let leftMm = "";
             let topMm = "";
+            const isParentVertical = parentCapa && parentCapa.layout === "vertical";
+            const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+
             if (!isFlexParent) {
               const xMmVal = capa.xMm + (parentId === null ? sangrado : 0);
               const yMmVal = capa.yMm + (parentId === null ? sangrado : 0);
               leftMm = `left: ${xMmVal}mm;`;
               topMm = `top: ${yMmVal}mm;`;
+            } else {
+              if (isParentVertical) {
+                leftMm = `left: ${capa.xMm}mm;`;
+              }
+              if (isParentHorizontal) {
+                topMm = `top: ${capa.yMm}mm;`;
+              }
             }
 
             const widthMm = `${capa.anchoMm}mm`;

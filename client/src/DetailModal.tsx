@@ -116,11 +116,17 @@ export default function DetailModal({
                             return filteredLayers.map((capa: any) => {
                               const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
                               const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
+                              const isParentVertical = parentCapa && parentCapa.layout === "vertical";
+                              const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
                               const style: React.CSSProperties = {
                                 position: isParentFlex ? "relative" : "absolute",
-                                left: isParentFlex ? undefined : `${capa.xMm * 2.5}px`,
-                                top: isParentFlex ? undefined : `${capa.yMm * 2.5}px`,
+                                left: isParentFlex 
+                                  ? (isParentVertical ? `${capa.xMm * 2.5}px` : undefined)
+                                  : `${capa.xMm * 2.5}px`,
+                                top: isParentFlex 
+                                  ? (isParentHorizontal ? `${capa.yMm * 2.5}px` : undefined)
+                                  : `${capa.yMm * 2.5}px`,
                                 width: `${capa.anchoMm * 2.5}px`,
                                 height: `${capa.altoMm * 2.5}px`,
                                 pointerEvents: "none",
@@ -172,7 +178,7 @@ export default function DetailModal({
                                   display: "flex",
                                   flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
                                 } : {
-                                  position: "relative" as any,
+
                                 };
 
                                 return (
@@ -396,11 +402,17 @@ export default function DetailModal({
                             return filteredLayers.map((capa: any) => {
                               const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
                               const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
+                              const isParentVertical = parentCapa && parentCapa.layout === "vertical";
+                              const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
                               const style: React.CSSProperties = {
                                 position: isParentFlex ? "relative" : "absolute",
-                                left: isParentFlex ? undefined : `${capa.xMm * 2.5}px`,
-                                top: isParentFlex ? undefined : `${capa.yMm * 2.5}px`,
+                                left: isParentFlex 
+                                  ? (isParentVertical ? `${capa.xMm * 2.5}px` : undefined)
+                                  : `${capa.xMm * 2.5}px`,
+                                top: isParentFlex 
+                                  ? (isParentHorizontal ? `${capa.yMm * 2.5}px` : undefined)
+                                  : `${capa.yMm * 2.5}px`,
                                 width: `${capa.anchoMm * 2.5}px`,
                                 height: `${capa.altoMm * 2.5}px`,
                                 pointerEvents: "none",
@@ -452,7 +464,7 @@ export default function DetailModal({
                                   display: "flex",
                                   flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
                                 } : {
-                                  position: "relative" as any,
+
                                 };
 
                                 return (

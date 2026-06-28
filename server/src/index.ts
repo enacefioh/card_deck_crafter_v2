@@ -163,11 +163,21 @@ function generarHtmlImpresion(
               
               let leftPx = "";
               let topPx = "";
+              const isParentVertical = parentCapa && parentCapa.layout === "vertical";
+              const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+
               if (!isFlexParent) {
                 const xMmVal = capa.xMm + (parentId === null ? sangrado : 0);
                 const yMmVal = capa.yMm + (parentId === null ? sangrado : 0);
                 leftPx = `left: ${xMmVal * MM_TO_PX}px;`;
                 topPx = `top: ${yMmVal * MM_TO_PX}px;`;
+              } else {
+                if (isParentVertical) {
+                  leftPx = `left: ${capa.xMm * MM_TO_PX}px;`;
+                }
+                if (isParentHorizontal) {
+                  topPx = `top: ${capa.yMm * MM_TO_PX}px;`;
+                }
               }
 
               const widthPx = `${capa.anchoMm * MM_TO_PX}px`;

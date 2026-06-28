@@ -1684,7 +1684,7 @@ export default function App() {
         e.preventDefault();
         handleDuplicarSeleccion();
       } else if (e.key === "Delete" || e.key === "Backspace") {
-        if (selectedCardIds.length > 0) {
+        if (editingCardId === null && selectedCardIds.length > 0) {
           e.preventDefault();
           handleEliminarSeleccion();
         }
@@ -1705,7 +1705,7 @@ export default function App() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [cartas, selectedCardIds, puedeMoverArriba, puedeMoverAbajo]);
+  }, [cartas, selectedCardIds, puedeMoverArriba, puedeMoverAbajo, editingCardId]);
 
   return (
     <div className="app-layout">
@@ -2207,11 +2207,17 @@ export default function App() {
                                       return filteredLayers.map((capa: any) => {
                                         const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
                                         const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
+                                        const isParentVertical = parentCapa && parentCapa.layout === "vertical";
+                                        const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
                                         const style: React.CSSProperties = {
                                           position: isParentFlex ? "relative" : "absolute",
-                                          left: isParentFlex ? undefined : `${capa.xMm * zoomFactor}px`,
-                                          top: isParentFlex ? undefined : `${capa.yMm * zoomFactor}px`,
+                                          left: isParentFlex 
+                                            ? (isParentVertical ? `${capa.xMm * zoomFactor}px` : undefined)
+                                            : `${capa.xMm * zoomFactor}px`,
+                                          top: isParentFlex 
+                                            ? (isParentHorizontal ? `${capa.yMm * zoomFactor}px` : undefined)
+                                            : `${capa.yMm * zoomFactor}px`,
                                           width: `${capa.anchoMm * zoomFactor}px`,
                                           height: `${capa.altoMm * zoomFactor}px`,
                                           pointerEvents: "none",
@@ -2263,7 +2269,7 @@ export default function App() {
                                             display: "flex",
                                             flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
                                           } : {
-                                            position: "relative" as any,
+
                                           };
 
                                           return (
@@ -2549,11 +2555,17 @@ export default function App() {
                                           return filteredLayers.map((capa: any) => {
                                             const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
                                             const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
+                                            const isParentVertical = parentCapa && parentCapa.layout === "vertical";
+                                            const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
                                             const style: React.CSSProperties = {
                                               position: isParentFlex ? "relative" : "absolute",
-                                              left: isParentFlex ? undefined : `${capa.xMm * zoomFactor}px`,
-                                              top: isParentFlex ? undefined : `${capa.yMm * zoomFactor}px`,
+                                              left: isParentFlex 
+                                                ? (isParentVertical ? `${capa.xMm * zoomFactor}px` : undefined)
+                                                : `${capa.xMm * zoomFactor}px`,
+                                              top: isParentFlex 
+                                                ? (isParentHorizontal ? `${capa.yMm * zoomFactor}px` : undefined)
+                                                : `${capa.yMm * zoomFactor}px`,
                                               width: `${capa.anchoMm * zoomFactor}px`,
                                               height: `${capa.altoMm * zoomFactor}px`,
                                               pointerEvents: "none",
@@ -2604,9 +2616,7 @@ export default function App() {
                                               const flexStyle: React.CSSProperties = isFlex ? {
                                                 display: "flex",
                                                 flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
-                                              } : {
-                                                position: "relative" as any,
-                                              };
+                                              } : {};
 
                                               return (
                                                 <div
