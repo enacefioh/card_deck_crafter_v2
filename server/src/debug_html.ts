@@ -105,101 +105,161 @@ function generarHtmlImpresion(
       if (cardData && cardData.plantillaId && proyecto.templates && proyecto.templates[cardData.plantillaId]) {
         const plantilla = proyecto.templates[cardData.plantillaId];
         
-        const layersHtml = plantilla.capas.map((capa: any) => {
-          if (capa.tipo === "background") {
-            const colorFill = cardData.capasOverrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
-            return `
-              <div style="position: absolute; left: 0mm; top: 0mm; width: ${templateWidth}mm; height: ${templateHeight}mm; background-color: ${colorFill}; pointer-events: none;"></div>
-            `;
-          }
-          
-          if (capa.tipo === "text") {
-            const overrides = cardData.capasOverrides?.[capa.id];
-            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-            const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos);
-            const htmlText = parseMarkdownToHtml(textoInterp);
-            const fontSizePt = resolvedCapa.fontSizePt || 12;
-            const align = resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : resolvedCapa.alineacion === "justify" ? "justify" : "left";
-            const weight = resolvedCapa.bold ? "bold" : "normal";
-            const styleOpt = resolvedCapa.italic ? "italic" : "normal";
-            const decoration = resolvedCapa.underline ? "underline" : "none";
+        const renderCapaRecursiva = (parentId: string | null): string => {
+          const layers = plantilla.capas || [];
+          const filteredLayers = layers.filter((c: any) => {
+            if (parentId === null) {
+              return !c.parentCapaId;
+            }
+            return c.parentCapaId === parentId;
+          });
+
+          return filteredLayers.map((capa: any) => {
+            const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
+            const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
+
+            const isFlexParent = isParentFlex;
+            const positionCss = isFlexParent ? "position: relative;" : "position: absolute;";
             
-            const xPos = resolvedCapa.xMm + sangrado;
-            const yPos = resolvedCapa.yMm + sangrado;
+            let leftMm = "";
+            let topMm = "";
+            if (!isFlexParent) {
+              const xMmVal = capa.xMm + (parentId === null ? sangrado : 0);
+              const yMmVal = capa.yMm + (parentId === null ? sangrado : 0);
+              leftMm = `left: ${xMmVal}mm;`;
+              topMm = `top: ${yMmVal}mm;`;
+            }
 
-            // Bordes y Esquinas (SRS-024)
-            const borderTopMm = resolvedCapa.borderTopWidth || 0;
-            const borderRightMm = resolvedCapa.borderRightWidth || 0;
-            const borderBottomMm = resolvedCapa.borderBottomWidth || 0;
-            const borderLeftMm = resolvedCapa.borderLeftWidth || 0;
+            const widthMm = `${capa.anchoMm}mm`;
+            const heightMm = `${capa.altoMm}mm`;
 
-            const radiusTopLeftMm = resolvedCapa.borderTopLeftRadius || 0;
-            const radiusTopRightMm = resolvedCapa.borderTopRightRadius || 0;
-            const radiusBottomRightMm = resolvedCapa.borderBottomRightRadius || 0;
-            const radiusBottomLeftMm = resolvedCapa.borderBottomLeftRadius || 0;
+            const baseStyle = `${positionCss} ${leftMm} ${topMm} width: ${widthMm}; height: ${heightMm}; pointer-events: none; box-sizing: border-box; flex-shrink: 0;`;
 
-            const borderTopStyle = borderTopMm > 0 ? `border-top: ${borderTopMm}mm solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
-            const borderRightStyle = borderRightMm > 0 ? `border-right: ${borderRightMm}mm solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
-            const borderBottomStyle = borderBottomMm > 0 ? `border-bottom: ${borderBottomMm}mm solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
-            const borderLeftStyle = borderLeftMm > 0 ? `border-left: ${borderLeftMm}mm solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
-
-            const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftMm}mm; border-top-right-radius: ${radiusTopRightMm}mm; border-bottom-right-radius: ${radiusBottomRightMm}mm; border-bottom-left-radius: ${radiusBottomLeftMm}mm;`;
-            const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle} box-sizing: border-box; overflow: hidden;`;
-            
-            return `
-              <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${resolvedCapa.anchoMm}mm; height: ${resolvedCapa.altoMm}mm; font-family: ${resolvedCapa.fontFamily || 'sans-serif'}; font-size: ${fontSizePt * 0.352778}mm; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; pointer-events: none; ${borderCornersCss}">
-                ${htmlText}
-              </div>
-            `;
-          }
-
-          if (capa.tipo === "image" || capa.tipo === "image-switch") {
-            const overrides = cardData.capasOverrides?.[capa.id];
-            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-            const rawSrc = resolvedCapa.src;
-            const imgPath = resolverAssetPath(rawSrc);
-            
-            const xPos = resolvedCapa.xMm + sangrado;
-            const yPos = resolvedCapa.yMm + sangrado;
-
-            // Bordes y Esquinas (SRS-024)
-            const borderTopMm = resolvedCapa.borderTopWidth || 0;
-            const borderRightMm = resolvedCapa.borderRightWidth || 0;
-            const borderBottomMm = resolvedCapa.borderBottomWidth || 0;
-            const borderLeftMm = resolvedCapa.borderLeftWidth || 0;
-
-            const radiusTopLeftMm = resolvedCapa.borderTopLeftRadius || 0;
-            const radiusTopRightMm = resolvedCapa.borderTopRightRadius || 0;
-            const radiusBottomRightMm = resolvedCapa.borderBottomRightRadius || 0;
-            const radiusBottomLeftMm = resolvedCapa.borderBottomLeftRadius || 0;
-
-            const borderTopStyle = borderTopMm > 0 ? `border-top: ${borderTopMm}mm solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
-            const borderRightStyle = borderRightMm > 0 ? `border-right: ${borderRightMm}mm solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
-            const borderBottomStyle = borderBottomMm > 0 ? `border-bottom: ${borderBottomMm}mm solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
-            const borderLeftStyle = borderLeftMm > 0 ? `border-left: ${borderLeftMm}mm solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
-
-            const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftMm}mm; border-top-right-radius: ${radiusTopRightMm}mm; border-bottom-right-radius: ${radiusBottomRightMm}mm; border-bottom-left-radius: ${radiusBottomLeftMm}mm;`;
-            const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle} box-sizing: border-box; overflow: hidden;`;
-            
-            if (imgPath) {
-              const objectFit = resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover");
+            if (capa.tipo === "background") {
+              const colorFill = cardData.capasOverrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
               return `
-                <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${resolvedCapa.anchoMm}mm; height: ${resolvedCapa.altoMm}mm; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; pointer-events: none; ${borderCornersCss}">
-                  <img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block; border-radius: inherit;" />
-                </div>
+                <div style="${baseStyle} background-color: ${colorFill};"></div>
               `;
-            } else {
-              const emojiSize = Math.min(resolvedCapa.anchoMm, resolvedCapa.altoMm) * 0.4;
+            }
+
+            if (capa.tipo === "container") {
+              const overrides = cardData.capasOverrides?.[capa.id];
+              const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
+              // Bordes y Esquinas (SRS-024)
+              const borderTopMm = resolvedCapa.borderTopWidth || 0;
+              const borderRightMm = resolvedCapa.borderRightWidth || 0;
+              const borderBottomMm = resolvedCapa.borderBottomWidth || 0;
+              const borderLeftMm = resolvedCapa.borderLeftWidth || 0;
+
+              const radiusTopLeftMm = resolvedCapa.borderTopLeftRadius || 0;
+              const radiusTopRightMm = resolvedCapa.borderTopRightRadius || 0;
+              const radiusBottomRightMm = resolvedCapa.borderBottomRightRadius || 0;
+              const radiusBottomLeftMm = resolvedCapa.borderBottomLeftRadius || 0;
+
+              const borderTopStyle = borderTopMm > 0 ? `border-top: ${borderTopMm}mm solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+              const borderRightStyle = borderRightMm > 0 ? `border-right: ${borderRightMm}mm solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+              const borderBottomStyle = borderBottomMm > 0 ? `border-bottom: ${borderBottomMm}mm solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+              const borderLeftStyle = borderLeftMm > 0 ? `border-left: ${borderLeftMm}mm solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+
+              const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftMm}mm; border-top-right-radius: ${radiusTopRightMm}mm; border-bottom-right-radius: ${radiusBottomRightMm}mm; border-bottom-left-radius: ${radiusBottomLeftMm}mm;`;
+              const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
+
+              const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
+              const flexStyle = isFlex ? `display: flex; flex-direction: ${resolvedCapa.layout === "vertical" ? "column" : "row"};` : "";
+
+              const innerContentHtml = renderCapaRecursiva(capa.id);
+
               return `
-                <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${resolvedCapa.anchoMm}mm; height: ${resolvedCapa.altoMm}mm; background-color: #e2e8f0; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; pointer-events: none; ${borderCornersCss}">
-                  <span style="font-size: ${emojiSize}mm; line-height: 1; font-family: sans-serif;">🖼️</span>
+                <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; overflow: hidden; ${borderCornersCss} ${flexStyle}">
+                  ${innerContentHtml}
                 </div>
               `;
             }
-          }
-          
-          return "";
-        }).join("\n");
+
+            if (capa.tipo === "text") {
+              const overrides = cardData.capasOverrides?.[capa.id];
+              const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+              const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos);
+              const htmlText = parseMarkdownToHtml(textoInterp);
+              const fontSizePt = resolvedCapa.fontSizePt || 12;
+              const align = resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : resolvedCapa.alineacion === "justify" ? "justify" : "left";
+              const weight = resolvedCapa.bold ? "bold" : "normal";
+              const styleOpt = resolvedCapa.italic ? "italic" : "normal";
+              const decoration = resolvedCapa.underline ? "underline" : "none";
+
+              // Bordes y Esquinas (SRS-024)
+              const borderTopMm = resolvedCapa.borderTopWidth || 0;
+              const borderRightMm = resolvedCapa.borderRightWidth || 0;
+              const borderBottomMm = resolvedCapa.borderBottomWidth || 0;
+              const borderLeftMm = resolvedCapa.borderLeftWidth || 0;
+
+              const radiusTopLeftMm = resolvedCapa.borderTopLeftRadius || 0;
+              const radiusTopRightMm = resolvedCapa.borderTopRightRadius || 0;
+              const radiusBottomRightMm = resolvedCapa.borderBottomRightRadius || 0;
+              const radiusBottomLeftMm = resolvedCapa.borderBottomLeftRadius || 0;
+
+              const borderTopStyle = borderTopMm > 0 ? `border-top: ${borderTopMm}mm solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+              const borderRightStyle = borderRightMm > 0 ? `border-right: ${borderRightMm}mm solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+              const borderBottomStyle = borderBottomMm > 0 ? `border-bottom: ${borderBottomMm}mm solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+              const borderLeftStyle = borderLeftMm > 0 ? `border-left: ${borderLeftMm}mm solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+
+              const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftMm}mm; border-top-right-radius: ${radiusTopRightMm}mm; border-bottom-right-radius: ${radiusBottomRightMm}mm; border-bottom-left-radius: ${radiusBottomLeftMm}mm;`;
+              const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
+
+              return `
+                <div style="${baseStyle} font-family: ${resolvedCapa.fontFamily || 'sans-serif'}; font-size: ${fontSizePt * 0.352778}mm; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; pointer-events: none; ${borderCornersCss}">
+                  ${htmlText}
+                </div>
+              `;
+            }
+
+            if (capa.tipo === "image" || capa.tipo === "image-switch") {
+              const overrides = cardData.capasOverrides?.[capa.id];
+              const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+              const rawSrc = resolvedCapa.src;
+              const imgPath = resolverAssetPath(rawSrc);
+
+              // Bordes y Esquinas (SRS-024)
+              const borderTopMm = resolvedCapa.borderTopWidth || 0;
+              const borderRightMm = resolvedCapa.borderRightWidth || 0;
+              const borderBottomMm = resolvedCapa.borderBottomWidth || 0;
+              const borderLeftMm = resolvedCapa.borderLeftWidth || 0;
+
+              const radiusTopLeftMm = resolvedCapa.borderTopLeftRadius || 0;
+              const radiusTopRightMm = resolvedCapa.borderTopRightRadius || 0;
+              const radiusBottomRightMm = resolvedCapa.borderBottomRightRadius || 0;
+              const radiusBottomLeftMm = resolvedCapa.borderBottomLeftRadius || 0;
+
+              const borderTopStyle = borderTopMm > 0 ? `border-top: ${borderTopMm}mm solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+              const borderRightStyle = borderRightMm > 0 ? `border-right: ${borderRightMm}mm solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+              const borderBottomStyle = borderBottomMm > 0 ? `border-bottom: ${borderBottomMm}mm solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+              const borderLeftStyle = borderLeftMm > 0 ? `border-left: ${borderLeftMm}mm solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+
+              const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftMm}mm; border-top-right-radius: ${radiusTopRightMm}mm; border-bottom-right-radius: ${radiusBottomRightMm}mm; border-bottom-left-radius: ${radiusBottomLeftMm}mm;`;
+              const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
+
+              if (imgPath) {
+                const objectFit = resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover");
+                return `
+                  <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; ${borderCornersCss}">
+                    <img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block; border-radius: inherit;" />
+                  </div>
+                `;
+              } else {
+                const emojiSize = Math.min(resolvedCapa.anchoMm, resolvedCapa.altoMm) * 0.4;
+                return `
+                  <div style="${baseStyle} background-color: #e2e8f0; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; ${borderCornersCss}">
+                    <span style="font-size: ${emojiSize}mm; line-height: 1; font-family: sans-serif;">🖼️</span>
+                  </div>
+                `;
+              }
+            }
+
+            return "";
+          }).join("\n");
+        };
+        const layersHtml = renderCapaRecursiva(null);
 
         return `
           <div class="card-slot" style="left: ${x}mm; top: ${y}mm; width: ${width}mm; height: ${height}mm;">

@@ -146,103 +146,160 @@ function generarHtmlImpresion(
 
         if (plantilla) {
           const capas = plantilla.capas || [];
-          const layersHtml = capas.map((capa: any) => {
-          if (capa.tipo === "background") {
-            const overrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
-            const colorFill = overrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
-            return `
-              <div style="position: absolute; left: 0px; top: 0px; width: ${templateWidth * MM_TO_PX}px; height: ${templateHeight * MM_TO_PX}px; background-color: ${colorFill}; pointer-events: none;"></div>
-            `;
-          }
-          
-          if (capa.tipo === "text") {
-            const valores = esTrasera ? cardData.valoresCamposTrasera : cardData.valoresCampos;
-            const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
-            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-            const textoInterp = renderizarTextoCapa(resolvedCapa, valores);
-            const htmlText = parseMarkdownToHtml(textoInterp);
-            const fontSizePt = resolvedCapa.fontSizePt || 12;
-            const align = resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : resolvedCapa.alineacion === "justify" ? "justify" : "left";
-            const weight = resolvedCapa.bold ? "bold" : "normal";
-            const styleOpt = resolvedCapa.italic ? "italic" : "normal";
-            const decoration = resolvedCapa.underline ? "underline" : "none";
-            
-            // Desplazamiento por sangrado
-            const xPos = resolvedCapa.xMm + sangrado;
-            const yPos = resolvedCapa.yMm + sangrado;
-            
-            // Mismo cálculo exacto de escala que en el frontend
-            const fontSizePx = fontSizePt * 0.352778 * MM_TO_PX;
+          const renderCapaRecursiva = (parentId: string | null): string => {
+            const filteredLayers = capas.filter((c: any) => {
+              if (parentId === null) {
+                return !c.parentCapaId;
+              }
+              return c.parentCapaId === parentId;
+            });
 
-            // Bordes y Esquinas (SRS-024)
-            const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
-            const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
-            const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
-            const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
+            return filteredLayers.map((capa: any) => {
+              const parentCapa = capas.find((p: any) => p.id === capa.parentCapaId);
+              const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
 
-            const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
-            const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
-            const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
-            const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
+              const isFlexParent = isParentFlex;
+              const positionCss = isFlexParent ? "position: relative;" : "position: absolute;";
+              
+              let leftPx = "";
+              let topPx = "";
+              if (!isFlexParent) {
+                const xMmVal = capa.xMm + (parentId === null ? sangrado : 0);
+                const yMmVal = capa.yMm + (parentId === null ? sangrado : 0);
+                leftPx = `left: ${xMmVal * MM_TO_PX}px;`;
+                topPx = `top: ${yMmVal * MM_TO_PX}px;`;
+              }
 
-            const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
-            const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
-            const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
-            const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+              const widthPx = `${capa.anchoMm * MM_TO_PX}px`;
+              const heightPx = `${capa.altoMm * MM_TO_PX}px`;
 
-            const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
-            const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle} box-sizing: border-box; overflow: hidden;`;
+              const baseStyle = `${positionCss} ${leftPx} ${topPx} width: ${widthPx}; height: ${heightPx}; pointer-events: none; box-sizing: border-box; flex-shrink: 0;`;
 
-            return `<div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${resolvedCapa.anchoMm * MM_TO_PX}px; height: ${resolvedCapa.altoMm * MM_TO_PX}px; font-family: ${resolvedCapa.fontFamily === 'sans-serif' || !resolvedCapa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : resolvedCapa.fontFamily}; font-size: ${fontSizePx}px; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; padding: 2px; pointer-events: none; ${borderCornersCss}">${htmlText}</div>`;
-          }
+              if (capa.tipo === "background") {
+                const overrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
+                const colorFill = overrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
+                return `
+                  <div style="${baseStyle} background-color: ${colorFill};"></div>
+                `;
+              }
 
-          if (capa.tipo === "image" || capa.tipo === "image-switch") {
-            const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
-            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-            const rawSrc = resolvedCapa.src;
-            const imgPath = resolverAssetPath(rawSrc);
-            
-            const xPos = resolvedCapa.xMm + sangrado;
-            const yPos = resolvedCapa.yMm + sangrado;
+              if (capa.tipo === "container") {
+                const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
+                const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 
-            // Bordes y Esquinas (SRS-024)
-            const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
-            const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
-            const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
-            const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
+                // Bordes y Esquinas (SRS-024)
+                const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
+                const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
+                const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
+                const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
 
-            const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
-            const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
-            const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
-            const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
+                const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
+                const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
+                const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
+                const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
 
-            const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
-            const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
-            const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
-            const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+                const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+                const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+                const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+                const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
 
-            const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
-            const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle} box-sizing: border-box; overflow: hidden;`;
-            
-            if (imgPath) {
-              const objectFit = resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover");
-              return `
-                <div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${resolvedCapa.anchoMm * MM_TO_PX}px; height: ${resolvedCapa.altoMm * MM_TO_PX}px; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; pointer-events: none; ${borderCornersCss}">
-                  <img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block; border-radius: inherit;" />
-                </div>
-              `;
-            } else {
-              const emojiSize = Math.min(resolvedCapa.anchoMm, resolvedCapa.altoMm) * 0.4 * MM_TO_PX;
-              return `
-                <div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${resolvedCapa.anchoMm * MM_TO_PX}px; height: ${resolvedCapa.altoMm * MM_TO_PX}px; background-color: #e2e8f0; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; pointer-events: none; ${borderCornersCss}">
-                  <span style="font-size: ${emojiSize}px; line-height: 1; font-family: sans-serif;">🖼️</span>
-                </div>
-              `;
-            }
-          }
-          
-          return "";
-        }).join("\n");
+                const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
+                const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
+
+                const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
+                const flexStyle = isFlex ? `display: flex; flex-direction: ${resolvedCapa.layout === "vertical" ? "column" : "row"};` : "";
+
+                const innerContentHtml = renderCapaRecursiva(capa.id);
+
+                return `
+                  <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; overflow: hidden; ${borderCornersCss} ${flexStyle}">
+                    ${innerContentHtml}
+                  </div>
+                `;
+              }
+
+              if (capa.tipo === "text") {
+                const valores = esTrasera ? cardData.valoresCamposTrasera : cardData.valoresCampos;
+                const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
+                const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                const textoInterp = renderizarTextoCapa(resolvedCapa, valores);
+                const htmlText = parseMarkdownToHtml(textoInterp);
+                const fontSizePt = resolvedCapa.fontSizePt || 12;
+                const align = resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : resolvedCapa.alineacion === "justify" ? "justify" : "left";
+                const weight = resolvedCapa.bold ? "bold" : "normal";
+                const styleOpt = resolvedCapa.italic ? "italic" : "normal";
+                const decoration = resolvedCapa.underline ? "underline" : "none";
+                
+                const fontSizePx = fontSizePt * 0.352778 * MM_TO_PX;
+
+                // Bordes y Esquinas (SRS-024)
+                const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
+                const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
+                const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
+                const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
+
+                const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
+                const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
+                const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
+                const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
+
+                const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+                const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+                const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+                const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+
+                const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
+                const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
+
+                return `<div style="${baseStyle} font-family: ${resolvedCapa.fontFamily === 'sans-serif' || !resolvedCapa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : resolvedCapa.fontFamily}; font-size: ${fontSizePx}px; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; padding: 2px; ${borderCornersCss}">${htmlText}</div>`;
+              }
+
+              if (capa.tipo === "image" || capa.tipo === "image-switch") {
+                const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
+                const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                const rawSrc = resolvedCapa.src;
+                const imgPath = resolverAssetPath(rawSrc);
+
+                // Bordes y Esquinas (SRS-024)
+                const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
+                const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
+                const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
+                const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
+
+                const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
+                const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
+                const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
+                const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
+
+                const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+                const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+                const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+                const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+
+                const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
+                const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
+
+                if (imgPath) {
+                  const objectFit = resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover");
+                  return `
+                    <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; ${borderCornersCss}">
+                      <img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block; border-radius: inherit;" />
+                    </div>
+                  `;
+                } else {
+                  const emojiSize = Math.min(resolvedCapa.anchoMm, resolvedCapa.altoMm) * 0.4 * MM_TO_PX;
+                  return `
+                    <div style="${baseStyle} background-color: #e2e8f0; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; ${borderCornersCss}">
+                      <span style="font-size: ${emojiSize}px; line-height: 1; font-family: sans-serif;">🖼️</span>
+                    </div>
+                  `;
+                }
+              }
+
+              return "";
+            }).join("\n");
+          };
+          const layersHtml = renderCapaRecursiva(null);
 
         return `
           <div class="card-slot" style="left: ${x * MM_TO_PX}px; top: ${y * MM_TO_PX}px; width: ${width * MM_TO_PX}px; height: ${height * MM_TO_PX}px;">

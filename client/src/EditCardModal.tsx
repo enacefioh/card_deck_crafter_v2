@@ -1052,7 +1052,24 @@ export default function EditCardModal({
                     } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
                       title = capa.nombre || (capa.tipo === "image" ? "Imagen" : "Imagen Switch");
                       subtitle = capa.tipo === "image" ? "Capa de Imagen" : "Imagen Switch";
+                    } else if (capa.tipo === "container") {
+                      title = capa.nombre;
+                      subtitle = capa.layout === "vertical" ? "Contenedor Vertical" : capa.layout === "horizontal" ? "Contenedor Horizontal" : "Contenedor Libre";
                     }
+
+                    // Calcular profundidad de anidación para margen/indentación
+                    const getDepth = (c: any): number => {
+                      let depth = 0;
+                      let current = c;
+                      while (current && current.parentCapaId) {
+                        depth++;
+                        const parent = plantillaActiva.capas.find((p: any) => p.id === current.parentCapaId);
+                        current = parent;
+                        if (depth > 10) break; // Prevenir bucles infinitos
+                      }
+                      return depth;
+                    };
+                    const depth = getDepth(capa);
 
                     return (
                       <div
@@ -1060,12 +1077,13 @@ export default function EditCardModal({
                         className={`hierarchy-item ${selectedLayerId === capa.id ? "selected" : ""} ${
                           hoveredLayerId === capa.id ? "hovered" : ""
                         }`}
+                        style={{ marginLeft: `${depth * 16}px` }}
                         onClick={() => setSelectedLayerId(capa.id)}
                         onMouseEnter={() => setHoveredLayerId(capa.id)}
                         onMouseLeave={() => setHoveredLayerId(null)}
                       >
                         <span className="hierarchy-icon">
-                          {capa.tipo === "background" ? "🎨" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : "📝"}
+                          {capa.tipo === "background" ? "🎨" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : "📝"}
                         </span>
                         <div className="hierarchy-text-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                           <span className="hierarchy-label" style={{ fontWeight: 600, fontSize: "13px" }}>{title}</span>
@@ -1227,176 +1245,258 @@ export default function EditCardModal({
                 }}
               >
                 {plantillaActiva && plantillaActiva.capas && plantillaActiva.capas.length > 0 ? (
-                  plantillaActiva.capas.map((capa: any) => {
-                    const isSelected = selectedLayerId === capa.id;
-                    const isHovered = hoveredLayerId === capa.id;
+                  (() => {
+                    const renderCapaRecursiva = (parentId: string | null): React.ReactNode => {
+                      const layers = plantillaActiva?.capas || [];
+                      const filteredLayers = layers.filter((c: any) => {
+                        if (parentId === null) {
+                          return !c.parentCapaId;
+                        }
+                        return c.parentCapaId === parentId;
+                      });
 
-                    const layerStyle: React.CSSProperties = {
-                      position: "absolute",
-                      left: `${capa.xMm * scale}px`,
-                      top: `${capa.yMm * scale}px`,
-                      width: `${capa.anchoMm * scale}px`,
-                      height: `${capa.altoMm * scale}px`,
-                      cursor: "pointer",
-                      boxSizing: "border-box",
-                      transition: "outline 0.1s ease",
-                      outline: isSelected
-                        ? "2px solid var(--accent-primary)"
-                        : isHovered
-                        ? "2px dashed var(--accent-primary-half, rgba(139, 92, 246, 0.5))"
-                        : "none",
-                      outlineOffset: "-1px",
-                      zIndex: isSelected ? 10 : isHovered ? 9 : 1,
-                    };
+                      return filteredLayers.map((capa: any) => {
+                        const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
+                        const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
 
-                    if (capa.tipo === "background") {
-                      const colorFill = tempCapasOverridesActivos[capa.id]?.colorFill || capa.colorFill || "#ffffff";
-                      return (
-                        <div
-                          key={capa.id}
-                          style={{
-                            ...layerStyle,
-                            backgroundColor: colorFill,
-                          }}
-                          onClick={() => setSelectedLayerId(capa.id)}
-                          onMouseEnter={() => setHoveredLayerId(capa.id)}
-                          onMouseLeave={() => setHoveredLayerId(null)}
-                        />
-                      );
-                    }
+                        const isSelected = selectedLayerId === capa.id;
+                        const isHovered = hoveredLayerId === capa.id;
 
-                    if (capa.tipo === "text") {
-                      const overrides = tempCapasOverridesActivos[capa.id];
-                      const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-                      const textoInterp = renderizarTextoCapa(resolvedCapa, tempValoresActivos);
-                      const htmlText = parseMarkdownToHtml(textoInterp);
-                      const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * scale;
+                        const layerStyle: React.CSSProperties = {
+                          position: isParentFlex ? "relative" : "absolute",
+                          left: isParentFlex ? undefined : `${capa.xMm * scale}px`,
+                          top: isParentFlex ? undefined : `${capa.yMm * scale}px`,
+                          width: `${capa.anchoMm * scale}px`,
+                          height: `${capa.altoMm * scale}px`,
+                          cursor: "pointer",
+                          boxSizing: "border-box",
+                          transition: "outline 0.1s ease",
+                          outline: isSelected
+                            ? "2px solid var(--accent-primary)"
+                            : isHovered
+                            ? "2px dashed var(--accent-primary-half, rgba(139, 92, 246, 0.5))"
+                            : "none",
+                          outlineOffset: "-1px",
+                          zIndex: isSelected ? 10 : isHovered ? 9 : 1,
+                          flexShrink: 0,
+                        };
 
-                      // Bordes y Esquinas (SRS-024)
-                      const borderTopPx = (resolvedCapa.borderTopWidth || 0) * scale;
-                      const borderRightPx = (resolvedCapa.borderRightWidth || 0) * scale;
-                      const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * scale;
-                      const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * scale;
-
-                      const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * scale;
-                      const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * scale;
-                      const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * scale;
-                      const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * scale;
-
-                      const borderCornersStyle = {
-                        borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
-                        borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
-                        borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
-                        borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
-                        borderTopLeftRadius: `${radiusTopLeftPx}px`,
-                        borderTopRightRadius: `${radiusTopRightPx}px`,
-                        borderBottomRightRadius: `${radiusBottomRightPx}px`,
-                        borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
-                        overflow: "hidden" as const,
-                      };
-
-                      return (
-                        <div
-                          key={capa.id}
-                          style={{
-                            ...layerStyle,
-                            ...borderCornersStyle,
-                            fontFamily: resolvedCapa.fontFamily || "sans-serif",
-                            fontSize: `${fontSizePx}px`,
-                            color: resolvedCapa.color || "#000000",
-                            backgroundColor: resolvedCapa.backgroundColor || "transparent",
-                            textAlign: (resolvedCapa.alineacion === "center"
-                              ? "center"
-                              : resolvedCapa.alineacion === "right"
-                              ? "right"
-                              : "justify" === resolvedCapa.alineacion
-                              ? "justify"
-                              : "left") as any,
-                            fontWeight: resolvedCapa.bold ? "bold" : "normal",
-                            fontStyle: resolvedCapa.italic ? "italic" : "normal",
-                            textDecoration: resolvedCapa.underline ? "underline" : "none",
-                            whiteSpace: "pre-wrap",
-                            wordBreak: "break-word",
-                            lineHeight: 1.2,
-                            padding: "2px",
-                            userSelect: "none",
-                          }}
-                          onClick={() => setSelectedLayerId(capa.id)}
-                          onMouseEnter={() => setHoveredLayerId(capa.id)}
-                          onMouseLeave={() => setHoveredLayerId(null)}
-                          dangerouslySetInnerHTML={{ __html: htmlText }}
-                        />
-                      );
-                    }
-
-                    if (capa.tipo === "image" || capa.tipo === "image-switch") {
-                      const overrides = tempCapasOverridesActivos[capa.id];
-                      const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-                      const src = resolvedCapa.src;
-                      const showPlaceholder = !src;
-
-                      // Bordes y Esquinas (SRS-024)
-                      const borderTopPx = (resolvedCapa.borderTopWidth || 0) * scale;
-                      const borderRightPx = (resolvedCapa.borderRightWidth || 0) * scale;
-                      const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * scale;
-                      const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * scale;
-
-                      const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * scale;
-                      const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * scale;
-                      const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * scale;
-                      const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * scale;
-
-                      const borderCornersStyle = {
-                        borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
-                        borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
-                        borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
-                        borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
-                        borderTopLeftRadius: `${radiusTopLeftPx}px`,
-                        borderTopRightRadius: `${radiusTopRightPx}px`,
-                        borderBottomRightRadius: `${radiusBottomRightPx}px`,
-                        borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
-                        overflow: "hidden" as const,
-                      };
-
-                      return (
-                        <div
-                          key={capa.id}
-                          style={{
-                            ...layerStyle,
-                            ...borderCornersStyle,
-                            display: "flex",
-                            alignItems: "center",
-                            justifyContent: "center",
-                            backgroundColor: showPlaceholder ? "#e2e8f0" : (resolvedCapa.backgroundColor || "transparent"),
-                            border: showPlaceholder ? "1px dashed #cbd5e1" : undefined,
-                          }}
-                          onClick={() => setSelectedLayerId(capa.id)}
-                          onMouseEnter={() => setHoveredLayerId(capa.id)}
-                          onMouseLeave={() => setHoveredLayerId(null)}
-                        >
-                          {showPlaceholder ? (
-                            <span style={{ fontSize: `${Math.min(capa.anchoMm, capa.altoMm) * 0.4 * scale}px`, userSelect: "none" }}>
-                              🖼️
-                            </span>
-                          ) : (
-                            <img
-                              src={src}
-                              alt={capa.nombre}
+                        if (capa.tipo === "background") {
+                          const colorFill = tempCapasOverridesActivos[capa.id]?.colorFill || capa.colorFill || "#ffffff";
+                          return (
+                            <div
+                              key={capa.id}
                               style={{
-                                width: "100%",
-                                height: "100%",
-                                objectFit: resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover") as any,
-                                pointerEvents: "none",
-                                borderRadius: "inherit",
+                                ...layerStyle,
+                                backgroundColor: colorFill,
                               }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLayerId(capa.id);
+                              }}
+                              onMouseEnter={() => setHoveredLayerId(capa.id)}
+                              onMouseLeave={() => setHoveredLayerId(null)}
                             />
-                          )}
-                        </div>
-                      );
-                    }
+                          );
+                        }
 
-                    return null;
-                  })
+                        if (capa.tipo === "container") {
+                          const overrides = tempCapasOverridesActivos[capa.id];
+                          const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
+                          // Bordes y Esquinas (SRS-024)
+                          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * scale;
+                          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * scale;
+                          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * scale;
+                          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * scale;
+
+                          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * scale;
+                          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * scale;
+                          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * scale;
+                          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * scale;
+
+                          const borderCornersStyle = {
+                            borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                            borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                            borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                            borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                            borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                            borderTopRightRadius: `${radiusTopRightPx}px`,
+                            borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                            borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                          };
+
+                          const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
+                          const flexStyle: React.CSSProperties = isFlex ? {
+                            display: "flex",
+                            flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
+                          } : {
+                            position: "relative" as any,
+                          };
+
+                          return (
+                            <div
+                              key={capa.id}
+                              style={{
+                                ...layerStyle,
+                                ...borderCornersStyle,
+                                ...flexStyle,
+                                backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                overflow: "hidden",
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLayerId(capa.id);
+                              }}
+                              onMouseEnter={() => setHoveredLayerId(capa.id)}
+                              onMouseLeave={() => setHoveredLayerId(null)}
+                            >
+                              {renderCapaRecursiva(capa.id)}
+                            </div>
+                          );
+                        }
+
+                        if (capa.tipo === "text") {
+                          const overrides = tempCapasOverridesActivos[capa.id];
+                          const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                          const textoInterp = renderizarTextoCapa(resolvedCapa, tempValoresActivos);
+                          const htmlText = parseMarkdownToHtml(textoInterp);
+                          const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * scale;
+
+                          // Bordes y Esquinas (SRS-024)
+                          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * scale;
+                          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * scale;
+                          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * scale;
+                          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * scale;
+
+                          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * scale;
+                          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * scale;
+                          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * scale;
+                          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * scale;
+
+                          const borderCornersStyle = {
+                            borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                            borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                            borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                            borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                            borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                            borderTopRightRadius: `${radiusTopRightPx}px`,
+                            borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                            borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                            overflow: "hidden" as const,
+                          };
+
+                          return (
+                            <div
+                              key={capa.id}
+                              style={{
+                                ...layerStyle,
+                                ...borderCornersStyle,
+                                fontFamily: resolvedCapa.fontFamily || "sans-serif",
+                                fontSize: `${fontSizePx}px`,
+                                color: resolvedCapa.color || "#000000",
+                                backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                textAlign: (resolvedCapa.alineacion === "center"
+                                  ? "center"
+                                  : resolvedCapa.alineacion === "right"
+                                  ? "right"
+                                  : "justify" === resolvedCapa.alineacion
+                                  ? "justify"
+                                  : "left") as any,
+                                fontWeight: resolvedCapa.bold ? "bold" : "normal",
+                                fontStyle: resolvedCapa.italic ? "italic" : "normal",
+                                textDecoration: resolvedCapa.underline ? "underline" : "none",
+                                whiteSpace: "pre-wrap",
+                                wordBreak: "break-word",
+                                lineHeight: 1.2,
+                                padding: "2px",
+                                userSelect: "none",
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLayerId(capa.id);
+                              }}
+                              onMouseEnter={() => setHoveredLayerId(capa.id)}
+                              onMouseLeave={() => setHoveredLayerId(null)}
+                              dangerouslySetInnerHTML={{ __html: htmlText }}
+                            />
+                          );
+                        }
+
+                        if (capa.tipo === "image" || capa.tipo === "image-switch") {
+                          const overrides = tempCapasOverridesActivos[capa.id];
+                          const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                          const src = resolvedCapa.src;
+                          const showPlaceholder = !src;
+
+                          // Bordes y Esquinas (SRS-024)
+                          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * scale;
+                          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * scale;
+                          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * scale;
+                          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * scale;
+
+                          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * scale;
+                          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * scale;
+                          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * scale;
+                          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * scale;
+
+                          const borderCornersStyle = {
+                            borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                            borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                            borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                            borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                            borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                            borderTopRightRadius: `${radiusTopRightPx}px`,
+                            borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                            borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                            overflow: "hidden" as const,
+                          };
+
+                          return (
+                            <div
+                              key={capa.id}
+                              style={{
+                                ...layerStyle,
+                                ...borderCornersStyle,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                backgroundColor: showPlaceholder ? "#e2e8f0" : (resolvedCapa.backgroundColor || "transparent"),
+                                border: showPlaceholder ? "1px dashed #cbd5e1" : undefined,
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLayerId(capa.id);
+                              }}
+                              onMouseEnter={() => setHoveredLayerId(capa.id)}
+                              onMouseLeave={() => setHoveredLayerId(null)}
+                            >
+                              {showPlaceholder ? (
+                                <span style={{ fontSize: `${Math.min(capa.anchoMm, capa.altoMm) * 0.4 * scale}px`, userSelect: "none" }}>
+                                  🖼️
+                                </span>
+                              ) : (
+                                <img
+                                  src={src}
+                                  alt={capa.nombre}
+                                  style={{
+                                    width: "100%",
+                                    height: "100%",
+                                    objectFit: resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover") as any,
+                                    pointerEvents: "none",
+                                    borderRadius: "inherit",
+                                  }}
+                                />
+                              )}
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      });
+                    };
+                    return renderCapaRecursiva(null);
+                  })()
                 ) : activeTab === "trasera" && traseraUrl ? (
                   <div
                     style={{
