@@ -104,6 +104,12 @@ export default function EditCardModal({
   // Estado del menú desplegable de opciones de plantilla
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
 
+  // Estados para jerarquía y arrastre (SRS-025)
+  const [collapsedContainerIds, setCollapsedContainerIds] = useState<string[]>([]);
+  const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
+  const [dragOverLayerId, setDragOverLayerId] = useState<string | null>(null);
+  const [isDragOverRoot, setIsDragOverRoot] = useState<boolean>(false);
+
   // Estados para expansión de controles de bordes y esquinas (SRS-024)
   const [expandBorders, setExpandBorders] = useState<boolean>(false);
   const [expandRadii, setExpandRadii] = useState<boolean>(false);
@@ -774,6 +780,146 @@ export default function EditCardModal({
     }
   };
 
+  // --- Árbol Jerárquico y Drag and Drop (SRS-025 Parte 3) ---
+  const toggleCollapseContainer = (containerId: string) => {
+    setCollapsedContainerIds(prev =>
+      prev.includes(containerId)
+        ? prev.filter(id => id !== containerId)
+        : [...prev, containerId]
+    );
+  };
+
+  const isDescendant = (potentialDescendantId: string, ancestorId: string): boolean => {
+    if (!plantillaActiva) return false;
+    let currentId: string | null = potentialDescendantId;
+    while (currentId) {
+      const currentLayer = plantillaActiva.capas.find((c: any) => c.id === currentId);
+      if (!currentLayer) break;
+      if (currentLayer.parentCapaId === ancestorId) {
+        return true;
+      }
+      currentId = currentLayer.parentCapaId;
+    }
+    return false;
+  };
+
+  const handleDragStart = (e: React.DragEvent, layerId: string) => {
+    setDraggedLayerId(layerId);
+    e.dataTransfer.setData("text/plain", layerId);
+  };
+
+  const handleDragOver = (e: React.DragEvent, targetId: string) => {
+    e.preventDefault();
+    if (!draggedLayerId || draggedLayerId === targetId) return;
+    if (isDescendant(targetId, draggedLayerId)) return;
+    setDragOverLayerId(targetId);
+  };
+
+  const handleDragLeave = (_e: React.DragEvent, targetId: string) => {
+    if (dragOverLayerId === targetId) {
+      setDragOverLayerId(null);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent, targetId: string | null) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const sourceId = draggedLayerId || e.dataTransfer.getData("text/plain");
+    console.log("[CDC DND] handleDrop called - sourceId:", sourceId, "targetId:", targetId);
+    setDraggedLayerId(null);
+    setDragOverLayerId(null);
+    setIsDragOverRoot(false);
+
+    if (!sourceId || !plantillaActiva) {
+      console.log("[CDC DND] aborted: no sourceId or plantillaActiva");
+      return;
+    }
+    if (sourceId === targetId) {
+      console.log("[CDC DND] aborted: sourceId matches targetId");
+      return;
+    }
+    if (targetId && isDescendant(targetId, sourceId)) {
+      console.log("[CDC DND] aborted: circular hierarchy detected (targetId is descendant of sourceId)");
+      return;
+    }
+
+    const updater = (prev: any) => {
+      const nextCapas = [...prev.capas];
+      const sourceIndex = nextCapas.findIndex((c: any) => c.id === sourceId);
+      if (sourceIndex === -1) {
+        console.log("[CDC DND] updater aborted: sourceIndex -1");
+        return prev;
+      }
+
+      const sourceLayer = { ...nextCapas[sourceIndex] };
+      console.log("[CDC DND] updater sourceLayer:", sourceLayer.nombre, "tipo:", sourceLayer.tipo);
+
+      if (targetId === null) {
+        console.log("[CDC DND] updater target is null, setting parentCapaId null");
+        sourceLayer.parentCapaId = null;
+        nextCapas[sourceIndex] = sourceLayer;
+        return { ...prev, capas: nextCapas };
+      }
+
+      const targetIndex = nextCapas.findIndex((c: any) => c.id === targetId);
+      if (targetIndex === -1) {
+        console.log("[CDC DND] updater aborted: targetIndex -1");
+        return prev;
+      }
+
+      const targetLayer = nextCapas[targetIndex];
+      console.log("[CDC DND] updater targetLayer:", targetLayer.nombre, "tipo:", targetLayer.tipo);
+
+      if (targetLayer.tipo === "container") {
+        console.log("[CDC DND] updater target is container");
+        sourceLayer.parentCapaId = targetLayer.id;
+        nextCapas.splice(sourceIndex, 1);
+
+        const newTargetIndex = nextCapas.findIndex((c: any) => c.id === targetId);
+        let insertIndex = newTargetIndex;
+
+        const isDescendantOfTarget = (c: any): boolean => {
+          let currentId = c.parentCapaId;
+          let depth = 0;
+          while (currentId) {
+            depth++;
+            if (currentId === targetId) return true;
+            const parent = nextCapas.find((p: any) => p.id === currentId);
+            currentId = parent ? parent.parentCapaId : null;
+            if (depth > 10) break;
+          }
+          return false;
+        };
+
+        while (insertIndex + 1 < nextCapas.length && isDescendantOfTarget(nextCapas[insertIndex + 1])) {
+          insertIndex++;
+        }
+
+        console.log("[CDC DND] inserting sourceLayer at index:", insertIndex + 1);
+        nextCapas.splice(insertIndex + 1, 0, sourceLayer);
+        return { ...prev, capas: nextCapas };
+      }
+
+      console.log("[CDC DND] updater target is normal layer, setting same parentCapaId");
+      sourceLayer.parentCapaId = targetLayer.parentCapaId;
+      nextCapas.splice(sourceIndex, 1);
+      const newTargetIndex = nextCapas.findIndex((c: any) => c.id === targetId);
+      console.log("[CDC DND] inserting sourceLayer after target at index:", newTargetIndex + 1);
+      nextCapas.splice(newTargetIndex + 1, 0, sourceLayer);
+
+      return {
+        ...prev,
+        capas: nextCapas
+      };
+    };
+
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+  };
+
   // --- Duplicar Capa Seleccionada (SRS-016) ---
   const handleDuplicateCapa = (capaId: string) => {
     if (!plantillaActiva) return;
@@ -1038,60 +1184,112 @@ export default function EditCardModal({
                     : "El reverso no posee capas editables en plantilla."}
                 </div>
               ) : (
-                <div className="hierarchy-list">
-                  {plantillaActiva.capas.map((capa: any) => {
-                    let title = capa.nombre;
-                    let subtitle = "";
-
-                    if (capa.tipo === "background") {
-                      title = capa.nombre;
-                      subtitle = "Fondo";
-                    } else if (capa.tipo === "text") {
-                      title = capa.nombre;
-                      subtitle = capa.altoMm > 15 ? "Texto multilínea" : "Texto de una línea";
-                    } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
-                      title = capa.nombre || (capa.tipo === "image" ? "Imagen" : "Imagen Switch");
-                      subtitle = capa.tipo === "image" ? "Capa de Imagen" : "Imagen Switch";
-                    } else if (capa.tipo === "container") {
-                      title = capa.nombre;
-                      subtitle = capa.layout === "vertical" ? "Contenedor Vertical" : capa.layout === "horizontal" ? "Contenedor Horizontal" : "Contenedor Libre";
-                    }
-
-                    // Calcular profundidad de anidación para margen/indentación
-                    const getDepth = (c: any): number => {
-                      let depth = 0;
-                      let current = c;
-                      while (current && current.parentCapaId) {
-                        depth++;
-                        const parent = plantillaActiva.capas.find((p: any) => p.id === current.parentCapaId);
-                        current = parent;
-                        if (depth > 10) break; // Prevenir bucles infinitos
+                 <div 
+                  className={`hierarchy-list ${isDragOverRoot ? "drag-over-root" : ""}`}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setIsDragOverRoot(true);
+                  }}
+                  onDragLeave={() => setIsDragOverRoot(false)}
+                  onDrop={(e) => handleDrop(e, null)}
+                >
+                  {(() => {
+                    const isAnyAncestorCollapsed = (c: any): boolean => {
+                      let currentId = c.parentCapaId;
+                      while (currentId) {
+                        if (collapsedContainerIds.includes(currentId)) {
+                          return true;
+                        }
+                        const parent = plantillaActiva.capas.find((p: any) => p.id === currentId);
+                        currentId = parent ? parent.parentCapaId : null;
                       }
-                      return depth;
+                      return false;
                     };
-                    const depth = getDepth(capa);
 
-                    return (
-                      <div
-                        key={capa.id}
-                        className={`hierarchy-item ${selectedLayerId === capa.id ? "selected" : ""} ${
-                          hoveredLayerId === capa.id ? "hovered" : ""
-                        }`}
-                        style={{ marginLeft: `${depth * 16}px` }}
-                        onClick={() => setSelectedLayerId(capa.id)}
-                        onMouseEnter={() => setHoveredLayerId(capa.id)}
-                        onMouseLeave={() => setHoveredLayerId(null)}
-                      >
-                        <span className="hierarchy-icon">
-                          {capa.tipo === "background" ? "🎨" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : "📝"}
-                        </span>
-                        <div className="hierarchy-text-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-                          <span className="hierarchy-label" style={{ fontWeight: 600, fontSize: "13px" }}>{title}</span>
-                          <span className="hierarchy-subtitle">{subtitle}</span>
+                    const visibleLayers = plantillaActiva.capas.filter((c: any) => !isAnyAncestorCollapsed(c));
+
+                    return visibleLayers.map((capa: any) => {
+                      let title = capa.nombre;
+                      let subtitle = "";
+
+                      if (capa.tipo === "background") {
+                        title = capa.nombre;
+                        subtitle = "Fondo";
+                      } else if (capa.tipo === "text") {
+                        title = capa.nombre;
+                        subtitle = capa.altoMm > 15 ? "Texto multilínea" : "Texto de una línea";
+                      } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
+                        title = capa.nombre || (capa.tipo === "image" ? "Imagen" : "Imagen Switch");
+                        subtitle = capa.tipo === "image" ? "Capa de Imagen" : "Imagen Switch";
+                      } else if (capa.tipo === "container") {
+                        title = capa.nombre;
+                        subtitle = capa.layout === "vertical" ? "Contenedor Vertical" : capa.layout === "horizontal" ? "Contenedor Horizontal" : "Contenedor Libre";
+                      }
+
+                      // Calcular profundidad de anidación para margen/indentación
+                      const getDepth = (c: any): number => {
+                        let depth = 0;
+                        let current = c;
+                        while (current && current.parentCapaId) {
+                          depth++;
+                          const parent = plantillaActiva.capas.find((p: any) => p.id === current.parentCapaId);
+                          current = parent;
+                          if (depth > 10) break; // Prevenir bucles infinitos
+                        }
+                        return depth;
+                      };
+                      const depth = getDepth(capa);
+
+                      const isDragOver = dragOverLayerId === capa.id;
+                      const dragOverClass = isDragOver
+                        ? (capa.tipo === "container" ? "drag-over-container" : "drag-over")
+                        : "";
+
+                      return (
+                        <div
+                          key={capa.id}
+                          className={`hierarchy-item ${selectedLayerId === capa.id ? "selected" : ""} ${
+                            hoveredLayerId === capa.id ? "hovered" : ""
+                          } ${dragOverClass}`}
+                          style={{ marginLeft: `${depth * 16}px` }}
+                          draggable={capa.tipo !== "background"}
+                          onDragStart={(e) => handleDragStart(e, capa.id)}
+                          onDragOver={(e) => handleDragOver(e, capa.id)}
+                          onDragLeave={(e) => handleDragLeave(e, capa.id)}
+                          onDrop={(e) => handleDrop(e, capa.id)}
+                          onDragEnd={() => {
+                            setDraggedLayerId(null);
+                            setDragOverLayerId(null);
+                          }}
+                          onClick={() => setSelectedLayerId(capa.id)}
+                          onMouseEnter={() => setHoveredLayerId(capa.id)}
+                          onMouseLeave={() => setHoveredLayerId(null)}
+                        >
+                          {capa.tipo === "container" ? (
+                            <button
+                              type="button"
+                              className="collapse-toggle-btn"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleCollapseContainer(capa.id);
+                              }}
+                            >
+                              {collapsedContainerIds.includes(capa.id) ? "▶" : "▼"}
+                            </button>
+                          ) : (
+                            <span className="collapse-placeholder" />
+                          )}
+                          <span className="hierarchy-icon">
+                            {capa.tipo === "background" ? "🎨" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : "📝"}
+                          </span>
+                          <div className="hierarchy-text-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+                            <span className="hierarchy-label" style={{ fontWeight: 600, fontSize: "13px" }}>{title}</span>
+                            <span className="hierarchy-subtitle">{subtitle}</span>
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
+                      );
+                    });
+                  })()}
                 </div>
               )}
             </div>

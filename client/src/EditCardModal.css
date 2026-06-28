@@ -151,6 +151,14 @@
   border: 1px solid transparent;
 }
 
+.hierarchy-item * {
+  pointer-events: none;
+}
+
+.hierarchy-item .collapse-toggle-btn {
+  pointer-events: auto;
+}
+
 .hierarchy-item:hover,
 .hierarchy-item.hovered {
   background-color: var(--bg-card-hover);
@@ -1216,4 +1224,51 @@ select.inspector-input option {
   font-size: 10.5px;
   color: var(--text-secondary);
   font-weight: 500;
+}
+
+/* Estilos de Jerarquía y Drag and Drop (SRS-025) */
+.collapse-toggle-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  font-size: 9px;
+  width: 14px;
+  height: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  transition: color 0.15s ease;
+}
+
+.collapse-toggle-btn:hover {
+  color: var(--text-primary);
+}
+
+.collapse-placeholder {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+/* Indicadores de Drag and Drop */
+.hierarchy-item.drag-over {
+  border-bottom: 2px dashed var(--accent-primary);
+  background-color: rgba(139, 92, 246, 0.04);
+}
+
+.hierarchy-item.drag-over-container {
+  border: 2px dashed var(--accent-primary);
+  background-color: rgba(139, 92, 246, 0.08);
+}
+
+.hierarchy-list.drag-over-root {
+  background-color: rgba(139, 92, 246, 0.02);
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  padding: 4px;
 }
