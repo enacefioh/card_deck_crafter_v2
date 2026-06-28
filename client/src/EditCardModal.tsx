@@ -35,6 +35,19 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>):
   return texto;
 }
 
+function parseMarkdownToHtml(text: string): string {
+  if (!text) return "";
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  escaped = escaped.replace(/\n/g, "<br />");
+  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  escaped = escaped.replace(/__([^_]+)__/g, "<u>$1</u>");
+  return escaped;
+}
+
 export default function EditCardModal({
   carta,
   cardConfig,
@@ -119,7 +132,6 @@ export default function EditCardModal({
   // Resolver estructuras activas según la pestaña activa
   const plantillaActiva = activeTab === "frontal" ? tempPlantilla : tempPlantillaTrasera;
   const tempValoresActivos = activeTab === "frontal" ? tempValoresCampos : tempValoresCamposTrasera;
-  const setTempValoresActivos = activeTab === "frontal" ? setTempValoresCampos : setTempValoresCamposTrasera;
   const tempCapasOverridesActivos = activeTab === "frontal" ? tempCapasOverrides : tempCapasOverridesTrasera;
   const setTempCapasOverridesActivos = activeTab === "frontal" ? setTempCapasOverrides : setTempCapasOverridesTrasera;
 
@@ -978,9 +990,6 @@ export default function EditCardModal({
   };
 
   const fieldKey = selectedCapa ? getFieldKeyForCapa(selectedCapa) : null;
-  const campoConfig = fieldKey
-    ? plantillaActiva?.camposConfig?.find((f: any) => f.clave === fieldKey)
-    : null;
 
   // Reverso a renderizar cuando no es dinámico
   const traseraUrl = carta.imagenTrasera || imagenTraseraComun;
@@ -1274,25 +1283,29 @@ export default function EditCardModal({
                     }
 
                     if (capa.tipo === "text") {
-                      const textoInterp = renderizarTextoCapa(capa, tempValoresActivos);
-                      const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * scale;
+                      const overrides = tempCapasOverridesActivos[capa.id];
+                      const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                      const textoInterp = renderizarTextoCapa(resolvedCapa, tempValoresActivos);
+                      const htmlText = parseMarkdownToHtml(textoInterp);
+                      const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * scale;
                       return (
                         <div
                           key={capa.id}
                           style={{
                             ...layerStyle,
-                            fontFamily: capa.fontFamily || "sans-serif",
+                            fontFamily: resolvedCapa.fontFamily || "sans-serif",
                             fontSize: `${fontSizePx}px`,
-                            color: capa.color || "#000000",
-                            textAlign: (capa.alineacion === "center"
+                            color: resolvedCapa.color || "#000000",
+                            textAlign: (resolvedCapa.alineacion === "center"
                               ? "center"
-                              : capa.alineacion === "right"
+                              : resolvedCapa.alineacion === "right"
                               ? "right"
-                              : "justify" === capa.alineacion
+                              : "justify" === resolvedCapa.alineacion
                               ? "justify"
                               : "left") as any,
-                            fontWeight: capa.bold ? "bold" : "normal",
-                            fontStyle: capa.italic ? "italic" : "normal",
+                            fontWeight: resolvedCapa.bold ? "bold" : "normal",
+                            fontStyle: resolvedCapa.italic ? "italic" : "normal",
+                            textDecoration: resolvedCapa.underline ? "underline" : "none",
                             whiteSpace: "pre-wrap",
                             wordBreak: "break-word",
                             lineHeight: 1.2,
@@ -1302,9 +1315,8 @@ export default function EditCardModal({
                           onClick={() => setSelectedLayerId(capa.id)}
                           onMouseEnter={() => setHoveredLayerId(capa.id)}
                           onMouseLeave={() => setHoveredLayerId(null)}
-                        >
-                          {textoInterp}
-                        </div>
+                          dangerouslySetInnerHTML={{ __html: htmlText }}
+                        />
                       );
                     }
 
@@ -1461,44 +1473,161 @@ export default function EditCardModal({
 
                       {/* Controles para capas de Texto */}
                       {selectedCapa.tipo === "text" && (
-                        <div className="inspector-section">
-                          {fieldKey ? (
-                            <>
-                              <label className="inspector-label">
-                                {campoConfig?.nombreLegible || fieldKey} (Valor Dinámico)
+                        <>
+                          <div className="inspector-section">
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                              <label className="inspector-label" style={{ margin: 0 }}>
+                                {selectedCapa.nombre || "Texto"}
                               </label>
-                              {selectedCapa.altoMm > 15 ? (
-                                <textarea
-                                  className="inspector-textarea"
-                                  value={tempValoresActivos[fieldKey] || ""}
-                                  rows={6}
+                              <span
+                                style={{ cursor: "help", fontSize: "14px" }}
+                                title="Formato disponible: **negrita**, *cursiva* y __subrayado__ para texto enriquecido."
+                              >
+                                ℹ️
+                              </span>
+                            </div>
+                            {selectedCapa.altoMm > 15 ? (
+                              <textarea
+                                className="inspector-textarea"
+                                value={tempCapasOverridesActivos[selectedCapa.id]?.contenidoRaw !== undefined ? tempCapasOverridesActivos[selectedCapa.id].contenidoRaw : (selectedCapa.contenidoRaw || "")}
+                                rows={4}
+                                onChange={(e) => {
+                                  setTempCapasOverridesActivos((prev) => ({
+                                    ...prev,
+                                    [selectedCapa.id]: {
+                                      ...(prev[selectedCapa.id] || {}),
+                                      contenidoRaw: e.target.value,
+                                    },
+                                  }));
+                                }}
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                className="inspector-input"
+                                value={tempCapasOverridesActivos[selectedCapa.id]?.contenidoRaw !== undefined ? tempCapasOverridesActivos[selectedCapa.id].contenidoRaw : (selectedCapa.contenidoRaw || "")}
+                                onChange={(e) => {
+                                  setTempCapasOverridesActivos((prev) => ({
+                                    ...prev,
+                                    [selectedCapa.id]: {
+                                      ...(prev[selectedCapa.id] || {}),
+                                      contenidoRaw: e.target.value,
+                                    },
+                                  }));
+                                }}
+                              />
+                            )}
+                          </div>
+
+                          <div className="inspector-section" style={{ marginTop: "12px" }}>
+                            <label className="inspector-label">Tipografía (Familia) (Anulación)</label>
+                            <select
+                              className="inspector-input"
+                              value={tempCapasOverridesActivos[selectedCapa.id]?.fontFamily || selectedCapa.fontFamily || "sans-serif"}
+                              onChange={(e) => {
+                                setTempCapasOverridesActivos((prev) => ({
+                                  ...prev,
+                                  [selectedCapa.id]: {
+                                    ...(prev[selectedCapa.id] || {}),
+                                    fontFamily: e.target.value,
+                                  },
+                                }));
+                              }}
+                            >
+                              <option value="sans-serif">Inter (Sans Serif)</option>
+                              <option value="Outfit">Outfit</option>
+                              <option value="Arial">Arial</option>
+                              <option value="Times New Roman">Times New Roman</option>
+                              <option value="Courier New">Courier New (Monospace)</option>
+                            </select>
+                          </div>
+
+                          <div className="layout-form-grid" style={{ marginTop: "12px" }}>
+                            <div className="inspector-section">
+                              <label className="inspector-label">Tamaño Fuente (pt) (Anulación)</label>
+                              <input
+                                type="number"
+                                step="1"
+                                min="4"
+                                className="inspector-input"
+                                value={tempCapasOverridesActivos[selectedCapa.id]?.fontSizePt || selectedCapa.fontSizePt || 12}
+                                onChange={(e) => {
+                                  setTempCapasOverridesActivos((prev) => ({
+                                    ...prev,
+                                    [selectedCapa.id]: {
+                                      ...(prev[selectedCapa.id] || {}),
+                                      fontSizePt: Number(e.target.value),
+                                    },
+                                  }));
+                                }}
+                              />
+                            </div>
+                            <div className="inspector-section">
+                              <label className="inspector-label">Color de Texto (Anulación)</label>
+                              <div className="color-picker-group">
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  value={tempCapasOverridesActivos[selectedCapa.id]?.color || selectedCapa.color || "#000000"}
                                   onChange={(e) => {
-                                    setTempValoresActivos((prev) => ({
+                                    setTempCapasOverridesActivos((prev) => ({
                                       ...prev,
-                                      [fieldKey]: e.target.value,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        color: e.target.value,
+                                      },
                                     }));
                                   }}
                                 />
-                              ) : (
                                 <input
                                   type="text"
-                                  className="inspector-input"
-                                  value={tempValoresActivos[fieldKey] || ""}
+                                  className="color-hex-input"
+                                  value={tempCapasOverridesActivos[selectedCapa.id]?.color || selectedCapa.color || "#000000"}
                                   onChange={(e) => {
-                                    setTempValoresActivos((prev) => ({
-                                      ...prev,
-                                      [fieldKey]: e.target.value,
-                                    }));
+                                    const val = e.target.value;
+                                    if (/^#[0-9A-F]{6}$/i.test(val)) {
+                                      setTempCapasOverridesActivos((prev) => ({
+                                        ...prev,
+                                        [selectedCapa.id]: {
+                                          ...(prev[selectedCapa.id] || {}),
+                                          color: val,
+                                        },
+                                      }));
+                                    }
                                   }}
                                 />
-                              )}
-                            </>
-                          ) : (
-                            <div className="inspector-notice">
-                              Esta capa de texto utiliza un contenido estático sin variables editables.
+                              </div>
                             </div>
-                          )}
-                        </div>
+                          </div>
+
+                          <div className="inspector-section" style={{ marginTop: "12px" }}>
+                            <label className="inspector-label">Alineación (Anulación)</label>
+                            <div className="alignment-group">
+                              {(["left", "center", "right", "justify"] as const).map((align) => {
+                                const activeAlign = tempCapasOverridesActivos[selectedCapa.id]?.alineacion || selectedCapa.alineacion || "left";
+                                return (
+                                  <button
+                                    key={align}
+                                    type="button"
+                                    className={`align-btn ${activeAlign === align ? "active" : ""}`}
+                                    onClick={() => {
+                                      setTempCapasOverridesActivos((prev) => ({
+                                        ...prev,
+                                        [selectedCapa.id]: {
+                                          ...(prev[selectedCapa.id] || {}),
+                                          alineacion: align,
+                                        },
+                                      }));
+                                    }}
+                                    title={`Alinear ${align}`}
+                                  >
+                                    {align === "left" ? "⬅️" : align === "center" ? "↔️" : align === "right" ? "➡️" : "↕️"}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        </>
                       )}
 
                       {/* Controles para capas de Imagen en Contenido (Override por Carta) */}
@@ -1762,16 +1891,36 @@ export default function EditCardModal({
                     /* DISEÑO TAB */
                     <div className="inspector-panel" style={{ gap: "12px" }}>
                       {selectedCapa.tipo === "text" && (
-                        <div className="inspector-section">
-                          <label className="inspector-label">Nombre de Variable (Clave)</label>
-                          <input
-                            type="text"
-                            className="inspector-input"
-                            value={fieldKey || ""}
-                            placeholder="ej. titulo"
-                            onChange={(e) => handleUpdateCapaClave(selectedCapa.id, fieldKey, e.target.value)}
-                          />
-                        </div>
+                        <>
+                          <div className="inspector-section">
+                            <label className="inspector-label">Nombre de Variable (Clave)</label>
+                            <input
+                              type="text"
+                              className="inspector-input"
+                              value={fieldKey || ""}
+                              placeholder="ej. titulo"
+                              onChange={(e) => handleUpdateCapaClave(selectedCapa.id, fieldKey, e.target.value)}
+                            />
+                          </div>
+                          <div className="inspector-section">
+                            <label className="inspector-label">Texto por defecto</label>
+                            {selectedCapa.altoMm > 15 ? (
+                              <textarea
+                                className="inspector-textarea"
+                                value={selectedCapa.contenidoRaw || ""}
+                                rows={4}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", e.target.value)}
+                              />
+                            ) : (
+                              <input
+                                type="text"
+                                className="inspector-input"
+                                value={selectedCapa.contenidoRaw || ""}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", e.target.value)}
+                              />
+                            )}
+                          </div>
+                        </>
                       )}
 
                       {selectedCapa.tipo === "image" && (
@@ -2117,6 +2266,13 @@ export default function EditCardModal({
                                   onClick={() => handleUpdateCapaProp(selectedCapa.id, "italic", !selectedCapa.italic)}
                                 >
                                   Cursiva (I)
+                                </button>
+                                <button
+                                  type="button"
+                                  className={`style-btn ${selectedCapa.underline ? "active" : ""}`}
+                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "underline", !selectedCapa.underline)}
+                                >
+                                  Subrayado (U)
                                 </button>
                               </div>
                               <div className="alignment-group">

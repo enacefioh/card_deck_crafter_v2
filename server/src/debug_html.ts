@@ -17,6 +17,19 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>):
   return texto;
 }
 
+function parseMarkdownToHtml(text: string): string {
+  if (!text) return "";
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  escaped = escaped.replace(/\n/g, "<br />");
+  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  escaped = escaped.replace(/__([^_]+)__/g, "<u>$1</u>");
+  return escaped;
+}
+
 function generarHtmlImpresion(
   canvasConfig: CanvasConfig,
   cardConfig: any,
@@ -104,18 +117,22 @@ function generarHtmlImpresion(
           }
           
           if (capa.tipo === "text") {
-            const textoInterp = renderizarTextoCapa(capa, cardData.valoresCampos);
-            const fontSizePt = capa.fontSizePt || 12;
-            const align = capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left";
-            const weight = capa.bold ? "bold" : "normal";
-            const styleOpt = capa.italic ? "italic" : "normal";
+            const overrides = cardData.capasOverrides?.[capa.id];
+            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+            const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos);
+            const htmlText = parseMarkdownToHtml(textoInterp);
+            const fontSizePt = resolvedCapa.fontSizePt || 12;
+            const align = resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : resolvedCapa.alineacion === "justify" ? "justify" : "left";
+            const weight = resolvedCapa.bold ? "bold" : "normal";
+            const styleOpt = resolvedCapa.italic ? "italic" : "normal";
+            const decoration = resolvedCapa.underline ? "underline" : "none";
             
-            const xPos = capa.xMm + sangrado;
-            const yPos = capa.yMm + sangrado;
+            const xPos = resolvedCapa.xMm + sangrado;
+            const yPos = resolvedCapa.yMm + sangrado;
             
             return `
-              <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${capa.anchoMm}mm; height: ${capa.altoMm}mm; font-family: ${capa.fontFamily || 'sans-serif'}; font-size: ${fontSizePt * 0.352778}mm; color: ${capa.color || '#000000'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; pointer-events: none;">
-                ${textoInterp}
+              <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${resolvedCapa.anchoMm}mm; height: ${resolvedCapa.altoMm}mm; font-family: ${resolvedCapa.fontFamily || 'sans-serif'}; font-size: ${fontSizePt * 0.352778}mm; color: ${resolvedCapa.color || '#000000'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; pointer-events: none;">
+                ${htmlText}
               </div>
             `;
           }

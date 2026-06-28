@@ -12,6 +12,19 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>):
   return texto;
 }
 
+function parseMarkdownToHtml(text: string): string {
+  if (!text) return "";
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  escaped = escaped.replace(/\n/g, "<br />");
+  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  escaped = escaped.replace(/__([^_]+)__/g, "<u>$1</u>");
+  return escaped;
+}
+
 interface DetailModalProps {
   carta: Carta;
   generarReversos: boolean;
@@ -156,26 +169,29 @@ export default function DetailModal({
                           }
 
                           if (capa.tipo === "text") {
-                            const textoInterp = renderizarTextoCapa(capa, carta.valoresCampos);
-                            const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * 2.5;
+                            const overrides = carta.capasOverrides?.[capa.id];
+                            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                            const textoInterp = renderizarTextoCapa(resolvedCapa, carta.valoresCampos);
+                            const htmlText = parseMarkdownToHtml(textoInterp);
+                            const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * 2.5;
                             return (
                               <div
                                 key={capa.id}
                                 style={{
                                   ...style,
-                                  fontFamily: capa.fontFamily || "sans-serif",
+                                  fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                   fontSize: `${fontSizePx}px`,
-                                  color: capa.color || "#000000",
-                                  textAlign: (capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left") as any,
-                                  fontWeight: capa.bold ? "bold" : "normal",
-                                  fontStyle: capa.italic ? "italic" : "normal",
+                                  color: resolvedCapa.color || "#000000",
+                                  textAlign: (resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : "left") as any,
+                                  fontWeight: resolvedCapa.bold ? "bold" : "normal",
+                                  fontStyle: resolvedCapa.italic ? "italic" : "normal",
+                                  textDecoration: resolvedCapa.underline ? "underline" : "none",
                                   whiteSpace: "pre-wrap",
                                   wordBreak: "break-word",
                                   lineHeight: 1.2,
                                 }}
-                              >
-                                {textoInterp}
-                              </div>
+                                dangerouslySetInnerHTML={{ __html: htmlText }}
+                              />
                             );
                           }
 
@@ -312,26 +328,29 @@ export default function DetailModal({
                             }
 
                             if (capa.tipo === "text") {
-                              const textoInterp = renderizarTextoCapa(capa, carta.valoresCamposTrasera);
-                              const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * 2.5;
+                              const overrides = carta.capasOverridesTrasera?.[capa.id];
+                              const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                              const textoInterp = renderizarTextoCapa(resolvedCapa, carta.valoresCamposTrasera);
+                              const htmlText = parseMarkdownToHtml(textoInterp);
+                              const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * 2.5;
                               return (
                                 <div
                                   key={capa.id}
                                   style={{
                                     ...style,
-                                    fontFamily: capa.fontFamily || "sans-serif",
+                                    fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                     fontSize: `${fontSizePx}px`,
-                                    color: capa.color || "#000000",
-                                    textAlign: (capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left") as any,
-                                    fontWeight: capa.bold ? "bold" : "normal",
-                                    fontStyle: capa.italic ? "italic" : "normal",
+                                    color: resolvedCapa.color || "#000000",
+                                    textAlign: (resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : "left") as any,
+                                    fontWeight: resolvedCapa.bold ? "bold" : "normal",
+                                    fontStyle: resolvedCapa.italic ? "italic" : "normal",
+                                    textDecoration: resolvedCapa.underline ? "underline" : "none",
                                     whiteSpace: "pre-wrap",
                                     wordBreak: "break-word",
                                     lineHeight: 1.2,
                                   }}
-                                >
-                                  {textoInterp}
-                                </div>
+                                  dangerouslySetInnerHTML={{ __html: htmlText }}
+                                />
                               );
                             }
 

@@ -34,12 +34,22 @@ export interface Carta {
   capasOverrides?: Record<string, {
     colorFill?: string;
     src?: string;
+    color?: string;
+    alineacion?: "left" | "center" | "right" | "justify";
+    contenidoRaw?: string;
+    fontFamily?: string;
+    fontSizePt?: number;
   }>;
   plantillaTraseraId?: string;
   valoresCamposTrasera?: Record<string, string>;
   capasOverridesTrasera?: Record<string, {
     colorFill?: string;
     src?: string;
+    color?: string;
+    alineacion?: "left" | "center" | "right" | "justify";
+    contenidoRaw?: string;
+    fontFamily?: string;
+    fontSizePt?: number;
   }>;
   plantilla?: {
     id: string;

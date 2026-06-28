@@ -36,6 +36,19 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>):
   return texto;
 }
 
+function parseMarkdownToHtml(text: string): string {
+  if (!text) return "";
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  escaped = escaped.replace(/\n/g, "<br />");
+  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  escaped = escaped.replace(/__([^_]+)__/g, "<u>$1</u>");
+  return escaped;
+}
+
 export default function App() {
   // --- Refs para Enfoque y Triggers ---
   const sectionLienzoRef = useRef<HTMLDivElement>(null);
@@ -1219,6 +1232,21 @@ export default function App() {
     }
 
     if (templateModalMode === "addCard") {
+      const overrides: Record<string, any> = {};
+      if (templateInstance.capas) {
+        templateInstance.capas.forEach((capa: any) => {
+          if (capa.tipo === "text") {
+            overrides[capa.id] = {
+              color: capa.color || "#000000",
+              alineacion: capa.alineacion || "left",
+              contenidoRaw: capa.contenidoRaw || "",
+              fontFamily: capa.fontFamily || "sans-serif",
+              fontSizePt: capa.fontSizePt || 12,
+            };
+          }
+        });
+      }
+
       const nuevaCarta: Carta = {
         id: `carta_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         nombre: templateInstance.nombre,
@@ -1226,6 +1254,7 @@ export default function App() {
         imagenTrasera: null,
         plantillaId: templateInstance.id,
         valoresCampos: {},
+        capasOverrides: overrides,
         plantilla: templateInstance,
       };
 
@@ -1238,6 +1267,21 @@ export default function App() {
       setCartas((prev) => insertarCartaDesdePlantilla(prev, nuevaCarta, selectedCardIds));
       setSelectedCardIds([nuevaCarta.id]);
     } else if (templateModalMode === "assignBack") {
+      const overridesTrasera: Record<string, any> = {};
+      if (templateInstance.capas) {
+        templateInstance.capas.forEach((capa: any) => {
+          if (capa.tipo === "text") {
+            overridesTrasera[capa.id] = {
+              color: capa.color || "#000000",
+              alineacion: capa.alineacion || "left",
+              contenidoRaw: capa.contenidoRaw || "",
+              fontFamily: capa.fontFamily || "sans-serif",
+              fontSizePt: capa.fontSizePt || 12,
+            };
+          }
+        });
+      }
+
       setCartas((prev) =>
         prev.map((c) => {
           if (selectedCardIds.includes(c.id)) {
@@ -1251,7 +1295,7 @@ export default function App() {
               ...c,
               plantillaTraseraId: templateInstance.id,
               valoresCamposTrasera,
-              capasOverridesTrasera: {},
+              capasOverridesTrasera: overridesTrasera,
               imagenTrasera: null,
               plantillaTrasera: templateInstance,
             };
@@ -2172,26 +2216,29 @@ export default function App() {
                                     }
 
                                     if (capa.tipo === "text") {
-                                      const textoInterp = renderizarTextoCapa(capa, cardData.valoresCampos);
-                                      const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * zoomFactor;
+                                      const overrides = cardData.capasOverrides?.[capa.id];
+                                      const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                                      const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos);
+                                      const htmlText = parseMarkdownToHtml(textoInterp);
+                                      const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
                                       return (
                                         <div
                                           key={capa.id}
                                           style={{
                                             ...style,
-                                            fontFamily: capa.fontFamily || "sans-serif",
+                                            fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                             fontSize: `${fontSizePx}px`,
-                                            color: capa.color || "#000000",
-                                            textAlign: (capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left") as any,
-                                            fontWeight: capa.bold ? "bold" : "normal",
-                                            fontStyle: capa.italic ? "italic" : "normal",
+                                            color: resolvedCapa.color || "#000000",
+                                            textAlign: (resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : "left") as any,
+                                            fontWeight: resolvedCapa.bold ? "bold" : "normal",
+                                            fontStyle: resolvedCapa.italic ? "italic" : "normal",
+                                            textDecoration: resolvedCapa.underline ? "underline" : "none",
                                             whiteSpace: "pre-wrap",
                                             wordBreak: "break-word",
                                             lineHeight: 1.2,
                                           }}
-                                        >
-                                          {textoInterp}
-                                        </div>
+                                          dangerouslySetInnerHTML={{ __html: htmlText }}
+                                        />
                                       );
                                     }
 
@@ -2408,26 +2455,29 @@ export default function App() {
                                        }
 
                                        if (capa.tipo === "text") {
-                                         const textoInterp = renderizarTextoCapa(capa, cardData.valoresCamposTrasera);
-                                         const fontSizePx = (capa.fontSizePt || 12) * 0.352778 * zoomFactor;
+                                         const overrides = cardData.capasOverridesTrasera?.[capa.id];
+                                         const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                                         const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCamposTrasera);
+                                         const htmlText = parseMarkdownToHtml(textoInterp);
+                                         const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
                                          return (
                                            <div
                                              key={capa.id}
                                              style={{
                                                ...style,
-                                               fontFamily: capa.fontFamily || "sans-serif",
+                                               fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                                fontSize: `${fontSizePx}px`,
-                                               color: capa.color || "#000000",
-                                               textAlign: (capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left") as any,
-                                               fontWeight: capa.bold ? "bold" : "normal",
-                                               fontStyle: capa.italic ? "italic" : "normal",
+                                               color: resolvedCapa.color || "#000000",
+                                               textAlign: (resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : "left") as any,
+                                               fontWeight: resolvedCapa.bold ? "bold" : "normal",
+                                               fontStyle: resolvedCapa.italic ? "italic" : "normal",
+                                               textDecoration: resolvedCapa.underline ? "underline" : "none",
                                                whiteSpace: "pre-wrap",
                                                wordBreak: "break-word",
                                                lineHeight: 1.2,
                                              }}
-                                           >
-                                             {textoInterp}
-                                           </div>
+                                             dangerouslySetInnerHTML={{ __html: htmlText }}
+                                           />
                                          );
                                        }
 

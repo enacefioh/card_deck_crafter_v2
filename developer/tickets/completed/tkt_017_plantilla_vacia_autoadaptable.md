@@ -1,6 +1,6 @@
 # Ticket - TKT-005: Plantilla Vacía Autoadaptable al Tamaño del Proyecto
 
-- **ID del Ticket**: TKT-005
+- **ID del Ticket**: TKT-017
 - **Estado**: 🟢 Completado y Validado
 - **Fecha de Registro**: 2026-06-28
 - **Severidad**: Baja (Mejora de UX)

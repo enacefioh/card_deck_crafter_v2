@@ -39,6 +39,19 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>):
   return texto;
 }
 
+function parseMarkdownToHtml(text: string): string {
+  if (!text) return "";
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  escaped = escaped.replace(/\n/g, "<br />");
+  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  escaped = escaped.replace(/__([^_]+)__/g, "<u>$1</u>");
+  return escaped;
+}
+
 // Función para mapear la distribución y generar HTML
 function generarHtmlImpresion(
   canvasConfig: CanvasConfig,
@@ -147,19 +160,23 @@ function generarHtmlImpresion(
           
           if (capa.tipo === "text") {
             const valores = esTrasera ? cardData.valoresCamposTrasera : cardData.valoresCampos;
-            const textoInterp = renderizarTextoCapa(capa, valores);
-            const fontSizePt = capa.fontSizePt || 12;
-            const align = capa.alineacion === "center" ? "center" : capa.alineacion === "right" ? "right" : "left";
-            const weight = capa.bold ? "bold" : "normal";
-            const styleOpt = capa.italic ? "italic" : "normal";
+            const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
+            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+            const textoInterp = renderizarTextoCapa(resolvedCapa, valores);
+            const htmlText = parseMarkdownToHtml(textoInterp);
+            const fontSizePt = resolvedCapa.fontSizePt || 12;
+            const align = resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : resolvedCapa.alineacion === "justify" ? "justify" : "left";
+            const weight = resolvedCapa.bold ? "bold" : "normal";
+            const styleOpt = resolvedCapa.italic ? "italic" : "normal";
+            const decoration = resolvedCapa.underline ? "underline" : "none";
             
             // Desplazamiento por sangrado
-            const xPos = capa.xMm + sangrado;
-            const yPos = capa.yMm + sangrado;
+            const xPos = resolvedCapa.xMm + sangrado;
+            const yPos = resolvedCapa.yMm + sangrado;
             
             // Mismo cálculo exacto de escala que en el frontend
             const fontSizePx = fontSizePt * 0.352778 * MM_TO_PX;
-            return `<div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${capa.anchoMm * MM_TO_PX}px; height: ${capa.altoMm * MM_TO_PX}px; font-family: ${capa.fontFamily === 'sans-serif' || !capa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : capa.fontFamily}; font-size: ${fontSizePx}px; color: ${capa.color || '#000000'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; padding: 2px; pointer-events: none;">${textoInterp}</div>`;
+            return `<div style="position: absolute; left: ${xPos * MM_TO_PX}px; top: ${yPos * MM_TO_PX}px; width: ${resolvedCapa.anchoMm * MM_TO_PX}px; height: ${resolvedCapa.altoMm * MM_TO_PX}px; font-family: ${resolvedCapa.fontFamily === 'sans-serif' || !resolvedCapa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : resolvedCapa.fontFamily}; font-size: ${fontSizePx}px; color: ${resolvedCapa.color || '#000000'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; padding: 2px; pointer-events: none;">${htmlText}</div>`;
           }
 
           if (capa.tipo === "image" || capa.tipo === "image-switch") {
