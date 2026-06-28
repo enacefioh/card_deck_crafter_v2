@@ -228,62 +228,7 @@ export default function EditCardModal({
     };
   }, [tempValoresCampos, tempCapasOverrides, tempValoresCamposTrasera, tempCapasOverridesTrasera, tempPlantilla, tempPlantillaTrasera]);
 
-  // --- Escucha de la tecla Tabulador para navegar entre capas ---
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Tab") {
-        const capas = plantillaActiva?.capas || [];
-        if (capas.length === 0) return;
 
-        // Prevenir la navegación de foco nativa que saca al usuario del panel
-        e.preventDefault();
-
-        const currentIndex = capas.findIndex((c: any) => c.id === selectedLayerId);
-
-        if (e.shiftKey) {
-          // Shift + Tab: seleccionar capa anterior
-          let prevIndex = currentIndex - 1;
-          if (prevIndex < 0) {
-            prevIndex = capas.length - 1;
-          }
-          setSelectedLayerId(capas[prevIndex].id);
-        } else {
-          // Tab: seleccionar capa siguiente
-          let nextIndex = currentIndex + 1;
-          if (nextIndex >= capas.length || currentIndex === -1) {
-            nextIndex = 0;
-          }
-          setSelectedLayerId(capas[nextIndex].id);
-        }
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [selectedLayerId, plantillaActiva]);
-
-  // --- Foco automático en el input del inspector al cambiar de capa ---
-  useEffect(() => {
-    if (!selectedLayerId) return;
-
-    const focusTimer = setTimeout(() => {
-      const input = document.querySelector<HTMLInputElement | HTMLTextAreaElement>(
-        ".inspector-textarea, .inspector-input, .color-picker-input, .color-hex-input"
-      );
-      if (input) {
-        input.focus();
-        if (input instanceof HTMLInputElement && input.type !== "color") {
-          input.select();
-        } else if (input instanceof HTMLTextAreaElement) {
-          input.select();
-        }
-      }
-    }, 50);
-
-    return () => clearTimeout(focusTimer);
-  }, [selectedLayerId, inspectorTab]);
 
   // --- Sincronizar reverso cuando se asigna una plantilla de reverso desde el exterior (TKT-013) ---
   useEffect(() => {

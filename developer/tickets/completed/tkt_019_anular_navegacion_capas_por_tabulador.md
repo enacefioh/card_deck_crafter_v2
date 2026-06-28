@@ -1,7 +1,7 @@
 # Ticket - TKT-019: Anulación de la Navegación de Capas Mediante la Tecla Tabulador
 
 - **ID del Ticket**: TKT-019
-- **Estado**: 🔴 Activo (Pendiente)
+- **Estado**: 🟢 Completado
 - **Fecha de Registro**: 2026-06-28
 - **Severidad**: Baja/Media (Conflicto de usabilidad con inputs del inspector)
 
@@ -19,13 +19,13 @@ Sin embargo, con la adición de nuevas propiedades (como bordes individuales, es
 ---
 
 ## 2. Archivos Implicados
-- [`client/src/EditCardModal.tsx`](file:///c:/Users/victo/proyectos/cdc2/client/src/EditCardModal.tsx) (Líneas ~234 a ~290)
+- [`client/src/EditCardModal.tsx`](file:///c:/Users/victo/proyectos/cdc2/client/src/EditCardModal.tsx) (Líneas ~234 a ~287 eliminadas)
 
 ---
 
 ## 3. Plan de Verificación y Criterios de Aceptación
-- [ ] Eliminar o comentar la escucha de la tecla Tab (`e.key === "Tab"`) y el auto-foco automático del inspector en `EditCardModal.tsx`.
-- [ ] Abrir el modal de edición de una carta.
-- [ ] Ir a la pestaña **Diseño** o **Contenido**.
-- [ ] Seleccionar un campo (por ejemplo, el ancho de una capa) y presionar la tecla **Tab**.
-- [ ] Verificar que el foco se mueve al siguiente input (ej. el alto de la capa) en lugar de cambiar la capa seleccionada.
+- [x] Eliminar la escucha de la tecla Tab (`e.key === "Tab"`) y el auto-foco automático del inspector en `EditCardModal.tsx`.
+- [x] Abrir el modal de edición de una carta.
+- [x] Ir a la pestaña **Diseño** o **Contenido**.
+- [x] Seleccionar un campo (por ejemplo, el ancho de una capa) y presionar la tecla **Tab**.
+- [x] Verificar que el foco se mueve al siguiente input (ej. el alto de la capa) en lugar de cambiar la capa seleccionada.
