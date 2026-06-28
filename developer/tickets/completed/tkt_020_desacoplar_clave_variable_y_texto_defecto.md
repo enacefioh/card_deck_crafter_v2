@@ -1,7 +1,7 @@
 # Ticket - TKT-020: Desacoplar Clave de Variable y Texto por Defecto en Capas de Texto
 
 - **ID del Ticket**: TKT-020
-- **Estado**: 🔴 Activo (Pendiente)
+- **Estado**: 🟢 Completado
 - **Fecha de Registro**: 2026-06-28
 - **Severidad**: Alta (Problema crítico de consistencia e interfaz de usuario)
 
@@ -10,7 +10,7 @@
 ## 1. Descripción del Requerimiento
 Actualmente, el sistema acopla la **Clave de Variable (Nombre de Variable)** y el **Texto por Defecto** en la propiedad `contenidoRaw` de la capa de texto. 
 - La clave se infiere buscando un patrón de llaves `{{mi_variable}}` en `contenidoRaw`.
-- Al escribir en el campo *"Nombre de Variable"*, se sobreescribe `contenidoRaw` con `{{nueva_variable}}`, borrando el texto por defecto anterior.
+- Al escribir en el campo *"Nombre de Variable"*, se sobreescribe `contenidoRaw` with `{{nueva_variable}}`, borrando el texto por defecto anterior.
 - Al escribir en *"Texto por defecto"*, se sobreescribe `contenidoRaw` con el texto plano, borrando la clave `{{variable}}` y perdiendo la relación de enlace de datos de la carta.
 
 El usuario requiere un comportamiento **independiente** y limpio:
@@ -21,6 +21,8 @@ El usuario requiere un comportamiento **independiente** y limpio:
 2. **Texto por Defecto**:
    - Debe definir el valor inicial que tendrá este componente cuando se cree una nueva carta basada en esta plantilla.
    - Debe guardarse de manera limpia en la capa (por ejemplo, en `contenidoRaw` directamente como texto plano) sin necesidad de envolverlo con llaves `{{...}}`.
+3. **Copiar del Contenido**:
+   - Se añade un icono `📋` al lado de "Texto por defecto" con el tooltip "Copiar el texto del contenido" para copiar el valor específico editado de la carta al texto por defecto del elemento de la plantilla.
 
 ### Funcionamiento esperado al renderizar:
 - Al renderizar una carta, para cada capa de texto:
@@ -41,12 +43,13 @@ El usuario requiere un comportamiento **independiente** y limpio:
 ---
 
 ## 3. Plan de Verificación y Criterios de Aceptación
-- [ ] Crear una plantilla y añadir una capa de texto.
-- [ ] En la pestaña **Diseño**, escribir la variable clave: `"titulo"`.
-  - [ ] Comprobar que el nombre de la capa en el explorador izquierdo cambia automáticamente a `"titulo"`.
-- [ ] En *"Texto por defecto"*, escribir: `"Pon tu título aquí"`.
-  - [ ] Comprobar que al modificar este campo, el nombre de la variable `"titulo"` no se borra ni se modifica.
-- [ ] Crear una nueva carta basada en esta plantilla:
-  - [ ] Comprobar que se inicializa con el texto `"Pon tu título aquí"`.
-- [ ] Modificar el texto de la nueva carta a `"Caballero Elfo"`.
-  - [ ] Comprobar que la carta muestra `"Caballero Elfo"`, pero la plantilla original mantiene `"Pon tu título aquí"`.
+- [x] Crear una plantilla y añadir una capa de texto.
+- [x] En la pestaña **Diseño**, escribir la variable clave: `"titulo"`.
+  - [x] Comprobar que el nombre de la capa en el explorador izquierdo cambia automáticamente a `"titulo"`.
+- [x] En *"Texto por defecto"*, escribir: `"Pon tu título aquí"`.
+  - [x] Comprobar que al modificar este campo, el nombre de la variable `"titulo"` no se borra ni se modifica.
+- [x] Crear una nueva carta basada en esta plantilla:
+  - [x] Comprobar que se inicializa automáticamente con el texto `"Pon tu título aquí"`.
+- [x] Modificar el texto de la nueva carta a `"Caballero Elfo"`.
+  - [x] Comprobar que la carta muestra `"Caballero Elfo"`, pero la plantilla original mantiene `"Pon tu título aquí"`.
+- [x] Presionar el botón `📋` al lado de "Texto por defecto" y verificar que se copia el texto del contenido.

@@ -8,13 +8,10 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
-  let texto = capa.contenidoRaw || "";
-  if (valoresCampos) {
-    Object.entries(valoresCampos).forEach(([key, val]) => {
-      texto = texto.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"), val);
-    });
+  if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
+    return valoresCampos[capa.nombre];
   }
-  return texto;
+  return capa.contenidoRaw || "";
 }
 
 function parseMarkdownToHtml(text: string): string {

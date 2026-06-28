@@ -27,13 +27,10 @@ const PREAJUSTES_HOJAS = {
 };
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
-  let texto = capa.contenidoRaw || "";
-  if (valoresCampos) {
-    Object.entries(valoresCampos).forEach(([key, val]) => {
-      texto = texto.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"), val);
-    });
+  if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
+    return valoresCampos[capa.nombre];
   }
-  return texto;
+  return capa.contenidoRaw || "";
 }
 
 function parseMarkdownToHtml(text: string): string {
@@ -1258,9 +1255,11 @@ export default function App() {
         plantilla: templateInstance,
       };
 
-      if (templateInstance.camposConfig) {
-        templateInstance.camposConfig.forEach((campo: any) => {
-          nuevaCarta.valoresCampos![campo.clave] = campo.valorDefecto || "";
+      if (templateInstance.capas) {
+        templateInstance.capas.forEach((capa: any) => {
+          if (capa.tipo === "text") {
+            nuevaCarta.valoresCampos![capa.nombre] = capa.contenidoRaw || "";
+          }
         });
       }
 
@@ -1286,9 +1285,11 @@ export default function App() {
         prev.map((c) => {
           if (selectedCardIds.includes(c.id)) {
             const valoresCamposTrasera: Record<string, string> = {};
-            if (templateInstance.camposConfig) {
-              templateInstance.camposConfig.forEach((campo: any) => {
-                valoresCamposTrasera[campo.clave] = campo.valorDefecto || "";
+            if (templateInstance.capas) {
+              templateInstance.capas.forEach((capa: any) => {
+                if (capa.tipo === "text") {
+                  valoresCamposTrasera[capa.nombre] = capa.contenidoRaw || "";
+                }
               });
             }
             return {

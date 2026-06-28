@@ -26,13 +26,10 @@ interface EditCardModalProps {
 }
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
-  let texto = capa.contenidoRaw || "";
-  if (valoresCampos) {
-    Object.entries(valoresCampos).forEach(([key, val]) => {
-      texto = texto.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, "g"), val);
-    });
+  if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
+    return valoresCampos[capa.nombre];
   }
-  return texto;
+  return capa.contenidoRaw || "";
 }
 
 function parseMarkdownToHtml(text: string): string {
@@ -362,10 +359,10 @@ export default function EditCardModal({
         tinteColor: null,
       };
     } else {
-      const newNombre = isMultiline ? "Texto Multilínea" : "Texto de una Línea";
+      const defaultText = isMultiline ? "Texto multilínea de ejemplo..." : "Texto de ejemplo...";
       newLayer = {
         id: newId,
-        nombre: newNombre,
+        nombre: newClave,
         visible: true,
         tipo: "text" as const,
         xMm: Math.round((cardConfig.anchoMm * 0.05) * 10) / 10,
@@ -378,13 +375,13 @@ export default function EditCardModal({
         alineacion: "center" as const,
         bold: false,
         italic: false,
-        contenidoRaw: `{{${newClave}}}`
+        contenidoRaw: defaultText
       };
     }
 
     const newCampo = !isImage && !isImageSwitch ? {
       clave: newClave,
-      nombreLegible: isMultiline ? "Texto Multilínea" : "Texto de una Línea",
+      nombreLegible: newClave,
       tipo: "text" as const,
       valorDefecto: isMultiline ? "Texto multilínea de ejemplo..." : "Texto de ejemplo..."
     } : null;
@@ -905,11 +902,10 @@ export default function EditCardModal({
       let deletedClave: string | null = null;
       
       if (capa.tipo === "text") {
-        const match = capa.contenidoRaw?.match(/\{\{\s*(\w+)\s*\}\}/);
-        const clave = match ? match[1] : null;
+        const clave = capa.nombre;
         if (clave) {
           const isClaveUsed = nextCapas.some((c: any) => 
-            c.tipo === "text" && c.contenidoRaw?.includes(`{{${clave}}}`)
+            c.tipo === "text" && c.nombre === clave
           );
           if (!isClaveUsed) {
             nextCamposConfig = nextCamposConfig.filter((f: any) => f.clave !== clave);
@@ -945,7 +941,7 @@ export default function EditCardModal({
         setTempCapasOverridesTrasera(nextOverrides);
         if (next._deletedClave) {
           const { [next._deletedClave]: __, ...nextValores } = tempValoresCamposTrasera;
-          setTempValoresCampos(nextValores);
+          setTempValoresCamposTrasera(nextValores);
         }
         delete next._deletedClave;
         return next;
@@ -986,13 +982,6 @@ export default function EditCardModal({
   // --- Obtener la capa actualmente seleccionada ---
   const selectedCapa = plantillaActiva?.capas?.find((c: any) => c.id === selectedLayerId);
 
-  // --- Obtener el campo de variables asociado a la capa de texto ---
-  const getFieldKeyForCapa = (capa: any): string | null => {
-    if (!capa || capa.tipo !== "text" || !capa.contenidoRaw) return null;
-    const match = capa.contenidoRaw.match(/\{\{\s*(\w+)\s*\}\}/);
-    return match ? match[1] : null;
-  };
-
   const handleUpdateBorderWidthGeneral = (capaId: string, val: number) => {
     handleUpdateCapaProp(capaId, "borderTopWidth", val);
     handleUpdateCapaProp(capaId, "borderRightWidth", val);
@@ -1014,7 +1003,7 @@ export default function EditCardModal({
     handleUpdateCapaProp(capaId, "borderBottomLeftRadius", radius);
   };
 
-  const fieldKey = selectedCapa ? getFieldKeyForCapa(selectedCapa) : null;
+  const fieldKey = selectedCapa && selectedCapa.tipo === "text" ? selectedCapa.nombre : null;
 
   // Reverso a renderizar cuando no es dinámico
   const traseraUrl = carta.imagenTrasera || imagenTraseraComun;
@@ -1085,11 +1074,7 @@ export default function EditCardModal({
                       title = capa.nombre;
                       subtitle = "Fondo";
                     } else if (capa.tipo === "text") {
-                      const key = getFieldKeyForCapa(capa);
-                      if (key) {
-                        const fieldConfig = plantillaActiva.camposConfig?.find((f: any) => f.clave === key);
-                        title = fieldConfig?.nombreLegible || key;
-                      }
+                      title = capa.nombre;
                       subtitle = capa.altoMm > 15 ? "Texto multilínea" : "Texto de una línea";
                     } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
                       title = capa.nombre || (capa.tipo === "image" ? "Imagen" : "Imagen Switch");
@@ -1563,31 +1548,29 @@ export default function EditCardModal({
                             {selectedCapa.altoMm > 15 ? (
                               <textarea
                                 className="inspector-textarea"
-                                value={tempCapasOverridesActivos[selectedCapa.id]?.contenidoRaw !== undefined ? tempCapasOverridesActivos[selectedCapa.id].contenidoRaw : (selectedCapa.contenidoRaw || "")}
+                                value={tempValoresActivos[selectedCapa.nombre] !== undefined ? tempValoresActivos[selectedCapa.nombre] : (selectedCapa.contenidoRaw || "")}
                                 rows={4}
                                 onChange={(e) => {
-                                  setTempCapasOverridesActivos((prev) => ({
-                                    ...prev,
-                                    [selectedCapa.id]: {
-                                      ...(prev[selectedCapa.id] || {}),
-                                      contenidoRaw: e.target.value,
-                                    },
-                                  }));
+                                  const val = e.target.value;
+                                  if (activeTab === "frontal") {
+                                    setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.nombre]: val }));
+                                  } else {
+                                    setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.nombre]: val }));
+                                  }
                                 }}
                               />
                             ) : (
                               <input
                                 type="text"
                                 className="inspector-input"
-                                value={tempCapasOverridesActivos[selectedCapa.id]?.contenidoRaw !== undefined ? tempCapasOverridesActivos[selectedCapa.id].contenidoRaw : (selectedCapa.contenidoRaw || "")}
+                                value={tempValoresActivos[selectedCapa.nombre] !== undefined ? tempValoresActivos[selectedCapa.nombre] : (selectedCapa.contenidoRaw || "")}
                                 onChange={(e) => {
-                                  setTempCapasOverridesActivos((prev) => ({
-                                    ...prev,
-                                    [selectedCapa.id]: {
-                                      ...(prev[selectedCapa.id] || {}),
-                                      contenidoRaw: e.target.value,
-                                    },
-                                  }));
+                                  const val = e.target.value;
+                                  if (activeTab === "frontal") {
+                                    setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.nombre]: val }));
+                                  } else {
+                                    setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.nombre]: val }));
+                                  }
                                 }}
                               />
                             )}
@@ -1977,7 +1960,19 @@ export default function EditCardModal({
                             />
                           </div>
                           <div className="inspector-section">
-                            <label className="inspector-label">Texto por defecto</label>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                              <label className="inspector-label" style={{ margin: 0 }}>Texto por defecto</label>
+                              <span
+                                style={{ cursor: "pointer", fontSize: "14px" }}
+                                title="Copiar el texto del contenido"
+                                onClick={() => {
+                                  const currentValue = tempValoresActivos[selectedCapa.nombre] || "";
+                                  handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", currentValue);
+                                }}
+                              >
+                                📋
+                              </span>
+                            </div>
                             {selectedCapa.altoMm > 15 ? (
                               <textarea
                                 className="inspector-textarea"

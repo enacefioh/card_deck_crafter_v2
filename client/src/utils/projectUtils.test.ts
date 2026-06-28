@@ -305,7 +305,7 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
         { clave: "poder", nombreLegible: "poder", tipo: "text", valorDefecto: "10" }
       ],
       capas: [
-        { id: "capa1", tipo: "text", contenidoRaw: "{{poder}}" }
+        { id: "capa1", tipo: "text", nombre: "poder", contenidoRaw: "Poder por defecto" }
       ]
     };
 
@@ -313,7 +313,8 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       const valores = { poder: "99" };
       const res = actualizarClavePlantillaYValores(plantillaMock, valores, "capa1", "poder", "fuerza");
       
-      expect(res.plantilla.capas[0].contenidoRaw).toBe("{{fuerza}}");
+      expect(res.plantilla.capas[0].nombre).toBe("fuerza");
+      expect(res.plantilla.capas[0].contenidoRaw).toBe("Poder por defecto");
       expect(res.plantilla.camposConfig[0].clave).toBe("fuerza");
       expect(res.valoresCampos.fuerza).toBe("99");
       expect(res.valoresCampos.poder).toBeUndefined();
@@ -323,15 +324,15 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       const plantillaConClaveCompartida = {
         ...plantillaMock,
         capas: [
-          { id: "capa1", tipo: "text", contenidoRaw: "{{poder}}" },
-          { id: "capa2", tipo: "text", contenidoRaw: "{{poder}}" }
+          { id: "capa1", tipo: "text", nombre: "poder", contenidoRaw: "Poder por defecto" },
+          { id: "capa2", tipo: "text", nombre: "poder", contenidoRaw: "Poder 2" }
         ]
       };
       const valores = { poder: "99" };
       const res = actualizarClavePlantillaYValores(plantillaConClaveCompartida, valores, "capa1", "poder", "fuerza");
 
-      expect(res.plantilla.capas[0].contenidoRaw).toBe("{{fuerza}}");
-      expect(res.plantilla.capas[1].contenidoRaw).toBe("{{poder}}");
+      expect(res.plantilla.capas[0].nombre).toBe("fuerza");
+      expect(res.plantilla.capas[1].nombre).toBe("poder");
       // Se debe haber añadido "fuerza" a camposConfig, manteniendo "poder"
       expect(res.plantilla.camposConfig.map((f: any) => f.clave)).toContain("poder");
       expect(res.plantilla.camposConfig.map((f: any) => f.clave)).toContain("fuerza");
@@ -343,7 +344,7 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       const valores = { poder: "99" };
       const res = actualizarClavePlantillaYValores(plantillaMock, valores, "capa1", "poder", "poder!");
       
-      expect(res.plantilla.capas[0].contenidoRaw).toBe("{{poder}}");
+      expect(res.plantilla.capas[0].nombre).toBe("poder");
       expect(res.plantilla.camposConfig[0].clave).toBe("poder");
       expect(res.valoresCampos.poder).toBe("99");
     });

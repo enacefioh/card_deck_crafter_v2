@@ -118,7 +118,7 @@ export function actualizarClavePlantillaYValores(
     if (c.id === capaId) {
       return {
         ...c,
-        contenidoRaw: `{{${sanitizedClave}}}`
+        nombre: sanitizedClave
       };
     }
     return c;
@@ -128,7 +128,7 @@ export function actualizarClavePlantillaYValores(
   if (oldClave) {
     if (sanitizedClave !== oldClave) {
       const isClaveUsedElsewhere = updatedCapas.some((c: any) => 
-        c.id !== capaId && c.tipo === "text" && c.contenidoRaw?.includes(`{{${oldClave}}}`)
+        c.id !== capaId && c.tipo === "text" && c.nombre === oldClave
       );
       
       if (!isClaveUsedElsewhere) {
@@ -137,22 +137,24 @@ export function actualizarClavePlantillaYValores(
         );
       } else {
         if (!updatedCamposConfig.some((f: any) => f.clave === sanitizedClave)) {
+          const capa = updatedCapas.find((c: any) => c.id === capaId);
           updatedCamposConfig.push({
             clave: sanitizedClave,
             nombreLegible: sanitizedClave,
             tipo: "text",
-            valorDefecto: "Texto de ejemplo..."
+            valorDefecto: capa?.contenidoRaw || ""
           });
         }
       }
     }
   } else {
     if (!updatedCamposConfig.some((f: any) => f.clave === sanitizedClave)) {
+      const capa = updatedCapas.find((c: any) => c.id === capaId);
       updatedCamposConfig.push({
         clave: sanitizedClave,
         nombreLegible: sanitizedClave,
         tipo: "text",
-        valorDefecto: "Texto de ejemplo..."
+        valorDefecto: capa?.contenidoRaw || ""
       });
     }
   }
@@ -163,14 +165,15 @@ export function actualizarClavePlantillaYValores(
       updatedValores[sanitizedClave] = valoresCampos[oldClave] || "";
 
       const isClaveUsedElsewhere = updatedCapas.some((c: any) => 
-        c.id !== capaId && c.tipo === "text" && c.contenidoRaw?.includes(`{{${oldClave}}}`)
+        c.id !== capaId && c.tipo === "text" && c.nombre === oldClave
       );
       if (!isClaveUsedElsewhere) {
         delete updatedValores[oldClave];
       }
     }
   } else {
-    updatedValores[sanitizedClave] = "";
+    const capa = updatedCapas.find((c: any) => c.id === capaId);
+    updatedValores[sanitizedClave] = capa?.contenidoRaw || "";
   }
 
   return {
