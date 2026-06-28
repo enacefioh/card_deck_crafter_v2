@@ -96,7 +96,7 @@ export default function EditCardModal({
 
   // Popup de añadir elementos
   const [showAddElementPopup, setShowAddElementPopup] = useState<boolean>(false);
-  const [selectedNewType, setSelectedNewType] = useState<"single" | "multi" | "image" | "image-switch">("single");
+  const [selectedNewType, setSelectedNewType] = useState<"text" | "image" | "image-switch">("text");
   const [showSwitchResourcesPopup, setShowSwitchResourcesPopup] = useState<boolean>(false);
   const [tempSwitchCapaId, setTempSwitchCapaId] = useState<string | null>(null);
   const [tempSelectedOptionIds, setTempSelectedOptionIds] = useState<string[]>([]);
@@ -264,7 +264,7 @@ export default function EditCardModal({
   const handleAddElement = () => {
     if (!plantillaActiva) return;
 
-    const isMultiline = selectedNewType === "multi";
+    const isText = selectedNewType === "text";
     const isImage = selectedNewType === "image";
     const isImageSwitch = selectedNewType === "image-switch";
     const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -304,7 +304,7 @@ export default function EditCardModal({
         tinteColor: null,
       };
     } else {
-      const defaultText = isMultiline ? "Texto multilínea de ejemplo..." : "Texto de ejemplo...";
+      const defaultText = "Texto de ejemplo...";
       newLayer = {
         id: newId,
         nombre: newClave,
@@ -313,22 +313,23 @@ export default function EditCardModal({
         xMm: Math.round((cardConfig.anchoMm * 0.05) * 10) / 10,
         yMm: Math.round((cardConfig.altoMm * 0.45) * 10) / 10,
         anchoMm: Math.round((cardConfig.anchoMm * 0.9) * 10) / 10,
-        altoMm: isMultiline ? Math.round((cardConfig.altoMm * 0.3) * 10) / 10 : 8,
+        altoMm: 8,
         fontFamily: "sans-serif",
-        fontSizePt: isMultiline ? 10 : 12,
+        fontSizePt: 12,
         color: "#000000",
         alineacion: "center" as const,
         bold: false,
         italic: false,
-        contenidoRaw: defaultText
+        contenidoRaw: defaultText,
+        multiline: false
       };
     }
 
-    const newCampo = !isImage && !isImageSwitch ? {
+    const newCampo = isText ? {
       clave: newClave,
       nombreLegible: newClave,
       tipo: "text" as const,
-      valorDefecto: isMultiline ? "Texto multilínea de ejemplo..." : "Texto de ejemplo..."
+      valorDefecto: "Texto de ejemplo..."
     } : null;
 
     const updater = (prev: any) => {
@@ -1114,7 +1115,7 @@ export default function EditCardModal({
                   type="button"
                   className="btn-add-element"
                   onClick={() => {
-                    setSelectedNewType("single");
+                    setSelectedNewType("text");
                     setShowAddElementPopup(true);
                   }}
                 >
@@ -1490,7 +1491,7 @@ export default function EditCardModal({
                                 ℹ️
                               </span>
                             </div>
-                            {selectedCapa.altoMm > 15 ? (
+                            {selectedCapa.multiline !== false ? (
                               <textarea
                                 className="inspector-textarea"
                                 value={tempValoresActivos[selectedCapa.nombre] !== undefined ? tempValoresActivos[selectedCapa.nombre] : (selectedCapa.contenidoRaw || "")}
@@ -1918,7 +1919,7 @@ export default function EditCardModal({
                                 📋
                               </span>
                             </div>
-                            {selectedCapa.altoMm > 15 ? (
+                            {selectedCapa.multiline !== false ? (
                               <textarea
                                 className="inspector-textarea"
                                 value={selectedCapa.contenidoRaw || ""}
@@ -1933,6 +1934,18 @@ export default function EditCardModal({
                                 onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", e.target.value)}
                               />
                             )}
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px", marginTop: "12px" }}>
+                            <input
+                              type="checkbox"
+                              id={`capa-multiline-${selectedCapa.id}`}
+                              checked={selectedCapa.multiline !== false}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "multiline", e.target.checked)}
+                              style={{ width: "auto", margin: 0, cursor: "pointer" }}
+                            />
+                            <label htmlFor={`capa-multiline-${selectedCapa.id}`} className="inspector-label" style={{ margin: 0, cursor: "pointer" }}>
+                              Multilínea
+                            </label>
                           </div>
                         </>
                       )}
@@ -2592,18 +2605,11 @@ export default function EditCardModal({
             
             <div className="add-element-options">
               <div
-                className={`add-element-option ${selectedNewType === "single" ? "selected" : ""}`}
-                onClick={() => setSelectedNewType("single")}
+                className={`add-element-option ${selectedNewType === "text" ? "selected" : ""}`}
+                onClick={() => setSelectedNewType("text")}
               >
                 <span className="add-element-option-icon">📝</span>
-                <span className="add-element-option-label">Texto de una línea</span>
-              </div>
-              <div
-                className={`add-element-option ${selectedNewType === "multi" ? "selected" : ""}`}
-                onClick={() => setSelectedNewType("multi")}
-              >
-                <span className="add-element-option-icon">📄</span>
-                <span className="add-element-option-label">Texto multilínea</span>
+                <span className="add-element-option-label">Texto</span>
               </div>
               <div
                 className={`add-element-option ${selectedNewType === "image" ? "selected" : ""}`}
