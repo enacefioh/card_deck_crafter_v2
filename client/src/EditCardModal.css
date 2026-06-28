@@ -1166,3 +1166,54 @@ select.inspector-input option {
 .switch-carousel-upload-btn:hover .switch-carousel-plus-icon {
   color: var(--accent-primary);
 }
+
+/* Bordes y Esquinas (SRS-024) */
+.border-corners-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.section-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+  padding: 4px 0;
+}
+
+.section-header-row:hover .inspector-label {
+  color: var(--text-primary);
+}
+
+.expand-toggle-icon {
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: transform 0.2s ease;
+}
+
+.expand-toggle-icon.expanded {
+  transform: rotate(90deg);
+}
+
+.expanded-inputs-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  padding-left: 10px;
+  border-left: 2px solid var(--border-color);
+  margin-top: 4px;
+}
+
+.expanded-input-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.expanded-input-item label {
+  font-size: 10.5px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}

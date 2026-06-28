@@ -107,6 +107,10 @@ export default function EditCardModal({
   // Estado del menú desplegable de opciones de plantilla
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
 
+  // Estados para expansión de controles de bordes y esquinas (SRS-024)
+  const [expandBorders, setExpandBorders] = useState<boolean>(false);
+  const [expandRadii, setExpandRadii] = useState<boolean>(false);
+
   // Estados para Galería de la Plantilla (SRS-020)
   const [showGalleryManager, setShowGalleryManager] = useState<boolean>(false);
   const [showGallerySelector, setShowGallerySelector] = useState<boolean>(false);
@@ -989,6 +993,27 @@ export default function EditCardModal({
     return match ? match[1] : null;
   };
 
+  const handleUpdateBorderWidthGeneral = (capaId: string, val: number) => {
+    handleUpdateCapaProp(capaId, "borderTopWidth", val);
+    handleUpdateCapaProp(capaId, "borderRightWidth", val);
+    handleUpdateCapaProp(capaId, "borderBottomWidth", val);
+    handleUpdateCapaProp(capaId, "borderLeftWidth", val);
+  };
+
+  const handleUpdateBorderColorGeneral = (capaId: string, color: string) => {
+    handleUpdateCapaProp(capaId, "borderTopColor", color);
+    handleUpdateCapaProp(capaId, "borderRightColor", color);
+    handleUpdateCapaProp(capaId, "borderBottomColor", color);
+    handleUpdateCapaProp(capaId, "borderLeftColor", color);
+  };
+
+  const handleUpdateBorderRadiusGeneral = (capaId: string, radius: number) => {
+    handleUpdateCapaProp(capaId, "borderTopLeftRadius", radius);
+    handleUpdateCapaProp(capaId, "borderTopRightRadius", radius);
+    handleUpdateCapaProp(capaId, "borderBottomRightRadius", radius);
+    handleUpdateCapaProp(capaId, "borderBottomLeftRadius", radius);
+  };
+
   const fieldKey = selectedCapa ? getFieldKeyForCapa(selectedCapa) : null;
 
   // Reverso a renderizar cuando no es dinámico
@@ -1288,14 +1313,40 @@ export default function EditCardModal({
                       const textoInterp = renderizarTextoCapa(resolvedCapa, tempValoresActivos);
                       const htmlText = parseMarkdownToHtml(textoInterp);
                       const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * scale;
+
+                      // Bordes y Esquinas (SRS-024)
+                      const borderTopPx = (resolvedCapa.borderTopWidth || 0) * scale;
+                      const borderRightPx = (resolvedCapa.borderRightWidth || 0) * scale;
+                      const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * scale;
+                      const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * scale;
+
+                      const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * scale;
+                      const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * scale;
+                      const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * scale;
+                      const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * scale;
+
+                      const borderCornersStyle = {
+                        borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                        borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                        borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                        borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                        borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                        borderTopRightRadius: `${radiusTopRightPx}px`,
+                        borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                        borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                        overflow: "hidden" as const,
+                      };
+
                       return (
                         <div
                           key={capa.id}
                           style={{
                             ...layerStyle,
+                            ...borderCornersStyle,
                             fontFamily: resolvedCapa.fontFamily || "sans-serif",
                             fontSize: `${fontSizePx}px`,
                             color: resolvedCapa.color || "#000000",
+                            backgroundColor: resolvedCapa.backgroundColor || "transparent",
                             textAlign: (resolvedCapa.alineacion === "center"
                               ? "center"
                               : resolvedCapa.alineacion === "right"
@@ -1321,23 +1372,45 @@ export default function EditCardModal({
                     }
 
                     if (capa.tipo === "image" || capa.tipo === "image-switch") {
-                      const src = tempCapasOverridesActivos[capa.id]?.src !== undefined
-                        ? tempCapasOverridesActivos[capa.id]?.src
-                        : capa.src;
-                      
+                      const overrides = tempCapasOverridesActivos[capa.id];
+                      const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                      const src = resolvedCapa.src;
                       const showPlaceholder = !src;
+
+                      // Bordes y Esquinas (SRS-024)
+                      const borderTopPx = (resolvedCapa.borderTopWidth || 0) * scale;
+                      const borderRightPx = (resolvedCapa.borderRightWidth || 0) * scale;
+                      const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * scale;
+                      const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * scale;
+
+                      const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * scale;
+                      const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * scale;
+                      const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * scale;
+                      const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * scale;
+
+                      const borderCornersStyle = {
+                        borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                        borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                        borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                        borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                        borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                        borderTopRightRadius: `${radiusTopRightPx}px`,
+                        borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                        borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                        overflow: "hidden" as const,
+                      };
 
                       return (
                         <div
                           key={capa.id}
                           style={{
                             ...layerStyle,
+                            ...borderCornersStyle,
                             display: "flex",
                             alignItems: "center",
                             justifyContent: "center",
-                            overflow: "hidden",
-                            backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
-                            border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
+                            backgroundColor: showPlaceholder ? "#e2e8f0" : (resolvedCapa.backgroundColor || "transparent"),
+                            border: showPlaceholder ? "1px dashed #cbd5e1" : undefined,
                           }}
                           onClick={() => setSelectedLayerId(capa.id)}
                           onMouseEnter={() => setHoveredLayerId(capa.id)}
@@ -1354,8 +1427,9 @@ export default function EditCardModal({
                               style={{
                                 width: "100%",
                                 height: "100%",
-                                objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
+                                objectFit: resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover") as any,
                                 pointerEvents: "none",
+                                borderRadius: "inherit",
                               }}
                             />
                           )}
@@ -2312,6 +2386,232 @@ export default function EditCardModal({
                             </div>
                           </div>
                         </>
+                      )}
+
+                      {/* Bordes, Esquinas y Fondo (SRS-024) */}
+                      {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") && (
+                        <div className="inspector-section border-corners-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "12px" }}>
+                          
+                          {/* Sección de Bordes */}
+                          <div className="section-header-row" onClick={() => setExpandBorders(!expandBorders)}>
+                            <label className="inspector-label" style={{ cursor: "pointer", margin: 0 }}>Bordes de la Capa</label>
+                            <span className={`expand-toggle-icon ${expandBorders ? "expanded" : ""}`}>▶</span>
+                          </div>
+                          
+                          {!expandBorders ? (
+                            <div className="layout-form-grid">
+                              <div className="inspector-section">
+                                <label className="inspector-label">Grosor General (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderTopWidth !== undefined ? selectedCapa.borderTopWidth : 0}
+                                  onChange={(e) => handleUpdateBorderWidthGeneral(selectedCapa.id, Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="inspector-section">
+                                <label className="inspector-label">Color General</label>
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "100%", height: "38px" }}
+                                  value={selectedCapa.borderTopColor || "#000000"}
+                                  onChange={(e) => handleUpdateBorderColorGeneral(selectedCapa.id, e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="expanded-inputs-grid">
+                              {/* Arriba */}
+                              <div className="expanded-input-item">
+                                <label>Grosor Sup. (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderTopWidth !== undefined ? selectedCapa.borderTopWidth : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopWidth", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Color Superior</label>
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "100%", height: "38px" }}
+                                  value={selectedCapa.borderTopColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopColor", e.target.value)}
+                                />
+                              </div>
+                              {/* Derecha */}
+                              <div className="expanded-input-item">
+                                <label>Grosor Der. (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderRightWidth !== undefined ? selectedCapa.borderRightWidth : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightWidth", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Color Derecho</label>
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "100%", height: "38px" }}
+                                  value={selectedCapa.borderRightColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightColor", e.target.value)}
+                                />
+                              </div>
+                              {/* Abajo */}
+                              <div className="expanded-input-item">
+                                <label>Grosor Inf. (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderBottomWidth !== undefined ? selectedCapa.borderBottomWidth : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomWidth", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Color Inferior</label>
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "100%", height: "38px" }}
+                                  value={selectedCapa.borderBottomColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomColor", e.target.value)}
+                                />
+                              </div>
+                              {/* Izquierda */}
+                              <div className="expanded-input-item">
+                                <label>Grosor Izq. (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderLeftWidth !== undefined ? selectedCapa.borderLeftWidth : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftWidth", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Color Izquierdo</label>
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "100%", height: "38px" }}
+                                  value={selectedCapa.borderLeftColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftColor", e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Sección de Radios de Esquinas */}
+                          <div className="section-header-row" onClick={() => setExpandRadii(!expandRadii)} style={{ marginTop: "8px" }}>
+                            <label className="inspector-label" style={{ cursor: "pointer", margin: 0 }}>Redondear Esquinas</label>
+                            <span className={`expand-toggle-icon ${expandRadii ? "expanded" : ""}`}>▶</span>
+                          </div>
+
+                          {!expandRadii ? (
+                            <div className="inspector-section">
+                              <label className="inspector-label">Radio General (mm)</label>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                className="inspector-input"
+                                value={selectedCapa.borderTopLeftRadius !== undefined ? selectedCapa.borderTopLeftRadius : 0}
+                                onChange={(e) => handleUpdateBorderRadiusGeneral(selectedCapa.id, Number(e.target.value))}
+                              />
+                            </div>
+                          ) : (
+                            <div className="expanded-inputs-grid">
+                              <div className="expanded-input-item">
+                                <label>Sup. Izquierda (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderTopLeftRadius !== undefined ? selectedCapa.borderTopLeftRadius : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopLeftRadius", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Sup. Derecha (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderTopRightRadius !== undefined ? selectedCapa.borderTopRightRadius : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopRightRadius", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Inf. Derecha (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderBottomRightRadius !== undefined ? selectedCapa.borderBottomRightRadius : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomRightRadius", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Inf. Izquierda (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderBottomLeftRadius !== undefined ? selectedCapa.borderBottomLeftRadius : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomLeftRadius", Number(e.target.value))}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Color de Fondo (SRS-024) */}
+                          <div className="inspector-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "12px" }}>
+                            <label className="inspector-label" style={{ margin: 0 }}>Color de Fondo de la Capa</label>
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px" }}>
+                              <input
+                                type="checkbox"
+                                id="has-bg-color-checkbox"
+                                checked={!!selectedCapa.backgroundColor}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    handleUpdateCapaProp(selectedCapa.id, "backgroundColor", "#ffffff");
+                                  } else {
+                                    handleUpdateCapaProp(selectedCapa.id, "backgroundColor", "");
+                                  }
+                                }}
+                              />
+                              <label htmlFor="has-bg-color-checkbox" style={{ fontSize: "13px", cursor: "pointer", userSelect: "none" }}>Activar Fondo</label>
+                              {!!selectedCapa.backgroundColor && (
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "60px", height: "38px", marginLeft: "auto" }}
+                                  value={selectedCapa.backgroundColor}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "backgroundColor", e.target.value)}
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                        </div>
                       )}
                     </div>
                   )}

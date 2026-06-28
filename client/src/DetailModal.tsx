@@ -130,23 +130,46 @@ export default function DetailModal({
                           }
 
                           if (capa.tipo === "image" || capa.tipo === "image-switch") {
-                            const src = carta.capasOverrides?.[capa.id]?.src !== undefined
-                              ? carta.capasOverrides[capa.id]?.src
-                              : capa.src;
-                            
+                            const overrides = carta.capasOverrides?.[capa.id];
+                            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                            const src = resolvedCapa.src;
                             const showPlaceholder = !src;
+
+                            // Bordes y Esquinas (SRS-024)
+                            const borderTopPx = (resolvedCapa.borderTopWidth || 0) * 2.5;
+                            const borderRightPx = (resolvedCapa.borderRightWidth || 0) * 2.5;
+                            const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * 2.5;
+                            const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * 2.5;
+
+                            const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * 2.5;
+                            const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * 2.5;
+                            const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * 2.5;
+                            const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * 2.5;
+
+                            const borderCornersStyle = {
+                              borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                              borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                              borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                              borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                              borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                              borderTopRightRadius: `${radiusTopRightPx}px`,
+                              borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                              borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                              boxSizing: "border-box" as const,
+                              overflow: "hidden" as const,
+                            };
 
                             return (
                               <div
                                 key={capa.id}
                                 style={{
                                   ...style,
+                                  ...borderCornersStyle,
                                   display: "flex",
                                   alignItems: "center",
                                   justifyContent: "center",
-                                  overflow: "hidden",
-                                  backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
-                                  border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
+                                  backgroundColor: showPlaceholder ? "#e2e8f0" : (resolvedCapa.backgroundColor || "transparent"),
+                                  border: showPlaceholder ? "1px dashed #cbd5e1" : undefined,
                                 }}
                               >
                                 {showPlaceholder ? (
@@ -160,7 +183,8 @@ export default function DetailModal({
                                     style={{
                                       width: "100%",
                                       height: "100%",
-                                      objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
+                                      objectFit: resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover") as any,
+                                      borderRadius: "inherit",
                                     }}
                                   />
                                 )}
@@ -174,14 +198,41 @@ export default function DetailModal({
                             const textoInterp = renderizarTextoCapa(resolvedCapa, carta.valoresCampos);
                             const htmlText = parseMarkdownToHtml(textoInterp);
                             const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * 2.5;
+
+                            // Bordes y Esquinas (SRS-024)
+                            const borderTopPx = (resolvedCapa.borderTopWidth || 0) * 2.5;
+                            const borderRightPx = (resolvedCapa.borderRightWidth || 0) * 2.5;
+                            const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * 2.5;
+                            const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * 2.5;
+
+                            const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * 2.5;
+                            const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * 2.5;
+                            const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * 2.5;
+                            const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * 2.5;
+
+                            const borderCornersStyle = {
+                              borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                              borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                              borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                              borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                              borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                              borderTopRightRadius: `${radiusTopRightPx}px`,
+                              borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                              borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                              boxSizing: "border-box" as const,
+                              overflow: "hidden" as const,
+                            };
+
                             return (
                               <div
                                 key={capa.id}
                                 style={{
                                   ...style,
+                                  ...borderCornersStyle,
                                   fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                   fontSize: `${fontSizePx}px`,
                                   color: resolvedCapa.color || "#000000",
+                                  backgroundColor: resolvedCapa.backgroundColor || "transparent",
                                   textAlign: (resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : "left") as any,
                                   fontWeight: resolvedCapa.bold ? "bold" : "normal",
                                   fontStyle: resolvedCapa.italic ? "italic" : "normal",
@@ -291,21 +342,46 @@ export default function DetailModal({
                             }
 
                             if (capa.tipo === "image" || capa.tipo === "image-switch") {
-                              const src = carta.capasOverridesTrasera?.[capa.id]?.src !== undefined
-                                ? carta.capasOverridesTrasera[capa.id]?.src
-                                : capa.src;
+                              const overrides = carta.capasOverridesTrasera?.[capa.id];
+                              const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                              const src = resolvedCapa.src;
                               const showPlaceholder = !src;
+
+                              // Bordes y Esquinas (SRS-024)
+                              const borderTopPx = (resolvedCapa.borderTopWidth || 0) * 2.5;
+                              const borderRightPx = (resolvedCapa.borderRightWidth || 0) * 2.5;
+                              const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * 2.5;
+                              const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * 2.5;
+
+                              const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * 2.5;
+                              const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * 2.5;
+                              const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * 2.5;
+                              const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * 2.5;
+
+                              const borderCornersStyle = {
+                                borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                                borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                                borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                                borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                                borderTopRightRadius: `${radiusTopRightPx}px`,
+                                borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                                borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                                boxSizing: "border-box" as const,
+                                overflow: "hidden" as const,
+                              };
+
                               return (
                                 <div
                                   key={capa.id}
                                   style={{
                                     ...style,
+                                    ...borderCornersStyle,
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
-                                    overflow: "hidden",
-                                    backgroundColor: showPlaceholder ? "#e2e8f0" : "transparent",
-                                    border: showPlaceholder ? "1px dashed #cbd5e1" : "none",
+                                    backgroundColor: showPlaceholder ? "#e2e8f0" : (resolvedCapa.backgroundColor || "transparent"),
+                                    border: showPlaceholder ? "1px dashed #cbd5e1" : undefined,
                                   }}
                                 >
                                   {showPlaceholder ? (
@@ -319,7 +395,8 @@ export default function DetailModal({
                                       style={{
                                         width: "100%",
                                         height: "100%",
-                                        objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
+                                        objectFit: resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover") as any,
+                                        borderRadius: "inherit",
                                       }}
                                     />
                                   )}
@@ -333,14 +410,41 @@ export default function DetailModal({
                               const textoInterp = renderizarTextoCapa(resolvedCapa, carta.valoresCamposTrasera);
                               const htmlText = parseMarkdownToHtml(textoInterp);
                               const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * 2.5;
+
+                              // Bordes y Esquinas (SRS-024)
+                              const borderTopPx = (resolvedCapa.borderTopWidth || 0) * 2.5;
+                              const borderRightPx = (resolvedCapa.borderRightWidth || 0) * 2.5;
+                              const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * 2.5;
+                              const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * 2.5;
+
+                              const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * 2.5;
+                              const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * 2.5;
+                              const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * 2.5;
+                              const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * 2.5;
+
+                              const borderCornersStyle = {
+                                borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                                borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                                borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                                borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                                borderTopRightRadius: `${radiusTopRightPx}px`,
+                                borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                                borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                                boxSizing: "border-box" as const,
+                                overflow: "hidden" as const,
+                              };
+
                               return (
                                 <div
                                   key={capa.id}
                                   style={{
                                     ...style,
+                                    ...borderCornersStyle,
                                     fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                     fontSize: `${fontSizePx}px`,
                                     color: resolvedCapa.color || "#000000",
+                                    backgroundColor: resolvedCapa.backgroundColor || "transparent",
                                     textAlign: (resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : "left") as any,
                                     fontWeight: resolvedCapa.bold ? "bold" : "normal",
                                     fontStyle: resolvedCapa.italic ? "italic" : "normal",

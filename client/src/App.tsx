@@ -2221,14 +2221,41 @@ export default function App() {
                                       const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos);
                                       const htmlText = parseMarkdownToHtml(textoInterp);
                                       const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
+
+                                      // Bordes y Esquinas (SRS-024)
+                                      const borderTopPx = (resolvedCapa.borderTopWidth || 0) * zoomFactor;
+                                      const borderRightPx = (resolvedCapa.borderRightWidth || 0) * zoomFactor;
+                                      const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * zoomFactor;
+                                      const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * zoomFactor;
+
+                                      const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * zoomFactor;
+                                      const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * zoomFactor;
+                                      const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * zoomFactor;
+                                      const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * zoomFactor;
+
+                                      const borderCornersStyle = {
+                                        borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                                        borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                                        borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                                        borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                        borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                                        borderTopRightRadius: `${radiusTopRightPx}px`,
+                                        borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                                        borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                                        boxSizing: "border-box" as const,
+                                        overflow: "hidden" as const,
+                                      };
+
                                       return (
                                         <div
                                           key={capa.id}
                                           style={{
                                             ...style,
+                                            ...borderCornersStyle,
                                             fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                             fontSize: `${fontSizePx}px`,
                                             color: resolvedCapa.color || "#000000",
+                                            backgroundColor: resolvedCapa.backgroundColor || "transparent",
                                             textAlign: (resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : "left") as any,
                                             fontWeight: resolvedCapa.bold ? "bold" : "normal",
                                             fontStyle: resolvedCapa.italic ? "italic" : "normal",
@@ -2243,21 +2270,52 @@ export default function App() {
                                     }
 
                                     if (capa.tipo === "image" || capa.tipo === "image-switch") {
-                                      const overrideSrc = cardData.capasOverrides?.[capa.id]?.src;
-                                      const activeSrc = overrideSrc || capa.src;
+                                      const overrides = cardData.capasOverrides?.[capa.id];
+                                      const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                                      const src = resolvedCapa.src;
+
+                                      // Bordes y Esquinas (SRS-024)
+                                      const borderTopPx = (resolvedCapa.borderTopWidth || 0) * zoomFactor;
+                                      const borderRightPx = (resolvedCapa.borderRightWidth || 0) * zoomFactor;
+                                      const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * zoomFactor;
+                                      const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * zoomFactor;
+
+                                      const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * zoomFactor;
+                                      const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * zoomFactor;
+                                      const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * zoomFactor;
+                                      const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * zoomFactor;
+
+                                      const borderCornersStyle = {
+                                        borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                                        borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                                        borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                                        borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                        borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                                        borderTopRightRadius: `${radiusTopRightPx}px`,
+                                        borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                                        borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                                        boxSizing: "border-box" as const,
+                                        overflow: "hidden" as const,
+                                      };
+
                                       return (
                                         <div
                                           key={capa.id}
-                                          style={style}
+                                          style={{
+                                            ...style,
+                                            ...borderCornersStyle,
+                                            backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                          }}
                                         >
-                                          {activeSrc && (
+                                          {src && (
                                             <img
-                                              src={activeSrc}
+                                              src={src}
                                               alt={capa.nombre}
                                               style={{
                                                 width: "100%",
                                                 height: "100%",
-                                                objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
+                                                objectFit: resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover") as any,
+                                                borderRadius: "inherit",
                                               }}
                                             />
                                           )}
@@ -2431,54 +2489,112 @@ export default function App() {
                                          );
                                        }
 
-                                        if (capa.tipo === "image" || capa.tipo === "image-switch") {
-                                          const overrideSrc = cardData.capasOverridesTrasera?.[capa.id]?.src;
-                                         const activeSrc = overrideSrc || capa.src;
-                                         return (
-                                           <div
-                                             key={capa.id}
-                                             style={style}
-                                           >
-                                             {activeSrc && (
-                                               <img
-                                                 src={activeSrc}
-                                                 alt={capa.nombre}
-                                                 style={{
-                                                   width: "100%",
-                                                   height: "100%",
-                                                   objectFit: capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover") as any,
-                                                 }}
-                                               />
-                                             )}
-                                           </div>
-                                         );
+                                       if (capa.tipo === "image" || capa.tipo === "image-switch") {
+                                          const overrides = cardData.capasOverridesTrasera?.[capa.id];
+                                          const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                                          const src = resolvedCapa.src;
+
+                                          // Bordes y Esquinas (SRS-024)
+                                          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * zoomFactor;
+                                          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * zoomFactor;
+                                          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * zoomFactor;
+                                          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * zoomFactor;
+
+                                          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * zoomFactor;
+                                          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * zoomFactor;
+                                          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * zoomFactor;
+                                          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * zoomFactor;
+
+                                          const borderCornersStyle = {
+                                            borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                                            borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                                            borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                                            borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                            borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                                            borderTopRightRadius: `${radiusTopRightPx}px`,
+                                            borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                                            borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                                            boxSizing: "border-box" as const,
+                                            overflow: "hidden" as const,
+                                          };
+
+                                          return (
+                                            <div
+                                              key={capa.id}
+                                              style={{
+                                                ...style,
+                                                ...borderCornersStyle,
+                                                backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                              }}
+                                            >
+                                              {src && (
+                                                <img
+                                                  src={src}
+                                                  alt={capa.nombre}
+                                                  style={{
+                                                    width: "100%",
+                                                    height: "100%",
+                                                    objectFit: resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover") as any,
+                                                    borderRadius: "inherit",
+                                                  }}
+                                                />
+                                              )}
+                                            </div>
+                                          );
                                        }
 
                                        if (capa.tipo === "text") {
-                                         const overrides = cardData.capasOverridesTrasera?.[capa.id];
-                                         const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-                                         const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCamposTrasera);
-                                         const htmlText = parseMarkdownToHtml(textoInterp);
-                                         const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
-                                         return (
-                                           <div
-                                             key={capa.id}
-                                             style={{
-                                               ...style,
-                                               fontFamily: resolvedCapa.fontFamily || "sans-serif",
-                                               fontSize: `${fontSizePx}px`,
-                                               color: resolvedCapa.color || "#000000",
-                                               textAlign: (resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : "left") as any,
-                                               fontWeight: resolvedCapa.bold ? "bold" : "normal",
-                                               fontStyle: resolvedCapa.italic ? "italic" : "normal",
-                                               textDecoration: resolvedCapa.underline ? "underline" : "none",
-                                               whiteSpace: "pre-wrap",
-                                               wordBreak: "break-word",
-                                               lineHeight: 1.2,
-                                             }}
-                                             dangerouslySetInnerHTML={{ __html: htmlText }}
-                                           />
-                                         );
+                                          const overrides = cardData.capasOverridesTrasera?.[capa.id];
+                                          const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+                                          const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCamposTrasera);
+                                          const htmlText = parseMarkdownToHtml(textoInterp);
+                                          const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
+
+                                          // Bordes y Esquinas (SRS-024)
+                                          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * zoomFactor;
+                                          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * zoomFactor;
+                                          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * zoomFactor;
+                                          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * zoomFactor;
+
+                                          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * zoomFactor;
+                                          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * zoomFactor;
+                                          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * zoomFactor;
+                                          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * zoomFactor;
+
+                                          const borderCornersStyle = {
+                                            borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                                            borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                                            borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                                            borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                            borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                                            borderTopRightRadius: `${radiusTopRightPx}px`,
+                                            borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                                            borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                                            boxSizing: "border-box" as const,
+                                            overflow: "hidden" as const,
+                                          };
+
+                                          return (
+                                            <div
+                                              key={capa.id}
+                                              style={{
+                                                ...style,
+                                                ...borderCornersStyle,
+                                                fontFamily: resolvedCapa.fontFamily || "sans-serif",
+                                                fontSize: `${fontSizePx}px`,
+                                                color: resolvedCapa.color || "#000000",
+                                                backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                                textAlign: (resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : "left") as any,
+                                                fontWeight: resolvedCapa.bold ? "bold" : "normal",
+                                                fontStyle: resolvedCapa.italic ? "italic" : "normal",
+                                                textDecoration: resolvedCapa.underline ? "underline" : "none",
+                                                whiteSpace: "pre-wrap",
+                                                wordBreak: "break-word",
+                                                lineHeight: 1.2,
+                                              }}
+                                              dangerouslySetInnerHTML={{ __html: htmlText }}
+                                            />
+                                          );
                                        }
 
                                        return null;

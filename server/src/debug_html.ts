@@ -129,33 +129,72 @@ function generarHtmlImpresion(
             
             const xPos = resolvedCapa.xMm + sangrado;
             const yPos = resolvedCapa.yMm + sangrado;
+
+            // Bordes y Esquinas (SRS-024)
+            const borderTopMm = resolvedCapa.borderTopWidth || 0;
+            const borderRightMm = resolvedCapa.borderRightWidth || 0;
+            const borderBottomMm = resolvedCapa.borderBottomWidth || 0;
+            const borderLeftMm = resolvedCapa.borderLeftWidth || 0;
+
+            const radiusTopLeftMm = resolvedCapa.borderTopLeftRadius || 0;
+            const radiusTopRightMm = resolvedCapa.borderTopRightRadius || 0;
+            const radiusBottomRightMm = resolvedCapa.borderBottomRightRadius || 0;
+            const radiusBottomLeftMm = resolvedCapa.borderBottomLeftRadius || 0;
+
+            const borderTopStyle = borderTopMm > 0 ? `border-top: ${borderTopMm}mm solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+            const borderRightStyle = borderRightMm > 0 ? `border-right: ${borderRightMm}mm solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+            const borderBottomStyle = borderBottomMm > 0 ? `border-bottom: ${borderBottomMm}mm solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+            const borderLeftStyle = borderLeftMm > 0 ? `border-left: ${borderLeftMm}mm solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+
+            const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftMm}mm; border-top-right-radius: ${radiusTopRightMm}mm; border-bottom-right-radius: ${radiusBottomRightMm}mm; border-bottom-left-radius: ${radiusBottomLeftMm}mm;`;
+            const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle} box-sizing: border-box; overflow: hidden;`;
             
             return `
-              <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${resolvedCapa.anchoMm}mm; height: ${resolvedCapa.altoMm}mm; font-family: ${resolvedCapa.fontFamily || 'sans-serif'}; font-size: ${fontSizePt * 0.352778}mm; color: ${resolvedCapa.color || '#000000'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; pointer-events: none;">
+              <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${resolvedCapa.anchoMm}mm; height: ${resolvedCapa.altoMm}mm; font-family: ${resolvedCapa.fontFamily || 'sans-serif'}; font-size: ${fontSizePt * 0.352778}mm; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; pointer-events: none; ${borderCornersCss}">
                 ${htmlText}
               </div>
             `;
           }
 
           if (capa.tipo === "image" || capa.tipo === "image-switch") {
-            const overrides = cardData.capasOverrides;
-            const rawSrc = overrides?.[capa.id]?.src !== undefined ? overrides[capa.id]?.src : capa.src;
+            const overrides = cardData.capasOverrides?.[capa.id];
+            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+            const rawSrc = resolvedCapa.src;
             const imgPath = resolverAssetPath(rawSrc);
             
-            const xPos = capa.xMm + sangrado;
-            const yPos = capa.yMm + sangrado;
+            const xPos = resolvedCapa.xMm + sangrado;
+            const yPos = resolvedCapa.yMm + sangrado;
+
+            // Bordes y Esquinas (SRS-024)
+            const borderTopMm = resolvedCapa.borderTopWidth || 0;
+            const borderRightMm = resolvedCapa.borderRightWidth || 0;
+            const borderBottomMm = resolvedCapa.borderBottomWidth || 0;
+            const borderLeftMm = resolvedCapa.borderLeftWidth || 0;
+
+            const radiusTopLeftMm = resolvedCapa.borderTopLeftRadius || 0;
+            const radiusTopRightMm = resolvedCapa.borderTopRightRadius || 0;
+            const radiusBottomRightMm = resolvedCapa.borderBottomRightRadius || 0;
+            const radiusBottomLeftMm = resolvedCapa.borderBottomLeftRadius || 0;
+
+            const borderTopStyle = borderTopMm > 0 ? `border-top: ${borderTopMm}mm solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+            const borderRightStyle = borderRightMm > 0 ? `border-right: ${borderRightMm}mm solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+            const borderBottomStyle = borderBottomMm > 0 ? `border-bottom: ${borderBottomMm}mm solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+            const borderLeftStyle = borderLeftMm > 0 ? `border-left: ${borderLeftMm}mm solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+
+            const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftMm}mm; border-top-right-radius: ${radiusTopRightMm}mm; border-bottom-right-radius: ${radiusBottomRightMm}mm; border-bottom-left-radius: ${radiusBottomLeftMm}mm;`;
+            const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle} box-sizing: border-box; overflow: hidden;`;
             
             if (imgPath) {
-              const objectFit = capa.modoAjuste === "stretch" ? "fill" : (capa.modoAjuste || "cover");
+              const objectFit = resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover");
               return `
-                <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${capa.anchoMm}mm; height: ${capa.altoMm}mm; overflow: hidden; pointer-events: none;">
-                  <img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block;" />
+                <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${resolvedCapa.anchoMm}mm; height: ${resolvedCapa.altoMm}mm; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; pointer-events: none; ${borderCornersCss}">
+                  <img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block; border-radius: inherit;" />
                 </div>
               `;
             } else {
-              const emojiSize = Math.min(capa.anchoMm, capa.altoMm) * 0.4;
+              const emojiSize = Math.min(resolvedCapa.anchoMm, resolvedCapa.altoMm) * 0.4;
               return `
-                <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${capa.anchoMm}mm; height: ${capa.altoMm}mm; background-color: #e2e8f0; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; overflow: hidden; pointer-events: none; box-sizing: border-box;">
+                <div style="position: absolute; left: ${xPos}mm; top: ${yPos}mm; width: ${resolvedCapa.anchoMm}mm; height: ${resolvedCapa.altoMm}mm; background-color: #e2e8f0; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; pointer-events: none; ${borderCornersCss}">
                   <span style="font-size: ${emojiSize}mm; line-height: 1; font-family: sans-serif;">🖼️</span>
                 </div>
               `;
