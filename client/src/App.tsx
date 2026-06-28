@@ -11,8 +11,11 @@ import "./App.css";
 // Formato de preajustes de cartas
 const PREAJUSTES_CARTAS = {
   standard: { nombre: "Estándar vertical (63.5 x 88.9 mm)", ancho: 63.5, alto: 88.9 },
+  standard_horizontal: { nombre: "Estándar horizontal (88.9 x 63.5 mm)", ancho: 88.9, alto: 63.5 },
   mini: { nombre: "Mini vertical (44.4 x 63.5 mm)", ancho: 44.4, alto: 63.5 },
+  mini_horizontal: { nombre: "Mini horizontal (63.5 x 44.4 mm)", ancho: 63.5, alto: 44.4 },
   tarot: { nombre: "Tarot vertical (70.0 x 120.0 mm)", ancho: 70.0, alto: 120.0 },
+  tarot_horizontal: { nombre: "Tarot horizontal (120.0 x 70.0 mm)", ancho: 120.0, alto: 70.0 },
   custom: { nombre: "Personalizado", ancho: 63.5, alto: 88.9 },
 };
 
@@ -89,10 +92,19 @@ export default function App() {
   const [projectAssets, setProjectAssetsInternal] = useState<any[]>([]);
   const [showProjectGallery, setShowProjectGallery] = useState<boolean>(false);
 
+  // --- Estados del Setup y Configuración del Proyecto (SRS-022) ---
+  const [nombreProyecto, setNombreProyectoInternal] = useState<string>("Mi Baraja");
+  const [projectCreated, setProjectCreated] = useState<boolean>(false);
+  const [showProjectConfig, setShowProjectConfig] = useState<boolean>(false);
+
   // --- Estado de cambios sin guardar (IsDirty) ---
   const [isDirty, setIsDirty] = useState<boolean>(false);
 
   // Wrappers para marcar como modificado (isDirty = true) al realizar acciones desde la UI
+  const setNombreProyecto = (value: React.SetStateAction<string>) => {
+    setNombreProyectoInternal(value);
+    setIsDirty(true);
+  };
   const setProjectAssets = (value: React.SetStateAction<any[]>) => {
     setProjectAssetsInternal(value);
     setIsDirty(true);
@@ -121,6 +133,96 @@ export default function App() {
   const setCartas = (value: React.SetStateAction<Carta[]>) => {
     setCartasInternal(value);
     setIsDirty(true);
+  };
+
+  // --- Estados y Handlers Temporales para Configuración (SRS-022) ---
+  const [tempNombreProyecto, setTempNombreProyecto] = useState<string>("Mi Baraja");
+  const [tempCanvasType, setTempCanvasType] = useState<any>("A4");
+  const [tempCanvasConfig, setTempCanvasConfig] = useState<CanvasConfig>({
+    tipo: "A4",
+    anchoMm: 210,
+    altoMm: 297,
+    orientacion: "vertical",
+    margenTopMm: 8,
+    margenBottomMm: 8,
+    margenLeftMm: 8,
+    margenRightMm: 8,
+    lineasCorteContinuas: true,
+    marcasCorteEsquinas: true,
+  });
+  const [tempCardPreset, setTempCardPreset] = useState<any>("standard");
+  const [tempCardConfig, setTempCardConfig] = useState<CardConfig>({
+    anchoMm: 63.5,
+    altoMm: 88.9,
+    espaciadoXMm: 0,
+    espaciadoYMm: 0,
+    sangradoMm: 0,
+    bordeCorteMm: 0,
+    bordeCorteColor: "#000000",
+    modoAjuste: "contain",
+    reducirArteAlBorde: false,
+  });
+
+  useEffect(() => {
+    if (showProjectConfig) {
+      setTempNombreProyecto(nombreProyecto);
+      setTempCanvasType(canvasType);
+      setTempCanvasConfig({ ...canvasConfig });
+      setTempCardPreset(cardPreset);
+      setTempCardConfig({ ...cardConfig });
+    }
+  }, [showProjectConfig, nombreProyecto, canvasConfig, cardConfig, canvasType, cardPreset]);
+
+  const handleTempCanvasPresetChange = (presetKey: any) => {
+    setTempCanvasType(presetKey);
+    if (presetKey !== "custom") {
+      const preset = PREAJUSTES_HOJAS[presetKey as keyof typeof PREAJUSTES_HOJAS];
+      setTempCanvasConfig((prev) => ({
+        ...prev,
+        anchoMm: tempCanvasConfig.orientacion === "vertical" ? preset.ancho : preset.alto,
+        altoMm: tempCanvasConfig.orientacion === "vertical" ? preset.alto : preset.ancho,
+      }));
+    }
+  };
+
+  const handleTempOrientationChange = (orientacion: "vertical" | "horizontal") => {
+    setTempCanvasConfig((prev) => {
+      const w = prev.anchoMm;
+      const h = prev.altoMm;
+      const shouldSwap = (orientacion === "vertical" && w > h) || (orientacion === "horizontal" && w < h);
+      return {
+        ...prev,
+        orientacion,
+        anchoMm: shouldSwap ? h : w,
+        altoMm: shouldSwap ? w : h,
+      };
+    });
+  };
+
+  const handleTempCardPresetChange = (presetKey: any) => {
+    setTempCardPreset(presetKey);
+    if (presetKey !== "custom") {
+      const preset = PREAJUSTES_CARTAS[presetKey as keyof typeof PREAJUSTES_CARTAS];
+      setTempCardConfig((prev) => ({
+        ...prev,
+        anchoMm: preset.ancho,
+        altoMm: preset.alto,
+      }));
+    }
+  };
+
+  const handleApplyProjectConfig = () => {
+    if (!tempNombreProyecto.trim()) {
+      alert("Por favor, introduce un nombre para el proyecto.");
+      return;
+    }
+    setNombreProyecto(tempNombreProyecto.trim());
+    setCanvasType(tempCanvasType);
+    setCanvasConfig(tempCanvasConfig);
+    setCardPreset(tempCardPreset);
+    setCardConfig(tempCardConfig);
+    setProjectCreated(true);
+    setShowProjectConfig(false);
   };
 
   // Alerta de confirmación al salir/recargar la página
@@ -173,53 +275,6 @@ export default function App() {
     }
     loadDefaultTemplates();
   }, []);
-
-  // --- Manejador de Lienzo reactivo ---
-  const handleCanvasPresetChange = (tipo: "A4" | "A3" | "Custom") => {
-    setCanvasType(tipo);
-    if (tipo !== "Custom") {
-      const preset = PREAJUSTES_HOJAS[tipo];
-      setCanvasConfig((prev) => ({
-        ...prev,
-        tipo,
-        anchoMm: prev.orientacion === "vertical" ? preset.ancho : preset.alto,
-        altoMm: prev.orientacion === "vertical" ? preset.alto : preset.ancho,
-      }));
-    }
-  };
-
-  const handleOrientationChange = (orientacion: "vertical" | "horizontal") => {
-    setCanvasConfig((prev) => {
-      // Invertir dimensiones actuales
-      const preset = prev.tipo !== "Custom" ? PREAJUSTES_HOJAS[prev.tipo as "A4" | "A3"] : null;
-      let nuevoAncho = prev.altoMm;
-      let nuevoAlto = prev.anchoMm;
-
-      if (preset) {
-        nuevoAncho = orientacion === "vertical" ? preset.ancho : preset.alto;
-        nuevoAlto = orientacion === "vertical" ? preset.alto : preset.ancho;
-      }
-
-      return {
-        ...prev,
-        orientacion,
-        anchoMm: nuevoAncho,
-        altoMm: nuevoAlto,
-      };
-    });
-  };
-
-  const handleCardPresetChange = (presetKey: keyof typeof PREAJUSTES_CARTAS) => {
-    setCardPreset(presetKey);
-    if (presetKey !== "custom") {
-      const preset = PREAJUSTES_CARTAS[presetKey];
-      setCardConfig((prev) => ({
-        ...prev,
-        anchoMm: preset.ancho,
-        altoMm: preset.alto,
-      }));
-    }
-  };
 
   // --- Funciones para la Galería del Proyecto (SRS-014) ---
   const handleUploadProjectAssets = (files: FileList) => {
@@ -652,7 +707,7 @@ export default function App() {
     const proyecto = {
       version: "2.0.0",
       meta: {
-        nombre: "Exportación CDC2",
+        nombre: nombreProyecto,
         fechaCreacion: new Date().toISOString(),
         fechaModificacion: new Date().toISOString(),
       },
@@ -667,6 +722,16 @@ export default function App() {
 
     zip.file("project.json", JSON.stringify(proyecto, null, 2));
     return await zip.generateAsync({ type: "blob" });
+  };
+
+  const getExportFileName = (extension: string): string => {
+    const cleanName = nombreProyecto
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    const finalName = cleanName || "proyecto_cdc2";
+    return `${finalName}_${Date.now()}.${extension}`;
   };
 
   // --- Exportación a PDF vía Servidor Local ---
@@ -696,7 +761,7 @@ export default function App() {
       const downloadUrl = URL.createObjectURL(pdfBlob);
       const link = document.createElement("a");
       link.href = downloadUrl;
-      link.download = `baraja_${Date.now()}.pdf`;
+      link.download = getExportFileName("pdf");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -717,7 +782,7 @@ export default function App() {
       const downloadUrl = URL.createObjectURL(zipContentBlob);
       const link = document.createElement("a");
       link.href = downloadUrl;
-      link.download = `proyecto_cdc2_${Date.now()}.cdc2`;
+      link.download = getExportFileName("cdc2");
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -1019,6 +1084,13 @@ export default function App() {
       setGenerarReversosInternal(proyecto.modoTraseras !== "ninguno");
       setCartasInternal(nuevasCartas);
 
+      if (proyecto.meta && proyecto.meta.nombre) {
+        setNombreProyectoInternal(proyecto.meta.nombre);
+      } else {
+        setNombreProyectoInternal("Proyecto Importado");
+      }
+      setProjectCreated(true);
+
       setCanvasType(proyecto.canvasConfig.tipo || "Custom");
       setCardPreset("custom");
 
@@ -1261,6 +1333,8 @@ export default function App() {
         modoAjuste: "contain",
         reducirArteAlBorde: false,
       });
+      setNombreProyectoInternal("Mi Baraja");
+      setProjectCreated(false);
       setIsDirty(false);
     }
   };
@@ -1577,6 +1651,7 @@ export default function App() {
         onImportarPlantillaClick={() => fileInputTemplateRef.current?.click()}
         onGuardarProyecto={handleGuardarProyecto}
         onShowProjectGallery={() => setShowProjectGallery(true)}
+        onShowProjectConfig={() => setShowProjectConfig(true)}
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
         onExportarPdf={handleExportarPdf}
         exportandoPdf={exportandoPdf}
@@ -1621,182 +1696,6 @@ export default function App() {
       {/* --- PANEL DE CONTROL LATERAL --- */}
       <aside className="sidebar">
         <div className="sidebar-content">
-          {/* Ajustes del Lienzo (Lienzo / Canvas) */}
-          <section className="config-group" ref={sectionLienzoRef}>
-            <h3 className="config-group-title">Ajustes de Página</h3>
-            
-            <div className="input-field">
-              <label>Tamaño de Hoja</label>
-              <select value={canvasType} onChange={(e) => handleCanvasPresetChange(e.target.value as any)}>
-                <option value="A4">DINA4 (210 x 297 mm)</option>
-                <option value="A3">DINA3 (297 x 420 mm)</option>
-                <option value="Custom">Personalizado</option>
-              </select>
-            </div>
-
-            {canvasType === "Custom" && (
-              <div className="input-row">
-                <div className="input-field">
-                  <label>Ancho (mm)</label>
-                  <input
-                    type="number"
-                    value={canvasConfig.anchoMm}
-                    onChange={(e) => setCanvasConfig((prev) => ({ ...prev, anchoMm: Number(e.target.value) }))}
-                  />
-                </div>
-                <div className="input-field">
-                  <label>Alto (mm)</label>
-                  <input
-                    type="number"
-                    value={canvasConfig.altoMm}
-                    onChange={(e) => setCanvasConfig((prev) => ({ ...prev, altoMm: Number(e.target.value) }))}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="input-field">
-              <label>Orientación</label>
-              <select
-                value={canvasConfig.orientacion}
-                onChange={(e) => handleOrientationChange(e.target.value as any)}
-              >
-                <option value="vertical">Vertical</option>
-                <option value="horizontal">Horizontal</option>
-              </select>
-            </div>
-
-            <div className="input-row">
-              <div className="input-field">
-                <label>Margen L/R (mm)</label>
-                <input
-                  type="number"
-                  value={canvasConfig.margenLeftMm}
-                  onChange={(e) =>
-                    setCanvasConfig((prev) => ({
-                      ...prev,
-                      margenLeftMm: Number(e.target.value),
-                      margenRightMm: Number(e.target.value),
-                    }))
-                  }
-                />
-              </div>
-              <div className="input-field">
-                <label>Margen T/B (mm)</label>
-                <input
-                  type="number"
-                  value={canvasConfig.margenTopMm}
-                  onChange={(e) =>
-                    setCanvasConfig((prev) => ({
-                      ...prev,
-                      margenTopMm: Number(e.target.value),
-                      margenBottomMm: Number(e.target.value),
-                    }))
-                  }
-                />
-              </div>
-            </div>
-          </section>
-
-          {/* Ajustes de las Cartas */}
-          <section className="config-group" ref={sectionCartaRef}>
-            <h3 className="config-group-title">Dimensiones de Carta</h3>
-
-            <div className="input-field">
-              <label>Tipo de Carta</label>
-              <select value={cardPreset} onChange={(e) => handleCardPresetChange(e.target.value as any)}>
-                <option value="standard">Poker/Standard (63.5 x 88.9 mm)</option>
-                <option value="mini">Mini Chimera (44.4 x 63.5 mm)</option>
-                <option value="tarot">Tarot (70.0 x 120.0 mm)</option>
-                <option value="custom">Personalizado</option>
-              </select>
-            </div>
-
-            {cardPreset === "custom" && (
-              <div className="input-row">
-                <div className="input-field">
-                  <label>Ancho (mm)</label>
-                  <input
-                    type="number"
-                    value={cardConfig.anchoMm}
-                    onChange={(e) => setCardConfig((prev) => ({ ...prev, anchoMm: Number(e.target.value) }))}
-                  />
-                </div>
-                <div className="input-field">
-                  <label>Alto (mm)</label>
-                  <input
-                    type="number"
-                    value={cardConfig.altoMm}
-                    onChange={(e) => setCardConfig((prev) => ({ ...prev, altoMm: Number(e.target.value) }))}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="input-row">
-              <div className="input-field">
-                <label>Espacio X (mm)</label>
-                <input
-                  type="number"
-                  value={cardConfig.espaciadoXMm}
-                  onChange={(e) => setCardConfig((prev) => ({ ...prev, espaciadoXMm: Number(e.target.value) }))}
-                />
-              </div>
-              <div className="input-field">
-                <label>Espacio Y (mm)</label>
-                <input
-                  type="number"
-                  value={cardConfig.espaciadoYMm}
-                  onChange={(e) => setCardConfig((prev) => ({ ...prev, espaciadoYMm: Number(e.target.value) }))}
-                />
-              </div>
-            </div>
-
-            <div className="input-row">
-              <div className="input-field">
-                <label>Sangrado (Bleed - mm)</label>
-                <input
-                  type="number"
-                  value={cardConfig.sangradoMm}
-                  onChange={(e) => setCardConfig((prev) => ({ ...prev, sangradoMm: Number(e.target.value) }))}
-                />
-              </div>
-              <div className="input-field">
-                <label>Borde Corte (mm)</label>
-                <div style={{ display: "flex", gap: "6px" }}>
-                  <input
-                    type="number"
-                    style={{ flex: 1 }}
-                    value={cardConfig.bordeCorteMm}
-                    onChange={(e) => setCardConfig((prev) => ({ ...prev, bordeCorteMm: Number(e.target.value) }))}
-                  />
-                  {cardConfig.bordeCorteMm > 0 && (
-                    <input
-                      type="color"
-                      value={cardConfig.bordeCorteColor}
-                      onChange={(e) => setCardConfig((prev) => ({ ...prev, bordeCorteColor: e.target.value }))}
-                      style={{ width: "36px", height: "36px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
-                      title="Color del borde de corte"
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="input-field" style={{ marginTop: "10px" }}>
-              <label>Ajuste de Ilustración</label>
-              <select
-                value={cardConfig.modoAjuste || "cover"}
-                onChange={(e) => setCardConfig((prev) => ({ ...prev, modoAjuste: e.target.value as any }))}
-              >
-                <option value="cover">Recortar para rellenar (Cover)</option>
-                <option value="contain">Ajustar sin recortar (Contain)</option>
-              </select>
-            </div>
-
-
-          </section>
-
           {/* Opciones de Reverso */}
           <section className="config-group">
             <h3 className="config-group-title">Caras Traseras</h3>
@@ -2679,22 +2578,36 @@ export default function App() {
                 </div>
               ) : (
                 <div className="template-list">
-                  {activeTemplates.map((plantilla) => (
-                    <div
-                      key={plantilla.id}
-                      className="template-card-item"
-                      onClick={() => handleSelectTemplate(plantilla)}
-                    >
-                      <div className="template-icon">📄</div>
-                      <div className="template-details">
-                        <span className="template-name">{plantilla.nombre}</span>
-                        <span className="template-desc">
-                          {plantilla.anchoMm} x {plantilla.altoMm} mm ({plantilla.capas?.length || 0} capas)
-                        </span>
+                  {activeTemplates.map((plantilla) => {
+                    const isMismatch = Math.abs(plantilla.anchoMm - cardConfig.anchoMm) > 0.1 || Math.abs(plantilla.altoMm - cardConfig.altoMm) > 0.1;
+                    return (
+                      <div
+                        key={plantilla.id}
+                        className="template-card-item"
+                        onClick={() => handleSelectTemplate(plantilla)}
+                        style={isMismatch ? { color: "var(--text-secondary)" } : undefined}
+                      >
+                        {isMismatch ? (
+                          <div
+                            className="template-icon"
+                            style={{ color: "#d97706", fontSize: "16px", cursor: "help" }}
+                            title={`El tamaño de la plantilla (${plantilla.anchoMm}x${plantilla.altoMm}mm) no coincide con las dimensiones de las cartas configuradas en el proyecto (${cardConfig.anchoMm}x${cardConfig.altoMm}mm)`}
+                          >
+                            ⚠️
+                          </div>
+                        ) : (
+                          <div className="template-icon">📄</div>
+                        )}
+                        <div className="template-details">
+                          <span className="template-name" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>{plantilla.nombre}</span>
+                          <span className="template-desc" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>
+                            {plantilla.anchoMm} x {plantilla.altoMm} mm ({plantilla.capas?.length || 0} capas)
+                          </span>
+                        </div>
+                        <button className="btn-add-template">Seleccionar</button>
                       </div>
-                      <button className="btn-add-template">Seleccionar</button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
@@ -2705,22 +2618,36 @@ export default function App() {
                 </div>
               ) : (
                 <div className="template-list">
-                  {importedTemplates.map((plantilla) => (
-                    <div
-                      key={plantilla.id}
-                      className="template-card-item"
-                      onClick={() => handleSelectTemplate(plantilla)}
-                    >
-                      <div className="template-icon">📦</div>
-                      <div className="template-details">
-                        <span className="template-name">{plantilla.nombre}</span>
-                        <span className="template-desc">
-                          {plantilla.anchoMm} x {plantilla.altoMm} mm ({plantilla.capas?.length || 0} capas)
-                        </span>
+                  {importedTemplates.map((plantilla) => {
+                    const isMismatch = Math.abs(plantilla.anchoMm - cardConfig.anchoMm) > 0.1 || Math.abs(plantilla.altoMm - cardConfig.altoMm) > 0.1;
+                    return (
+                      <div
+                        key={plantilla.id}
+                        className="template-card-item"
+                        onClick={() => handleSelectTemplate(plantilla)}
+                        style={isMismatch ? { color: "var(--text-secondary)" } : undefined}
+                      >
+                        {isMismatch ? (
+                          <div
+                            className="template-icon"
+                            style={{ color: "#d97706", fontSize: "16px", cursor: "help" }}
+                            title={`El tamaño de la plantilla (${plantilla.anchoMm}x${plantilla.altoMm}mm) no coincide con las dimensiones de las cartas configuradas en el proyecto (${cardConfig.anchoMm}x${cardConfig.altoMm}mm)`}
+                          >
+                            ⚠️
+                          </div>
+                        ) : (
+                          <div className="template-icon">📦</div>
+                        )}
+                        <div className="template-details">
+                          <span className="template-name" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>{plantilla.nombre}</span>
+                          <span className="template-desc" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>
+                            {plantilla.anchoMm} x {plantilla.altoMm} mm ({plantilla.capas?.length || 0} capas)
+                          </span>
+                        </div>
+                        <button className="btn-add-template">Seleccionar</button>
                       </div>
-                      <button className="btn-add-template">Seleccionar</button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -2836,6 +2763,452 @@ export default function App() {
                 Listo
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {!projectCreated && (
+        <div className="template-modal-backdrop" style={{ zIndex: 4000 }}>
+          <div className="template-modal-container" style={{ maxWidth: "700px", padding: "24px" }} onClick={(e) => e.stopPropagation()}>
+            <header className="template-modal-header" style={{ marginBottom: "16px" }}>
+              <h2 style={{ margin: 0, fontSize: "20px" }}>Crear o Cargar Proyecto</h2>
+            </header>
+            
+            <div className="template-modal-body" style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: "8px" }}>
+              <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                Datos del Proyecto
+              </div>
+              <div className="input-field" style={{ marginBottom: "16px" }}>
+                <label style={{ fontWeight: 500, display: "block", marginBottom: "4px" }}>Nombre del Proyecto</label>
+                <input
+                  type="text"
+                  value={tempNombreProyecto}
+                  onChange={(e) => setTempNombreProyecto(e.target.value)}
+                  placeholder="ej. Mi Juego de Cartas"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", boxSizing: "border-box" }}
+                  required
+                />
+              </div>
+
+              <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", margin: "16px 0 12px 0", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                Ajustes de Página
+              </div>
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Tamaño de Hoja</label>
+                  <select value={tempCanvasType} onChange={(e) => handleTempCanvasPresetChange(e.target.value)}>
+                    <option value="A4">DINA4 (210 x 297 mm)</option>
+                    <option value="A3">DINA3 (297 x 420 mm)</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Orientación</label>
+                  <select
+                    value={tempCanvasConfig.orientacion}
+                    onChange={(e) => handleTempOrientationChange(e.target.value as any)}
+                  >
+                    <option value="vertical">Vertical</option>
+                    <option value="horizontal">Horizontal</option>
+                  </select>
+                </div>
+              </div>
+
+              {tempCanvasType === "custom" && (
+                <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                  <div className="input-field" style={{ flex: 1 }}>
+                    <label>Ancho (mm)</label>
+                    <input
+                      type="number"
+                      value={tempCanvasConfig.anchoMm}
+                      onChange={(e) => setTempCanvasConfig((prev) => ({ ...prev, anchoMm: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="input-field" style={{ flex: 1 }}>
+                    <label>Alto (mm)</label>
+                    <input
+                      type="number"
+                      value={tempCanvasConfig.altoMm}
+                      onChange={(e) => setTempCanvasConfig((prev) => ({ ...prev, altoMm: Number(e.target.value) }))}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Margen L/R (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCanvasConfig.margenLeftMm}
+                    onChange={(e) =>
+                      setTempCanvasConfig((prev) => ({
+                        ...prev,
+                        margenLeftMm: Number(e.target.value),
+                        margenRightMm: Number(e.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Margen T/B (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCanvasConfig.margenTopMm}
+                    onChange={(e) =>
+                      setTempCanvasConfig((prev) => ({
+                        ...prev,
+                        margenTopMm: Number(e.target.value),
+                        margenBottomMm: Number(e.target.value),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", margin: "20px 0 12px 0", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                Dimensiones de Carta
+              </div>
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Tipo de Carta</label>
+                  <select value={tempCardPreset} onChange={(e) => handleTempCardPresetChange(e.target.value)}>
+                    <option value="standard">Poker/Standard vertical (63.5 x 88.9 mm)</option>
+                    <option value="standard_horizontal">Poker/Standard horizontal (88.9 x 63.5 mm)</option>
+                    <option value="mini">Mini vertical (44.4 x 63.5 mm)</option>
+                    <option value="mini_horizontal">Mini horizontal (63.5 x 44.4 mm)</option>
+                    <option value="tarot">Tarot vertical (70.0 x 120.0 mm)</option>
+                    <option value="tarot_horizontal">Tarot horizontal (120.0 x 70.0 mm)</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </div>
+                {tempCardPreset === "custom" && (
+                  <div className="input-field" style={{ flex: 1 }}>
+                    <div className="input-row" style={{ display: "flex", gap: "12px" }}>
+                      <div className="input-field" style={{ flex: 1 }}>
+                        <label>Ancho (mm)</label>
+                        <input
+                          type="number"
+                          value={tempCardConfig.anchoMm}
+                          onChange={(e) => setTempCardConfig((prev) => ({ ...prev, anchoMm: Number(e.target.value) }))}
+                        />
+                      </div>
+                      <div className="input-field" style={{ flex: 1 }}>
+                        <label>Alto (mm)</label>
+                        <input
+                          type="number"
+                          value={tempCardConfig.altoMm}
+                          onChange={(e) => setTempCardConfig((prev) => ({ ...prev, altoMm: Number(e.target.value) }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Espacio X (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCardConfig.espaciadoXMm}
+                    onChange={(e) => setTempCardConfig((prev) => ({ ...prev, espaciadoXMm: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Espacio Y (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCardConfig.espaciadoYMm}
+                    onChange={(e) => setTempCardConfig((prev) => ({ ...prev, espaciadoYMm: Number(e.target.value) }))}
+                  />
+                </div>
+              </div>
+
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Sangrado (Bleed - mm)</label>
+                  <input
+                    type="number"
+                    value={tempCardConfig.sangradoMm}
+                    onChange={(e) => setTempCardConfig((prev) => ({ ...prev, sangradoMm: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Borde Corte (mm)</label>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <input
+                      type="number"
+                      style={{ flex: 1 }}
+                      value={tempCardConfig.bordeCorteMm}
+                      onChange={(e) => setTempCardConfig((prev) => ({ ...prev, bordeCorteMm: Number(e.target.value) }))}
+                    />
+                    {tempCardConfig.bordeCorteMm > 0 && (
+                      <input
+                        type="color"
+                        value={tempCardConfig.bordeCorteColor}
+                        onChange={(e) => setTempCardConfig((prev) => ({ ...prev, bordeCorteColor: e.target.value }))}
+                        style={{ width: "36px", height: "36px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
+                        title="Color del borde de corte"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="input-field" style={{ marginBottom: "12px" }}>
+                <label>Ajuste de Ilustración</label>
+                <select
+                  value={tempCardConfig.modoAjuste || "cover"}
+                  onChange={(e) => setTempCardConfig((prev) => ({ ...prev, modoAjuste: e.target.value as any }))}
+                >
+                  <option value="cover">Recortar para rellenar (Cover)</option>
+                  <option value="contain">Ajustar sin recortar (Contain)</option>
+                </select>
+              </div>
+            </div>
+
+            <footer className="template-modal-footer" style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "20px" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => fileInputProyectoRef.current?.click()}
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                📂 Abrir Proyecto Existente (.cdc2)
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleApplyProjectConfig}
+              >
+                ✨ Crear Nuevo Proyecto
+              </button>
+            </footer>
+          </div>
+        </div>
+      )}
+
+      {showProjectConfig && (
+        <div className="template-modal-backdrop" style={{ zIndex: 3000 }} onClick={() => setShowProjectConfig(false)}>
+          <div className="template-modal-container" style={{ maxWidth: "700px", padding: "24px" }} onClick={(e) => e.stopPropagation()}>
+            <header className="template-modal-header" style={{ marginBottom: "16px" }}>
+              <h2 style={{ margin: 0, fontSize: "20px" }}>Configuración del Proyecto</h2>
+              <button className="template-modal-close" onClick={() => setShowProjectConfig(false)} title="Cerrar modal">
+                ✕
+              </button>
+            </header>
+            
+            <div className="template-modal-body" style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: "8px" }}>
+              <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                Datos del Proyecto
+              </div>
+              <div className="input-field" style={{ marginBottom: "16px" }}>
+                <label style={{ fontWeight: 500, display: "block", marginBottom: "4px" }}>Nombre del Proyecto</label>
+                <input
+                  type="text"
+                  value={tempNombreProyecto}
+                  onChange={(e) => setTempNombreProyecto(e.target.value)}
+                  placeholder="ej. Mi Juego de Cartas"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", boxSizing: "border-box" }}
+                  required
+                />
+              </div>
+
+              <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", margin: "16px 0 12px 0", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                Ajustes de Página
+              </div>
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Tamaño de Hoja</label>
+                  <select value={tempCanvasType} onChange={(e) => handleTempCanvasPresetChange(e.target.value)}>
+                    <option value="A4">DINA4 (210 x 297 mm)</option>
+                    <option value="A3">DINA3 (297 x 420 mm)</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Orientación</label>
+                  <select
+                    value={tempCanvasConfig.orientacion}
+                    onChange={(e) => handleTempOrientationChange(e.target.value as any)}
+                  >
+                    <option value="vertical">Vertical</option>
+                    <option value="horizontal">Horizontal</option>
+                  </select>
+                </div>
+              </div>
+
+              {tempCanvasType === "custom" && (
+                <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                  <div className="input-field" style={{ flex: 1 }}>
+                    <label>Ancho (mm)</label>
+                    <input
+                      type="number"
+                      value={tempCanvasConfig.anchoMm}
+                      onChange={(e) => setTempCanvasConfig((prev) => ({ ...prev, anchoMm: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="input-field" style={{ flex: 1 }}>
+                    <label>Alto (mm)</label>
+                    <input
+                      type="number"
+                      value={tempCanvasConfig.altoMm}
+                      onChange={(e) => setTempCanvasConfig((prev) => ({ ...prev, altoMm: Number(e.target.value) }))}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Margen L/R (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCanvasConfig.margenLeftMm}
+                    onChange={(e) =>
+                      setTempCanvasConfig((prev) => ({
+                        ...prev,
+                        margenLeftMm: Number(e.target.value),
+                        margenRightMm: Number(e.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Margen T/B (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCanvasConfig.margenTopMm}
+                    onChange={(e) =>
+                      setTempCanvasConfig((prev) => ({
+                        ...prev,
+                        margenTopMm: Number(e.target.value),
+                        margenBottomMm: Number(e.target.value),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", margin: "20px 0 12px 0", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                Dimensiones de Carta
+              </div>
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Tipo de Carta</label>
+                  <select value={tempCardPreset} onChange={(e) => handleTempCardPresetChange(e.target.value)}>
+                    <option value="standard">Poker/Standard vertical (63.5 x 88.9 mm)</option>
+                    <option value="standard_horizontal">Poker/Standard horizontal (88.9 x 63.5 mm)</option>
+                    <option value="mini">Mini vertical (44.4 x 63.5 mm)</option>
+                    <option value="mini_horizontal">Mini horizontal (63.5 x 44.4 mm)</option>
+                    <option value="tarot">Tarot vertical (70.0 x 120.0 mm)</option>
+                    <option value="tarot_horizontal">Tarot horizontal (120.0 x 70.0 mm)</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </div>
+                {tempCardPreset === "custom" && (
+                  <div className="input-field" style={{ flex: 1 }}>
+                    <div className="input-row" style={{ display: "flex", gap: "12px" }}>
+                      <div className="input-field" style={{ flex: 1 }}>
+                        <label>Ancho (mm)</label>
+                        <input
+                          type="number"
+                          value={tempCardConfig.anchoMm}
+                          onChange={(e) => setTempCardConfig((prev) => ({ ...prev, anchoMm: Number(e.target.value) }))}
+                        />
+                      </div>
+                      <div className="input-field" style={{ flex: 1 }}>
+                        <label>Alto (mm)</label>
+                        <input
+                          type="number"
+                          value={tempCardConfig.altoMm}
+                          onChange={(e) => setTempCardConfig((prev) => ({ ...prev, altoMm: Number(e.target.value) }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Espacio X (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCardConfig.espaciadoXMm}
+                    onChange={(e) => setTempCardConfig((prev) => ({ ...prev, espaciadoXMm: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Espacio Y (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCardConfig.espaciadoYMm}
+                    onChange={(e) => setTempCardConfig((prev) => ({ ...prev, espaciadoYMm: Number(e.target.value) }))}
+                  />
+                </div>
+              </div>
+
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Sangrado (Bleed - mm)</label>
+                  <input
+                    type="number"
+                    value={tempCardConfig.sangradoMm}
+                    onChange={(e) => setTempCardConfig((prev) => ({ ...prev, sangradoMm: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Borde Corte (mm)</label>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <input
+                      type="number"
+                      style={{ flex: 1 }}
+                      value={tempCardConfig.bordeCorteMm}
+                      onChange={(e) => setTempCardConfig((prev) => ({ ...prev, bordeCorteMm: Number(e.target.value) }))}
+                    />
+                    {tempCardConfig.bordeCorteMm > 0 && (
+                      <input
+                        type="color"
+                        value={tempCardConfig.bordeCorteColor}
+                        onChange={(e) => setTempCardConfig((prev) => ({ ...prev, bordeCorteColor: e.target.value }))}
+                        style={{ width: "36px", height: "36px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
+                        title="Color del borde de corte"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="input-field" style={{ marginBottom: "12px" }}>
+                <label>Ajuste de Ilustración</label>
+                <select
+                  value={tempCardConfig.modoAjuste || "cover"}
+                  onChange={(e) => setTempCardConfig((prev) => ({ ...prev, modoAjuste: e.target.value as any }))}
+                >
+                  <option value="cover">Recortar para rellenar (Cover)</option>
+                  <option value="contain">Ajustar sin recortar (Contain)</option>
+                </select>
+              </div>
+            </div>
+
+            <footer className="template-modal-footer" style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "20px" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowProjectConfig(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleApplyProjectConfig}
+              >
+                Guardar Configuración
+              </button>
+            </footer>
           </div>
         </div>
       )}
