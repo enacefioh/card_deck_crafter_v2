@@ -1200,19 +1200,37 @@ export default function App() {
 
   // --- Añadir Carta desde Plantilla (SRS-006) y Asignar Reverso ---
   const handleSelectTemplate = (plantilla: any) => {
+    let templateInstance = JSON.parse(JSON.stringify(plantilla));
+    if (templateInstance.id === "vacia") {
+      templateInstance.anchoMm = cardConfig.anchoMm;
+      templateInstance.altoMm = cardConfig.altoMm;
+      if (templateInstance.capas) {
+        templateInstance.capas = templateInstance.capas.map((capa: any) => {
+          if (capa.tipo === "background" || capa.id === "background") {
+            return {
+              ...capa,
+              anchoMm: cardConfig.anchoMm,
+              altoMm: cardConfig.altoMm,
+            };
+          }
+          return capa;
+        });
+      }
+    }
+
     if (templateModalMode === "addCard") {
       const nuevaCarta: Carta = {
         id: `carta_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        nombre: plantilla.nombre,
+        nombre: templateInstance.nombre,
         cantidad: 1,
         imagenTrasera: null,
-        plantillaId: plantilla.id,
+        plantillaId: templateInstance.id,
         valoresCampos: {},
-        plantilla: JSON.parse(JSON.stringify(plantilla)),
+        plantilla: templateInstance,
       };
 
-      if (plantilla.camposConfig) {
-        plantilla.camposConfig.forEach((campo: any) => {
+      if (templateInstance.camposConfig) {
+        templateInstance.camposConfig.forEach((campo: any) => {
           nuevaCarta.valoresCampos![campo.clave] = campo.valorDefecto || "";
         });
       }
@@ -1224,18 +1242,18 @@ export default function App() {
         prev.map((c) => {
           if (selectedCardIds.includes(c.id)) {
             const valoresCamposTrasera: Record<string, string> = {};
-            if (plantilla.camposConfig) {
-              plantilla.camposConfig.forEach((campo: any) => {
+            if (templateInstance.camposConfig) {
+              templateInstance.camposConfig.forEach((campo: any) => {
                 valoresCamposTrasera[campo.clave] = campo.valorDefecto || "";
               });
             }
             return {
               ...c,
-              plantillaTraseraId: plantilla.id,
+              plantillaTraseraId: templateInstance.id,
               valoresCamposTrasera,
               capasOverridesTrasera: {},
               imagenTrasera: null,
-              plantillaTrasera: JSON.parse(JSON.stringify(plantilla)),
+              plantillaTrasera: templateInstance,
             };
           }
           return c;
@@ -2579,7 +2597,9 @@ export default function App() {
               ) : (
                 <div className="template-list">
                   {activeTemplates.map((plantilla) => {
-                    const isMismatch = Math.abs(plantilla.anchoMm - cardConfig.anchoMm) > 0.1 || Math.abs(plantilla.altoMm - cardConfig.altoMm) > 0.1;
+                    const widthMm = plantilla.id === "vacia" ? cardConfig.anchoMm : plantilla.anchoMm;
+                    const heightMm = plantilla.id === "vacia" ? cardConfig.altoMm : plantilla.altoMm;
+                    const isMismatch = Math.abs(widthMm - cardConfig.anchoMm) > 0.1 || Math.abs(heightMm - cardConfig.altoMm) > 0.1;
                     return (
                       <div
                         key={plantilla.id}
@@ -2591,7 +2611,7 @@ export default function App() {
                           <div
                             className="template-icon"
                             style={{ color: "#d97706", fontSize: "16px", cursor: "help" }}
-                            title={`El tamaño de la plantilla (${plantilla.anchoMm}x${plantilla.altoMm}mm) no coincide con las dimensiones de las cartas configuradas en el proyecto (${cardConfig.anchoMm}x${cardConfig.altoMm}mm)`}
+                            title={`El tamaño de la plantilla (${widthMm}x${heightMm}mm) no coincide con las dimensiones de las cartas configuradas en el proyecto (${cardConfig.anchoMm}x${cardConfig.altoMm}mm)`}
                           >
                             ⚠️
                           </div>
@@ -2601,7 +2621,7 @@ export default function App() {
                         <div className="template-details">
                           <span className="template-name" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>{plantilla.nombre}</span>
                           <span className="template-desc" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>
-                            {plantilla.anchoMm} x {plantilla.altoMm} mm ({plantilla.capas?.length || 0} capas)
+                            {widthMm} x {heightMm} mm ({plantilla.capas?.length || 0} capas)
                           </span>
                         </div>
                         <button className="btn-add-template">Seleccionar</button>
