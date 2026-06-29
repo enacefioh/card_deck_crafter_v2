@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import type { DocumentoCDC2 } from "shared";
 import "./MenuBar.css";
 
 interface MenuBarProps {
@@ -36,6 +37,14 @@ interface MenuBarProps {
   onMoverSeleccionAbajo: () => void;
   onAddCardFromTemplate: () => void;
   onEditCardSelected: () => void;
+
+  // Multidocumento Props
+  documentos: DocumentoCDC2[];
+  activeDocumentoId: string;
+  onSetActiveDocumentoId: (id: string) => void;
+  onAddDocumento: () => void;
+  onDeleteDocumento: (id: string) => void;
+  onRenameDocumento: (id: string, nuevoNombre: string) => void;
 }
 
 export default function MenuBar({
@@ -71,7 +80,15 @@ export default function MenuBar({
   onMoverSeleccionAbajo,
   onAddCardFromTemplate,
   onEditCardSelected,
+  documentos,
+  activeDocumentoId,
+  onSetActiveDocumentoId,
+  onAddDocumento,
+  onDeleteDocumento,
+  onRenameDocumento,
 }: MenuBarProps) {
+  const [editingDocId, setEditingDocId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState<string>("");
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
 
@@ -123,6 +140,8 @@ export default function MenuBar({
         <span className="brand-text">Card Deck Crafter v2</span>
       </div>
 
+
+
       <nav className="menu-bar-nav">
         {/* Menú Archivo */}
         <div className={`menu-group ${activeDropdown === "archivo" ? "active" : ""}`}>
@@ -137,6 +156,9 @@ export default function MenuBar({
             <div className="menu-dropdown">
               <button className="menu-item" onClick={() => handleAction(onNuevoProyecto)}>
                 <span className="menu-item-icon">📄</span> Nuevo Proyecto
+              </button>
+              <button className="menu-item" onClick={() => handleAction(onAddDocumento)}>
+                <span className="menu-item-icon">➕</span> Nueva Página
               </button>
               <button className="menu-item" onClick={() => handleAction(onCargarProyectoClick)}>
                 <span className="menu-item-icon">📂</span> Abrir Proyecto...
@@ -284,6 +306,83 @@ export default function MenuBar({
           )}
         </div>
       </nav>
+
+      {/* Pestañas de documentos en el centro */}
+      <div className="menu-bar-documents">
+        <div className="documents-scroll-container">
+          {documentos.map((doc) => {
+            const isActive = doc.id === activeDocumentoId;
+            const isEditing = editingDocId === doc.id;
+
+            return (
+              <div
+                key={doc.id}
+                className={`document-tab ${isActive ? "active" : ""}`}
+                title={doc.nombre}
+                onClick={() => !isEditing && onSetActiveDocumentoId(doc.id)}
+                onDoubleClick={() => {
+                  if (isActive) {
+                    setEditingDocId(doc.id);
+                    setRenameValue(doc.nombre);
+                  }
+                }}
+              >
+                <span className="document-tab-icon">📄</span>
+                {isEditing ? (
+                  <input
+                    type="text"
+                    className="document-tab-rename-input"
+                    value={renameValue}
+                    onChange={(e) => setRenameValue(e.target.value)}
+                    onBlur={() => {
+                      if (renameValue.trim()) {
+                        onRenameDocumento(doc.id, renameValue.trim());
+                      }
+                      setEditingDocId(null);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        if (renameValue.trim()) {
+                          onRenameDocumento(doc.id, renameValue.trim());
+                        }
+                        setEditingDocId(null);
+                      } else if (e.key === "Escape") {
+                        setEditingDocId(null);
+                      }
+                    }}
+                    autoFocus
+                  />
+                ) : (
+                  <span className="document-tab-label">{doc.nombre}</span>
+                )}
+                {documentos.length > 1 && !isEditing && (
+                  <button
+                    type="button"
+                    className="document-tab-close-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (confirm(`¿Estás seguro de eliminar el documento "${doc.nombre}"?`)) {
+                        onDeleteDocumento(doc.id);
+                      }
+                    }}
+                    title="Eliminar documento"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            );
+          })}
+          <button
+            type="button"
+            className="document-tab-add-btn"
+            onClick={onAddDocumento}
+            title="Añadir nuevo documento"
+          >
+            ➕
+          </button>
+        </div>
+      </div>
 
       <div className="menu-bar-status">
         <span className="status-badge info-badge">Hojas: {paginasCount}</span>

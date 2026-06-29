@@ -92,18 +92,34 @@ export interface ProjectAsset {
   src: string;
 }
 
-export interface ProyectoCDC2 {
-  version: "2.0.0";
-  meta: {
-    nombre: string;
-    fechaCreacion: string;
-    fechaModificacion: string;
-  };
+export interface DocumentoCDC2 {
+  id: string;
+  nombre: string;
   canvasConfig: CanvasConfig;
   cardConfig: CardConfig;
   modoTraseras: "comun" | "individual" | "ninguno";
   imagenTraseraComun: string | null;
   cards: Carta[];
+}
+
+export interface ProyectoCDC2 {
+  version: "2.0.0" | "2.1.0";
+  meta: {
+    nombre: string;
+    fechaCreacion: string;
+    fechaModificacion: string;
+  };
+  // Campos antiguos para retrocompatibilidad
+  canvasConfig?: CanvasConfig;
+  cardConfig?: CardConfig;
+  modoTraseras?: "comun" | "individual" | "ninguno";
+  imagenTraseraComun?: string | null;
+  cards?: Carta[];
+
+  // Nuevos campos multidocumento
+  documentos?: DocumentoCDC2[];
+  activeDocumentoId?: string;
+
   templates?: Record<string, any>;
   assets?: ProjectAsset[];
   customFonts?: CustomFont[];

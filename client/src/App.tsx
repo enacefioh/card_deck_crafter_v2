@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { calcularDistribucion } from "shared";
-import type { CanvasConfig, CardConfig, Carta } from "shared";
+import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2 } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
 import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla } from "./utils/projectUtils";
@@ -55,40 +55,192 @@ export default function App() {
   const fileInputTemplateRef = useRef<HTMLInputElement>(null);
 
   // --- Estados de Configuración ---
+  const [documentos, setDocumentos] = useState<DocumentoCDC2[]>([
+    {
+      id: "doc_default",
+      nombre: "Documento 1",
+      canvasConfig: {
+        tipo: "A4",
+        anchoMm: 210,
+        altoMm: 297,
+        orientacion: "vertical",
+        margenTopMm: 8,
+        margenBottomMm: 8,
+        margenLeftMm: 8,
+        margenRightMm: 8,
+        lineasCorteContinuas: true,
+        marcasCorteEsquinas: true,
+      },
+      cardConfig: {
+        anchoMm: 63.5,
+        altoMm: 88.9,
+        espaciadoXMm: 0,
+        espaciadoYMm: 0,
+        sangradoMm: 0,
+        bordeCorteMm: 0,
+        bordeCorteColor: "#000000",
+        modoAjuste: "contain",
+        reducirArteAlBorde: false,
+      },
+      modoTraseras: "ninguno",
+      imagenTraseraComun: null,
+      cards: []
+    }
+  ]);
+  const [activeDocumentoId, setActiveDocumentoId] = useState<string>("doc_default");
+
+  const activeDocumento = documentos.find(d => d.id === activeDocumentoId) || documentos[0];
+
+  const canvasConfig = activeDocumento.canvasConfig;
+  const cardConfig = activeDocumento.cardConfig;
+  const cartas = activeDocumento.cards;
+  const imagenTraseraComun = activeDocumento.imagenTraseraComun;
+  const generarReversos = activeDocumento.modoTraseras !== "ninguno";
+
   const [canvasType, setCanvasType] = useState<"A4" | "A3" | "Custom">("A4");
-  const [canvasConfig, setCanvasConfigInternal] = useState<CanvasConfig>({
-    tipo: "A4",
-    anchoMm: 210,
-    altoMm: 297,
-    orientacion: "vertical",
-    margenTopMm: 8,
-    margenBottomMm: 8,
-    margenLeftMm: 8,
-    margenRightMm: 8,
-    lineasCorteContinuas: true,
-    marcasCorteEsquinas: true,
-  });
-
   const [cardPreset, setCardPreset] = useState<keyof typeof PREAJUSTES_CARTAS>("standard");
-  const [cardConfig, setCardConfigInternal] = useState<CardConfig>({
-    anchoMm: 63.5,
-    altoMm: 88.9,
-    espaciadoXMm: 0,
-    espaciadoYMm: 0,
-    sangradoMm: 0,
-    bordeCorteMm: 0,
-    bordeCorteColor: "#000000",
-    modoAjuste: "contain",
-    reducirArteAlBorde: false,
-  });
 
-  const [generarReversos, setGenerarReversosInternal] = useState<boolean>(false);
-  const [imagenTraseraComun, setImagenTraseraComunInternal] = useState<string | null>(null);
-  const [cartas, setCartasInternal] = useState<Carta[]>([]);
+  const setCanvasConfigInternal = (newVal: CanvasConfig | ((prev: CanvasConfig) => CanvasConfig)) => {
+    setDocumentos(prev => prev.map(d => {
+      if (d.id === activeDocumentoId) {
+        return {
+          ...d,
+          canvasConfig: typeof newVal === "function" ? newVal(d.canvasConfig) : newVal
+        };
+      }
+      return d;
+    }));
+  };
+
+  const setCardConfigInternal = (newVal: CardConfig | ((prev: CardConfig) => CardConfig)) => {
+    setDocumentos(prev => prev.map(d => {
+      if (d.id === activeDocumentoId) {
+        return {
+          ...d,
+          cardConfig: typeof newVal === "function" ? newVal(d.cardConfig) : newVal
+        };
+      }
+      return d;
+    }));
+  };
+
+  const setImagenTraseraComunInternal = (newVal: string | null | ((prev: string | null) => string | null)) => {
+    setDocumentos(prev => prev.map(d => {
+      if (d.id === activeDocumentoId) {
+        return {
+          ...d,
+          imagenTraseraComun: typeof newVal === "function" ? newVal(d.imagenTraseraComun) : newVal
+        };
+      }
+      return d;
+    }));
+  };
+
+  const setGenerarReversosInternal = (newVal: boolean | ((prev: boolean) => boolean)) => {
+    setDocumentos(prev => prev.map(d => {
+      if (d.id === activeDocumentoId) {
+        const booleanVal = typeof newVal === "function" ? newVal(d.modoTraseras !== "ninguno") : newVal;
+        return {
+          ...d,
+          modoTraseras: booleanVal ? "comun" : "ninguno"
+        };
+      }
+      return d;
+    }));
+  };
+
+  const setCartasInternal = (newVal: Carta[] | ((prev: Carta[]) => Carta[])) => {
+    setDocumentos(prev => prev.map(d => {
+      if (d.id === activeDocumentoId) {
+        return {
+          ...d,
+          cards: typeof newVal === "function" ? newVal(d.cards) : newVal
+        };
+      }
+      return d;
+    }));
+  };
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [inspectingCardId, setInspectingCardId] = useState<string | null>(null);
   const fileInputReversoLoteRef = useRef<HTMLInputElement>(null);
   const [zoomFactor, setZoomFactor] = useState<number>(2.5); // px por mm
+  const [showDocConfig, setShowDocConfig] = useState<boolean>(false);
+  const [tempDocNombre, setTempDocNombre] = useState<string>("Página Nueva");
+
+  const handleSetActiveDocumentoId = (id: string) => {
+    setActiveDocumentoId(id);
+    setSelectedCardIds([]);
+    setInspectingCardId(null);
+  };
+
+  const handleTriggerAddDocumento = () => {
+    setTempDocNombre(`Página ${documentos.length + 1}`);
+    setTempCanvasType("A4");
+    setTempCanvasConfig({
+      tipo: "A4",
+      anchoMm: 210,
+      altoMm: 297,
+      orientacion: "vertical",
+      margenTopMm: 8,
+      margenBottomMm: 8,
+      margenLeftMm: 8,
+      margenRightMm: 8,
+      lineasCorteContinuas: true,
+      marcasCorteEsquinas: true,
+    });
+    setTempCardPreset("standard");
+    setTempCardConfig({
+      anchoMm: 63.5,
+      altoMm: 88.9,
+      espaciadoXMm: 0,
+      espaciadoYMm: 0,
+      sangradoMm: 0,
+      bordeCorteMm: 0,
+      bordeCorteColor: "#000000",
+      modoAjuste: "contain",
+      reducirArteAlBorde: false,
+    });
+    setShowDocConfig(true);
+  };
+
+  const handleCreateDocumento = () => {
+    const newDocId = `doc_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const newDoc: DocumentoCDC2 = {
+      id: newDocId,
+      nombre: tempDocNombre.trim() || `Página ${documentos.length + 1}`,
+      canvasConfig: { ...tempCanvasConfig },
+      cardConfig: { ...tempCardConfig },
+      modoTraseras: "ninguno",
+      imagenTraseraComun: null,
+      cards: []
+    };
+    setDocumentos(prev => [...prev, newDoc]);
+    setActiveDocumentoId(newDocId);
+    setShowDocConfig(false);
+    setIsDirty(true);
+  };
+
+  const handleDeleteDocumento = (id: string) => {
+    if (documentos.length <= 1) return;
+    const index = documentos.findIndex(d => d.id === id);
+    const updated = documentos.filter(d => d.id !== id);
+    setDocumentos(updated);
+    if (activeDocumentoId === id) {
+      const nextActiveIndex = Math.max(0, index - 1);
+      setActiveDocumentoId(updated[nextActiveIndex].id);
+    }
+    setIsDirty(true);
+  };
+
+  const handleRenameDocumento = (id: string, nuevoNombre: string) => {
+    setDocumentos(prev => prev.map(d => {
+      if (d.id === id) {
+        return { ...d, nombre: nuevoNombre };
+      }
+      return d;
+    }));
+    setIsDirty(true);
+  };
 
   // --- Estados de Plantillas y Módulos (SRS-006) ---
   const [activeTemplates, setActiveTemplates] = useState<any[]>([]);
@@ -594,125 +746,138 @@ export default function App() {
       }
     };
 
-    const processedCards = [];
-    for (const card of cartas) {
-      let imagenFrontalPath = undefined;
-      if (card.imagenFrontal) {
-        imagenFrontalPath = await addBlobToZip(card.imagenFrontal, "frontal");
-      }
-      let imagenTraseraPath = null;
-      if (card.imagenTrasera) {
-        imagenTraseraPath = await addBlobToZip(card.imagenTrasera, "trasera");
-      }
+    const processedDocumentos: DocumentoCDC2[] = [];
+    for (const doc of documentos) {
+      const processedCards = [];
+      for (const card of doc.cards) {
+        let imagenFrontalPath = undefined;
+        if (card.imagenFrontal) {
+          imagenFrontalPath = await addBlobToZip(card.imagenFrontal, "frontal");
+        }
+        let imagenTraseraPath = null;
+        if (card.imagenTrasera) {
+          imagenTraseraPath = await addBlobToZip(card.imagenTrasera, "trasera");
+        }
 
-      // Procesar overrides frontal
-      const processedOverrides: Record<string, any> = {};
-      if (card.capasOverrides) {
-        for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
-          if (overrideVal && typeof overrideVal === "object") {
-            const nextOverride = { ...overrideVal };
-            if (nextOverride.src && nextOverride.src.startsWith("blob:")) {
-              nextOverride.src = await addBlobToZip(nextOverride.src, `override_${capaId}`);
+        // Procesar overrides frontal
+        const processedOverrides: Record<string, any> = {};
+        if (card.capasOverrides) {
+          for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
+            if (overrideVal && typeof overrideVal === "object") {
+              const nextOverride = { ...overrideVal };
+              if (nextOverride.src && nextOverride.src.startsWith("blob:")) {
+                nextOverride.src = await addBlobToZip(nextOverride.src, `override_${capaId}`);
+              }
+              processedOverrides[capaId] = nextOverride;
             }
-            processedOverrides[capaId] = nextOverride;
           }
         }
-      }
 
-      // Procesar overrides trasera
-      const processedOverridesTrasera: Record<string, any> = {};
-      if (card.capasOverridesTrasera) {
-        for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
-          if (overrideVal && typeof overrideVal === "object") {
-            const nextOverride = { ...overrideVal };
-            if (nextOverride.src && nextOverride.src.startsWith("blob:")) {
-              nextOverride.src = await addBlobToZip(nextOverride.src, `override_trasera_${capaId}`);
+        // Procesar overrides trasera
+        const processedOverridesTrasera: Record<string, any> = {};
+        if (card.capasOverridesTrasera) {
+          for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
+            if (overrideVal && typeof overrideVal === "object") {
+              const nextOverride = { ...overrideVal };
+              if (nextOverride.src && nextOverride.src.startsWith("blob:")) {
+                nextOverride.src = await addBlobToZip(nextOverride.src, `override_trasera_${capaId}`);
+              }
+              processedOverridesTrasera[capaId] = nextOverride;
             }
-            processedOverridesTrasera[capaId] = nextOverride;
           }
         }
-      }
 
-      let processedPlantilla = undefined;
-      if (card.plantilla) {
-        const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
-        if (clonedPlantilla.capas) {
-          for (let i = 0; i < clonedPlantilla.capas.length; i++) {
-            const capa = clonedPlantilla.capas[i];
-            if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
-              capa.src = await addBlobToZip(capa.src, `card_${card.id}_template_image_${i}`);
-            }
-            if (capa.tipo === "image-switch" && capa.options) {
-              for (let o = 0; o < capa.options.length; o++) {
-                const opt = capa.options[o];
-                if (opt.src && opt.src.startsWith("blob:")) {
-                  opt.src = await addBlobToZip(opt.src, `card_${card.id}_template_image_switch_option_${i}_${o}`);
+        let processedPlantilla = undefined;
+        if (card.plantilla) {
+          const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
+          if (clonedPlantilla.capas) {
+            for (let i = 0; i < clonedPlantilla.capas.length; i++) {
+              const capa = clonedPlantilla.capas[i];
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
+                capa.src = await addBlobToZip(capa.src, `card_${card.id}_template_image_${i}`);
+              }
+              if (capa.tipo === "image-switch" && capa.options) {
+                for (let o = 0; o < capa.options.length; o++) {
+                  const opt = capa.options[o];
+                  if (opt.src && opt.src.startsWith("blob:")) {
+                    opt.src = await addBlobToZip(opt.src, `card_${card.id}_template_image_switch_option_${i}_${o}`);
+                  }
                 }
               }
             }
           }
-        }
-        if (clonedPlantilla.assets) {
-          for (let i = 0; i < clonedPlantilla.assets.length; i++) {
-            const asset = clonedPlantilla.assets[i];
-            if (asset.src && asset.src.startsWith("blob:")) {
-              asset.src = await addBlobToZip(asset.src, `card_${card.id}_template_asset_${i}`);
+          if (clonedPlantilla.assets) {
+            for (let i = 0; i < clonedPlantilla.assets.length; i++) {
+              const asset = clonedPlantilla.assets[i];
+              if (asset.src && asset.src.startsWith("blob:")) {
+                asset.src = await addBlobToZip(asset.src, `card_${card.id}_template_asset_${i}`);
+              }
             }
           }
+          processedPlantilla = clonedPlantilla;
         }
-        processedPlantilla = clonedPlantilla;
-      }
 
-      let processedPlantillaTrasera = undefined;
-      if (card.plantillaTrasera) {
-        const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
-        if (clonedPlantillaTrasera.capas) {
-          for (let i = 0; i < clonedPlantillaTrasera.capas.length; i++) {
-            const capa = clonedPlantillaTrasera.capas[i];
-            if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
-              capa.src = await addBlobToZip(capa.src, `card_${card.id}_back_template_image_${i}`);
-            }
-            if (capa.tipo === "image-switch" && capa.options) {
-              for (let o = 0; o < capa.options.length; o++) {
-                const opt = capa.options[o];
-                if (opt.src && opt.src.startsWith("blob:")) {
-                  opt.src = await addBlobToZip(opt.src, `card_${card.id}_back_template_image_switch_option_${i}_${o}`);
+        let processedPlantillaTrasera = undefined;
+        if (card.plantillaTrasera) {
+          const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
+          if (clonedPlantillaTrasera.capas) {
+            for (let i = 0; i < clonedPlantillaTrasera.capas.length; i++) {
+              const capa = clonedPlantillaTrasera.capas[i];
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
+                capa.src = await addBlobToZip(capa.src, `card_${card.id}_back_template_image_${i}`);
+              }
+              if (capa.tipo === "image-switch" && capa.options) {
+                for (let o = 0; o < clonedPlantillaTrasera.capas[i].options.length; o++) {
+                  const opt = clonedPlantillaTrasera.capas[i].options[o];
+                  if (opt.src && opt.src.startsWith("blob:")) {
+                    opt.src = await addBlobToZip(opt.src, `card_${card.id}_back_template_image_switch_option_${i}_${o}`);
+                  }
                 }
               }
             }
           }
-        }
-        if (clonedPlantillaTrasera.assets) {
-          for (let i = 0; i < clonedPlantillaTrasera.assets.length; i++) {
-            const asset = clonedPlantillaTrasera.assets[i];
-            if (asset.src && asset.src.startsWith("blob:")) {
-              asset.src = await addBlobToZip(asset.src, `card_${card.id}_back_template_asset_${i}`);
+          if (clonedPlantillaTrasera.assets) {
+            for (let i = 0; i < clonedPlantillaTrasera.assets.length; i++) {
+              const asset = clonedPlantillaTrasera.assets[i];
+              if (asset.src && asset.src.startsWith("blob:")) {
+                asset.src = await addBlobToZip(asset.src, `card_${card.id}_back_template_asset_${i}`);
+              }
             }
           }
+          processedPlantillaTrasera = clonedPlantillaTrasera;
         }
-        processedPlantillaTrasera = clonedPlantillaTrasera;
+
+        processedCards.push({
+          id: card.id,
+          nombre: card.nombre,
+          imagenFrontal: imagenFrontalPath,
+          imagenTrasera: imagenTraseraPath,
+          cantidad: card.cantidad,
+          plantillaId: card.plantillaId,
+          valoresCampos: card.valoresCampos,
+          capasOverrides: processedOverrides,
+          plantillaTraseraId: card.plantillaTraseraId,
+          valoresCamposTrasera: card.valoresCamposTrasera,
+          capasOverridesTrasera: processedOverridesTrasera,
+          plantilla: processedPlantilla,
+          plantillaTrasera: processedPlantillaTrasera,
+        });
       }
 
-      processedCards.push({
-        id: card.id,
-        nombre: card.nombre,
-        imagenFrontal: imagenFrontalPath,
-        imagenTrasera: imagenTraseraPath,
-        cantidad: card.cantidad,
-        plantillaId: card.plantillaId,
-        valoresCampos: card.valoresCampos,
-        capasOverrides: processedOverrides,
-        plantillaTraseraId: card.plantillaTraseraId,
-        valoresCamposTrasera: card.valoresCamposTrasera,
-        capasOverridesTrasera: processedOverridesTrasera,
-        plantilla: processedPlantilla,
-        plantillaTrasera: processedPlantillaTrasera,
+      let commonBackPath = null;
+      if (doc.imagenTraseraComun) {
+        commonBackPath = await addBlobToZip(doc.imagenTraseraComun, "trasera_comun");
+      }
+
+      processedDocumentos.push({
+        id: doc.id,
+        nombre: doc.nombre,
+        canvasConfig: doc.canvasConfig,
+        cardConfig: doc.cardConfig,
+        modoTraseras: doc.modoTraseras,
+        imagenTraseraComun: commonBackPath,
+        cards: processedCards
       });
-    }
-
-    let commonBackPath = null;
-    if (imagenTraseraComun) {
-      commonBackPath = await addBlobToZip(imagenTraseraComun, "trasera_comun");
     }
 
     // Guardar las plantillas personalizadas en una carpeta "templates/" del ZIP
@@ -762,7 +927,7 @@ export default function App() {
             capa.src = await addBlobToZip(capa.src, `template_${id}_image_${i}`);
           }
           if (capa.tipo === "image-switch" && capa.options) {
-            for (let o = 0; o < capa.options.length; o++) {
+            for (let o = 0; o < clonedTemplate.capas[i].options.length; o++) {
               const opt = clonedTemplate.capas[i].options[o];
               if (opt.src && opt.src.startsWith("blob:")) {
                 opt.src = await addBlobToZip(opt.src, `template_${id}_image_switch_option_${i}_${o}`);
@@ -783,17 +948,14 @@ export default function App() {
     }
 
     const proyecto = {
-      version: "2.0.0",
+      version: "2.1.0" as const,
       meta: {
         nombre: nombreProyecto,
         fechaCreacion: new Date().toISOString(),
         fechaModificacion: new Date().toISOString(),
       },
-      canvasConfig,
-      cardConfig,
-      modoTraseras: generarReversos ? (imagenTraseraComun ? "comun" : "individual") : "ninguno",
-      imagenTraseraComun: commonBackPath,
-      cards: processedCards,
+      documentos: processedDocumentos,
+      activeDocumentoId,
       templates: processedTemplatesMap,
       assets: processedProjectAssets,
       customFonts: projectFonts.map((f: any) => ({
@@ -942,127 +1104,130 @@ export default function App() {
         return objectUrl;
       };
 
-      const nuevasCartas: Carta[] = [];
-      for (const card of proyecto.cards) {
-        let frontalUrl: string | undefined = undefined;
-        if (card.imagenFrontal) {
-          const res = await resolverAssetBlob(card.imagenFrontal);
-          if (res) frontalUrl = res;
-        }
+      // Cargar todos los documentos
+      for (const doc of proyecto.documentos) {
+        const nuevasCartas: Carta[] = [];
+        for (const card of doc.cards) {
+          let frontalUrl: string | undefined = undefined;
+          if (card.imagenFrontal) {
+            const res = await resolverAssetBlob(card.imagenFrontal);
+            if (res) frontalUrl = res;
+          }
 
-        if (!frontalUrl && !card.plantillaId) {
-          continue;
-        }
+          if (!frontalUrl && !card.plantillaId) {
+            continue;
+          }
 
-        const traseraUrl = await resolverAssetBlob(card.imagenTrasera);
+          const traseraUrl = await resolverAssetBlob(card.imagenTrasera);
 
-        // Resolver overrides
-        const processedOverrides: Record<string, any> = {};
-        if (card.capasOverrides) {
-          for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
-            if (overrideVal && typeof overrideVal === "object") {
-              const nextOverride: any = { ...overrideVal };
-              if (nextOverride.src && matchesAssetScheme(nextOverride.src)) {
-                const url = await resolverAssetBlob(nextOverride.src);
-                if (url) nextOverride.src = url;
+          // Resolver overrides
+          const processedOverrides: Record<string, any> = {};
+          if (card.capasOverrides) {
+            for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
+              if (overrideVal && typeof overrideVal === "object") {
+                const nextOverride: any = { ...overrideVal };
+                if (nextOverride.src && matchesAssetScheme(nextOverride.src)) {
+                  const url = await resolverAssetBlob(nextOverride.src);
+                  if (url) nextOverride.src = url;
+                }
+                processedOverrides[capaId] = nextOverride;
               }
-              processedOverrides[capaId] = nextOverride;
             }
           }
-        }
 
-        const processedOverridesTrasera: Record<string, any> = {};
-        if (card.capasOverridesTrasera) {
-          for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
-            if (overrideVal && typeof overrideVal === "object") {
-              const nextOverride: any = { ...overrideVal };
-              if (nextOverride.src && matchesAssetScheme(nextOverride.src)) {
-                const url = await resolverAssetBlob(nextOverride.src);
-                if (url) nextOverride.src = url;
+          const processedOverridesTrasera: Record<string, any> = {};
+          if (card.capasOverridesTrasera) {
+            for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
+              if (overrideVal && typeof overrideVal === "object") {
+                const nextOverride: any = { ...overrideVal };
+                if (nextOverride.src && matchesAssetScheme(nextOverride.src)) {
+                  const url = await resolverAssetBlob(nextOverride.src);
+                  if (url) nextOverride.src = url;
+                }
+                processedOverridesTrasera[capaId] = nextOverride;
               }
-              processedOverridesTrasera[capaId] = nextOverride;
             }
           }
-        }
 
-        let processedPlantilla = undefined;
-        if (card.plantilla) {
-          const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
-          if (clonedPlantilla.capas) {
-            for (const capa of clonedPlantilla.capas) {
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
-                const url = await resolverAssetBlob(capa.src);
-                if (url) capa.src = url;
-              }
-              if (capa.tipo === "image-switch" && capa.options) {
-                for (const opt of capa.options) {
-                  if (opt.src && matchesAssetScheme(opt.src)) {
-                    const url = await resolverAssetBlob(opt.src);
-                    if (url) opt.src = url;
+          let processedPlantilla = undefined;
+          if (card.plantilla) {
+            const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
+            if (clonedPlantilla.capas) {
+              for (const capa of clonedPlantilla.capas) {
+                if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
+                  const url = await resolverAssetBlob(capa.src);
+                  if (url) capa.src = url;
+                }
+                if (capa.tipo === "image-switch" && capa.options) {
+                  for (const opt of capa.options) {
+                    if (opt.src && matchesAssetScheme(opt.src)) {
+                      const url = await resolverAssetBlob(opt.src);
+                      if (url) opt.src = url;
+                    }
                   }
                 }
               }
             }
-          }
-          if (clonedPlantilla.assets) {
-            for (const asset of clonedPlantilla.assets) {
-              if (asset.src && matchesAssetScheme(asset.src)) {
-                const url = await resolverAssetBlob(asset.src);
-                if (url) asset.src = url;
+            if (clonedPlantilla.assets) {
+              for (const asset of clonedPlantilla.assets) {
+                if (asset.src && matchesAssetScheme(asset.src)) {
+                  const url = await resolverAssetBlob(asset.src);
+                  if (url) asset.src = url;
+                }
               }
             }
+            processedPlantilla = clonedPlantilla;
           }
-          processedPlantilla = clonedPlantilla;
-        }
 
-        let processedPlantillaTrasera = undefined;
-        if (card.plantillaTrasera) {
-          const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
-          if (clonedPlantillaTrasera.capas) {
-            for (const capa of clonedPlantillaTrasera.capas) {
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
-                const url = await resolverAssetBlob(capa.src);
-                if (url) capa.src = url;
-              }
-              if (capa.tipo === "image-switch" && capa.options) {
-                for (const opt of capa.options) {
-                  if (opt.src && matchesAssetScheme(opt.src)) {
-                    const url = await resolverAssetBlob(opt.src);
-                    if (url) opt.src = url;
+          let processedPlantillaTrasera = undefined;
+          if (card.plantillaTrasera) {
+            const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
+            if (clonedPlantillaTrasera.capas) {
+              for (const capa of clonedPlantillaTrasera.capas) {
+                if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
+                  const url = await resolverAssetBlob(capa.src);
+                  if (url) capa.src = url;
+                }
+                if (capa.tipo === "image-switch" && capa.options) {
+                  for (const opt of capa.options) {
+                    if (opt.src && matchesAssetScheme(opt.src)) {
+                      const url = await resolverAssetBlob(opt.src);
+                      if (url) opt.src = url;
+                    }
                   }
                 }
               }
             }
-          }
-          if (clonedPlantillaTrasera.assets) {
-            for (const asset of clonedPlantillaTrasera.assets) {
-              if (asset.src && matchesAssetScheme(asset.src)) {
-                const url = await resolverAssetBlob(asset.src);
-                if (url) asset.src = url;
+            if (clonedPlantillaTrasera.assets) {
+              for (const asset of clonedPlantillaTrasera.assets) {
+                if (asset.src && matchesAssetScheme(asset.src)) {
+                  const url = await resolverAssetBlob(asset.src);
+                  if (url) asset.src = url;
+                }
               }
             }
+            processedPlantillaTrasera = clonedPlantillaTrasera;
           }
-          processedPlantillaTrasera = clonedPlantillaTrasera;
-        }
 
-        nuevasCartas.push({
-          id: card.id || `${Date.now()}-${Math.random()}`,
-          nombre: card.nombre,
-          imagenFrontal: frontalUrl,
-          imagenTrasera: traseraUrl,
-          cantidad: card.cantidad || 1,
-          plantillaId: card.plantillaId,
-          valoresCampos: card.valoresCampos,
-          capasOverrides: processedOverrides,
-          plantillaTraseraId: card.plantillaTraseraId,
-          valoresCamposTrasera: card.valoresCamposTrasera,
-          capasOverridesTrasera: processedOverridesTrasera,
-          plantilla: processedPlantilla,
-          plantillaTrasera: processedPlantillaTrasera,
-        });
+          nuevasCartas.push({
+            id: card.id || `${Date.now()}-${Math.random()}`,
+            nombre: card.nombre,
+            imagenFrontal: frontalUrl,
+            imagenTrasera: traseraUrl,
+            cantidad: card.cantidad || 1,
+            plantillaId: card.plantillaId,
+            valoresCampos: card.valoresCampos,
+            capasOverrides: processedOverrides,
+            plantillaTraseraId: card.plantillaTraseraId,
+            valoresCamposTrasera: card.valoresCamposTrasera,
+            capasOverridesTrasera: processedOverridesTrasera,
+            plantilla: processedPlantilla,
+            plantillaTrasera: processedPlantillaTrasera,
+          });
+        }
+        doc.cards = nuevasCartas;
+        doc.imagenTraseraComun = await resolverAssetBlob(doc.imagenTraseraComun);
       }
-
-      const nuevaTraseraComunUrl = await resolverAssetBlob(proyecto.imagenTraseraComun);
 
       // Cargar plantillas del proyecto (desde carpeta templates/ o fallback proyecto.templates)
       const newImported: any[] = [];
@@ -1213,9 +1378,11 @@ export default function App() {
         }
       };
 
-      for (const card of nuevasCartas) {
-        if (card.plantilla) decodeTemplateFonts(card.plantilla);
-        if (card.plantillaTrasera) decodeTemplateFonts(card.plantillaTrasera);
+      for (const doc of proyecto.documentos) {
+        for (const card of doc.cards) {
+          if (card.plantilla) decodeTemplateFonts(card.plantilla);
+          if (card.plantillaTrasera) decodeTemplateFonts(card.plantillaTrasera);
+        }
       }
 
       for (const tId of Object.keys(loadedTemplatesMap)) {
@@ -1228,11 +1395,8 @@ export default function App() {
       }));
       setImportedTemplates(newImported);
 
-      setCanvasConfigInternal(proyecto.canvasConfig);
-      setCardConfigInternal(proyecto.cardConfig);
-      setImagenTraseraComunInternal(nuevaTraseraComunUrl);
-      setGenerarReversosInternal(proyecto.modoTraseras !== "ninguno");
-      setCartasInternal(nuevasCartas);
+      setDocumentos(proyecto.documentos);
+      setActiveDocumentoId(proyecto.activeDocumentoId);
 
       if (proyecto.meta && proyecto.meta.nombre) {
         setNombreProyectoInternal(proyecto.meta.nombre);
@@ -1241,7 +1405,8 @@ export default function App() {
       }
       setProjectCreated(true);
 
-      setCanvasType(proyecto.canvasConfig.tipo || "Custom");
+      const activeDoc = proyecto.documentos.find((d: any) => d.id === proyecto.activeDocumentoId) || proyecto.documentos[0];
+      setCanvasType(activeDoc.canvasConfig.tipo || "Custom");
       setCardPreset("custom");
 
       setIsDirty(false);
@@ -1904,6 +2069,12 @@ export default function App() {
             setEditingCardId(selectedCardIds[0]);
           }
         }}
+        documentos={documentos}
+        activeDocumentoId={activeDocumentoId}
+        onSetActiveDocumentoId={handleSetActiveDocumentoId}
+        onAddDocumento={handleTriggerAddDocumento}
+        onDeleteDocumento={handleDeleteDocumento}
+        onRenameDocumento={handleRenameDocumento}
       />
       <div className="app-container">
       {/* --- PANEL DE CONTROL LATERAL --- */}
@@ -3441,6 +3612,227 @@ export default function App() {
                 Listo
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showDocConfig && (
+        <div className="template-modal-backdrop" style={{ zIndex: 4000 }}>
+          <div className="template-modal-container" style={{ maxWidth: "700px", padding: "24px" }} onClick={(e) => e.stopPropagation()}>
+            <header className="template-modal-header" style={{ marginBottom: "16px" }}>
+              <h2 style={{ margin: 0, fontSize: "20px" }}>Añadir Nuevo Documento al Proyecto</h2>
+            </header>
+            
+            <div className="template-modal-body" style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: "8px" }}>
+              <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", marginBottom: "12px", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                Datos del Documento
+              </div>
+              <div className="input-field" style={{ marginBottom: "16px" }}>
+                <label style={{ fontWeight: 500, display: "block", marginBottom: "4px" }}>Nombre del Documento</label>
+                <input
+                  type="text"
+                  value={tempDocNombre}
+                  onChange={(e) => setTempDocNombre(e.target.value)}
+                  placeholder="ej. Cartas Horizontales"
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", boxSizing: "border-box" }}
+                  required
+                />
+              </div>
+
+              <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", margin: "16px 0 12px 0", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                Ajustes de Página
+              </div>
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Tamaño de Hoja</label>
+                  <select value={tempCanvasType} onChange={(e) => handleTempCanvasPresetChange(e.target.value)}>
+                    <option value="A4">DINA4 (210 x 297 mm)</option>
+                    <option value="A3">DINA3 (297 x 420 mm)</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Orientación</label>
+                  <select
+                    value={tempCanvasConfig.orientacion}
+                    onChange={(e) => handleTempOrientationChange(e.target.value as any)}
+                  >
+                    <option value="vertical">Vertical</option>
+                    <option value="horizontal">Horizontal</option>
+                  </select>
+                </div>
+              </div>
+
+              {tempCanvasType === "custom" && (
+                <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                  <div className="input-field" style={{ flex: 1 }}>
+                    <label>Ancho (mm)</label>
+                    <input
+                      type="number"
+                      value={tempCanvasConfig.anchoMm}
+                      onChange={(e) => setTempCanvasConfig((prev) => ({ ...prev, anchoMm: Number(e.target.value) }))}
+                    />
+                  </div>
+                  <div className="input-field" style={{ flex: 1 }}>
+                    <label>Alto (mm)</label>
+                    <input
+                      type="number"
+                      value={tempCanvasConfig.altoMm}
+                      onChange={(e) => setTempCanvasConfig((prev) => ({ ...prev, altoMm: Number(e.target.value) }))}
+                    />
+                  </div>
+                </div>
+              )}
+
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Margen L/R (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCanvasConfig.margenLeftMm}
+                    onChange={(e) =>
+                      setTempCanvasConfig((prev) => ({
+                        ...prev,
+                        margenLeftMm: Number(e.target.value),
+                        margenRightMm: Number(e.target.value),
+                      }))
+                    }
+                  />
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Margen T/B (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCanvasConfig.margenTopMm}
+                    onChange={(e) =>
+                      setTempCanvasConfig((prev) => ({
+                        ...prev,
+                        margenTopMm: Number(e.target.value),
+                        margenBottomMm: Number(e.target.value),
+                      }))
+                    }
+                  />
+                </div>
+              </div>
+
+              <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", margin: "20px 0 12px 0", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                Dimensiones de Carta
+              </div>
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Tipo de Carta</label>
+                  <select value={tempCardPreset} onChange={(e) => handleTempCardPresetChange(e.target.value)}>
+                    <option value="standard">Poker/Standard vertical (63.5 x 88.9 mm)</option>
+                    <option value="standard_horizontal">Poker/Standard horizontal (88.9 x 63.5 mm)</option>
+                    <option value="mini">Mini vertical (44.4 x 63.5 mm)</option>
+                    <option value="mini_horizontal">Mini horizontal (63.5 x 44.4 mm)</option>
+                    <option value="tarot">Tarot vertical (70.0 x 120.0 mm)</option>
+                    <option value="tarot_horizontal">Tarot horizontal (120.0 x 70.0 mm)</option>
+                    <option value="custom">Personalizado</option>
+                  </select>
+                </div>
+                {tempCardPreset === "custom" && (
+                  <div className="input-field" style={{ flex: 1 }}>
+                    <div className="input-row" style={{ display: "flex", gap: "12px" }}>
+                      <div className="input-field" style={{ flex: 1 }}>
+                        <label>Ancho (mm)</label>
+                        <input
+                          type="number"
+                          value={tempCardConfig.anchoMm}
+                          onChange={(e) => setTempCardConfig((prev) => ({ ...prev, anchoMm: Number(e.target.value) }))}
+                        />
+                      </div>
+                      <div className="input-field" style={{ flex: 1 }}>
+                        <label>Alto (mm)</label>
+                        <input
+                          type="number"
+                          value={tempCardConfig.altoMm}
+                          onChange={(e) => setTempCardConfig((prev) => ({ ...prev, altoMm: Number(e.target.value) }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Espacio X (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCardConfig.espaciadoXMm}
+                    onChange={(e) => setTempCardConfig((prev) => ({ ...prev, espaciadoXMm: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Espacio Y (mm)</label>
+                  <input
+                    type="number"
+                    value={tempCardConfig.espaciadoYMm}
+                    onChange={(e) => setTempCardConfig((prev) => ({ ...prev, espaciadoYMm: Number(e.target.value) }))}
+                  />
+                </div>
+              </div>
+
+              <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Sangrado (Bleed - mm)</label>
+                  <input
+                    type="number"
+                    value={tempCardConfig.sangradoMm}
+                    onChange={(e) => setTempCardConfig((prev) => ({ ...prev, sangradoMm: Number(e.target.value) }))}
+                  />
+                </div>
+                <div className="input-field" style={{ flex: 1 }}>
+                  <label>Borde Corte (mm)</label>
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    <input
+                      type="number"
+                      style={{ flex: 1 }}
+                      value={tempCardConfig.bordeCorteMm}
+                      onChange={(e) => setTempCardConfig((prev) => ({ ...prev, bordeCorteMm: Number(e.target.value) }))}
+                    />
+                    {tempCardConfig.bordeCorteMm > 0 && (
+                      <input
+                        type="color"
+                        value={tempCardConfig.bordeCorteColor}
+                        onChange={(e) => setTempCardConfig((prev) => ({ ...prev, bordeCorteColor: e.target.value }))}
+                        style={{ width: "36px", height: "36px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
+                        title="Color del borde de corte"
+                      />
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="input-field" style={{ marginBottom: "12px" }}>
+                <label>Ajuste de Ilustración</label>
+                <select
+                  value={tempCardConfig.modoAjuste || "cover"}
+                  onChange={(e) => setTempCardConfig((prev) => ({ ...prev, modoAjuste: e.target.value as any }))}
+                >
+                  <option value="cover">Recortar para rellenar (Cover)</option>
+                  <option value="contain">Ajustar sin recortar (Contain)</option>
+                </select>
+              </div>
+            </div>
+
+            <footer className="template-modal-footer" style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "20px" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowDocConfig(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={handleCreateDocumento}
+              >
+                ✨ Crear Nuevo Documento en el Proyecto
+              </button>
+            </footer>
           </div>
         </div>
       )}

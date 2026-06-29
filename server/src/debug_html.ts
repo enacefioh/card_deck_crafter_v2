@@ -35,6 +35,7 @@ function generarHtmlImpresion(
   tempDir: string,
   proyecto: ProyectoCDC2
 ): string {
+  const activeDoc = proyecto.documentos?.find((d: any) => d.id === proyecto.activeDocumentoId) || proyecto.documentos?.[0] || (proyecto as any);
   // Recopilar todas las tipografías para inyectarlas como data URIs base64
   const tipografiasMap = new Map<string, { nombre: string; type: string; data: string }>();
 
@@ -58,8 +59,29 @@ function generarHtmlImpresion(
     }
   }
 
-  if (proyecto.cards) {
-    for (const card of proyecto.cards) {
+  if (proyecto.documentos) {
+    for (const doc of proyecto.documentos) {
+      if (doc.cards) {
+        for (const card of doc.cards) {
+          if (card.plantilla && card.plantilla.customFonts) {
+            for (const font of card.plantilla.customFonts) {
+              if (font.nombre && font.data) {
+                tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+              }
+            }
+          }
+          if (card.plantillaTrasera && card.plantillaTrasera.customFonts) {
+            for (const font of card.plantillaTrasera.customFonts) {
+              if (font.nombre && font.data) {
+                tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+              }
+            }
+          }
+        }
+      }
+    }
+  } else if ((proyecto as any).cards) {
+    for (const card of (proyecto as any).cards) {
       if (card.plantilla && card.plantilla.customFonts) {
         for (const font of card.plantilla.customFonts) {
           if (font.nombre && font.data) {
@@ -150,7 +172,7 @@ function generarHtmlImpresion(
         `;
       }
 
-      const cardData = proyecto.cards.find((c) => c.id === slot.cartaId);
+      const cardData = (activeDoc.cards || []).find((c: any) => c.id === slot.cartaId);
       if (cardData && cardData.plantillaId && proyecto.templates && proyecto.templates[cardData.plantillaId]) {
         const plantilla = proyecto.templates[cardData.plantillaId];
         

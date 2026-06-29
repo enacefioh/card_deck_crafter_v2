@@ -19,11 +19,11 @@ describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
     ]
   };
 
-  it("debe parsear correctamente un JSON válido con la versión 2.0.0", () => {
+  it("debe parsear y migrar correctamente un JSON válido con la versión 2.0.0", () => {
     const jsonStr = JSON.stringify(proyectoValido);
     const parsed = validarYParsearProyecto(jsonStr);
-    expect(parsed.version).toBe("2.0.0");
-    expect(parsed.cards.length).toBe(1);
+    expect(parsed.version).toBe("2.1.0");
+    expect(parsed.documentos[0].cards.length).toBe(1);
   });
 
   it("debe parsear y conservar assets globales del proyecto si están definidos", () => {
@@ -59,8 +59,8 @@ describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
     };
     const jsonStr = JSON.stringify(proyectoConOverrides);
     const parsed = validarYParsearProyecto(jsonStr);
-    expect(parsed.cards[0].capasOverrides).toBeDefined();
-    expect(parsed.cards[0].capasOverrides.background.colorFill).toBe("#ff0000");
+    expect(parsed.documentos[0].cards[0].capasOverrides).toBeDefined();
+    expect(parsed.documentos[0].cards[0].capasOverrides.background.colorFill).toBe("#ff0000");
   });
 
   it("debe lanzar un error si el JSON está vacío", () => {
@@ -72,11 +72,25 @@ describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
     expect(() => validarYParsearProyecto("{ invalid json }")).toThrow("El archivo no contiene un JSON válido");
   });
 
-  it("debe lanzar un error si la versión no es 2.0.0", () => {
+  it("debe lanzar un error si la versión no es 2.0.0 o 2.1.0", () => {
     const proyectoVersionIncorrecta = { ...proyectoValido, version: "1.0.0" };
     expect(() => validarYParsearProyecto(JSON.stringify(proyectoVersionIncorrecta))).toThrow(
       "Versión de proyecto no soportada"
     );
+  });
+
+  it("debe migrar automáticamente un proyecto 2.0.0 a 2.1.0 multidocumento", () => {
+    const jsonStr = JSON.stringify(proyectoValido);
+    const parsed = validarYParsearProyecto(jsonStr);
+    expect(parsed.version).toBe("2.1.0");
+    expect(parsed.documentos).toBeDefined();
+    expect(parsed.documentos.length).toBe(1);
+    expect(parsed.documentos[0].nombre).toBe("Documento 1");
+    expect(parsed.documentos[0].cards.length).toBe(1);
+    expect(parsed.activeDocumentoId).toBe("doc_default");
+    expect(parsed.canvasConfig).toBeUndefined();
+    expect(parsed.cardConfig).toBeUndefined();
+    expect(parsed.cards).toBeUndefined();
   });
 
   it("debe lanzar un error si falta canvasConfig", () => {
@@ -102,6 +116,39 @@ describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
     expect(() => validarYParsearProyecto(JSON.stringify(proyectoCardsInvalidas))).toThrow(
       "La sección de cartas (cards) debe ser una lista"
     );
+  });
+
+  it("debe parsear correctamente un JSON válido con la versión 2.1.0 de forma nativa", () => {
+    const proyecto210 = {
+      version: "2.1.0",
+      documentos: [
+        {
+          id: "doc_1",
+          nombre: "Doc 1",
+          canvasConfig: { tipo: "A4", anchoMm: 210, altoMm: 297 },
+          cardConfig: { anchoMm: 63.5, altoMm: 88.9 },
+          modoTraseras: "individual",
+          imagenTraseraComun: null,
+          cards: [{ id: "c1", nombre: "Carta 1", cantidad: 1 }]
+        },
+        {
+          id: "doc_2",
+          nombre: "Doc 2",
+          canvasConfig: { tipo: "A3", anchoMm: 297, altoMm: 420 },
+          cardConfig: { anchoMm: 88.9, altoMm: 63.5 },
+          modoTraseras: "comun",
+          imagenTraseraComun: "asset://back.png",
+          cards: [{ id: "c2", nombre: "Carta 2", cantidad: 2 }]
+        }
+      ],
+      activeDocumentoId: "doc_2"
+    };
+    const parsed = validarYParsearProyecto(JSON.stringify(proyecto210));
+    expect(parsed.version).toBe("2.1.0");
+    expect(parsed.documentos.length).toBe(2);
+    expect(parsed.activeDocumentoId).toBe("doc_2");
+    expect(parsed.documentos[0].cards[0].nombre).toBe("Carta 1");
+    expect(parsed.documentos[1].canvasConfig.tipo).toBe("A3");
   });
 });
 

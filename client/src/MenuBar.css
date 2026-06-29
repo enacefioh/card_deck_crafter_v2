@@ -39,7 +39,7 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  flex: 1;
+  flex: 0 0 auto;
   margin-left: 24px;
 }
 
@@ -180,4 +180,115 @@
   color: var(--accent-secondary);
   background-color: rgba(59, 130, 246, 0.05);
   border-color: rgba(59, 130, 246, 0.1);
+}
+
+/* Multidocument Tabs CSS */
+.menu-bar-documents {
+  display: flex;
+  align-items: center;
+  margin: 0 24px;
+  flex: 1 1 auto;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.menu-bar-documents::-webkit-scrollbar {
+  display: none;
+}
+
+.documents-scroll-container {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.document-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 6px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.document-tab:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.document-tab.active {
+  background-color: rgba(139, 92, 246, 0.12);
+  border-color: rgba(139, 92, 246, 0.35);
+  color: #c4b5fd;
+  font-weight: 600;
+}
+
+.document-tab-icon {
+  font-size: 11px;
+}
+
+.document-tab-label {
+  max-width: 12ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.document-tab-close-btn {
+  background: none;
+  border: none;
+  color: inherit;
+  opacity: 0.5;
+  font-size: 13px;
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0 2px;
+  margin-left: 4px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+}
+
+.document-tab-close-btn:hover {
+  opacity: 1;
+  color: #ef4444;
+}
+
+.document-tab-add-btn {
+  background: none;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  color: var(--text-secondary);
+  border-radius: 6px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 10px;
+  transition: all 0.15s ease;
+}
+
+.document-tab-add-btn:hover {
+  border-color: var(--accent-primary);
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.document-tab-rename-input {
+  background: #0f111a;
+  border: 1px solid var(--accent-primary);
+  border-radius: 4px;
+  color: var(--text-primary);
+  font-size: 11px;
+  padding: 1px 4px;
+  outline: none;
+  width: 80px;
 }

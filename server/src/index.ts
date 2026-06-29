@@ -58,6 +58,7 @@ function generarHtmlImpresion(
   tempDir: string,
   proyecto: ProyectoCDC2
 ): string {
+  const activeDoc = proyecto.documentos?.find((d: any) => d.id === proyecto.activeDocumentoId) || proyecto.documentos?.[0] || (proyecto as any);
   // Recopilar todas las tipografías para inyectarlas como data URIs base64
   const tipografiasMap = new Map<string, { nombre: string; type: string; data: string }>();
 
@@ -81,8 +82,29 @@ function generarHtmlImpresion(
     }
   }
 
-  if (proyecto.cards) {
-    for (const card of proyecto.cards) {
+  if (proyecto.documentos) {
+    for (const doc of proyecto.documentos) {
+      if (doc.cards) {
+        for (const card of doc.cards) {
+          if (card.plantilla && card.plantilla.customFonts) {
+            for (const font of card.plantilla.customFonts) {
+              if (font.nombre && font.data) {
+                tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+              }
+            }
+          }
+          if (card.plantillaTrasera && card.plantillaTrasera.customFonts) {
+            for (const font of card.plantillaTrasera.customFonts) {
+              if (font.nombre && font.data) {
+                tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+              }
+            }
+          }
+        }
+      }
+    }
+  } else if ((proyecto as any).cards) {
+    for (const card of (proyecto as any).cards) {
       if (card.plantilla && card.plantilla.customFonts) {
         for (const font of card.plantilla.customFonts) {
           if (font.nombre && font.data) {
@@ -183,7 +205,7 @@ function generarHtmlImpresion(
       }
 
       // Buscar si es una carta de plantilla
-      const cardData = proyecto.cards.find((c: Carta) => c.id === slot.cartaId);
+      const cardData = (activeDoc.cards || []).find((c: Carta) => c.id === slot.cartaId);
       if (cardData) {
         let plantilla = esTrasera ? cardData.plantillaTrasera : cardData.plantilla;
         if (!plantilla) {
@@ -589,19 +611,69 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
     if (!(await fs.pathExists(projectJsonPath))) {
       throw new Error("El archivo .cdc2 no contiene un project.json válido.");
     }
-    const proyecto: ProyectoCDC2 = await fs.readJson(projectJsonPath);
+    let proyecto: ProyectoCDC2 = await fs.readJson(projectJsonPath);
 
-    // 4. Calcular distribución de slots
+    // Asegurar compatibilidad convirtiendo a 2.1.0 si es necesario
+    if (!proyecto.documentos || proyecto.documentos.length === 0) {
+      const documentoId = "doc_default";
+      const doc = {
+        id: documentoId,
+        nombre: "Documento 1",
+        canvasConfig: (proyecto as any).canvasConfig || {
+          tipo: "A4",
+          anchoMm: 210,
+          altoMm: 297,
+          orientacion: "vertical",
+          margenTopMm: 8,
+          margenBottomMm: 8,
+          margenLeftMm: 8,
+          margenRightMm: 8,
+          lineasCorteContinuas: true,
+          marcasCorteEsquinas: true
+        },
+        cardConfig: (proyecto as any).cardConfig || {
+          anchoMm: 63.5,
+          altoMm: 88.9,
+          espaciadoXMm: 0,
+          espaciadoYMm: 0,
+          sangradoMm: 0,
+          bordeCorteMm: 0,
+          bordeCorteColor: "#000000",
+          modoAjuste: "cover",
+          reducirArteAlBorde: false
+        },
+        modoTraseras: (proyecto as any).modoTraseras || "ninguno",
+        imagenTraseraComun: (proyecto as any).imagenTraseraComun || null,
+        cards: (proyecto as any).cards || []
+      };
+
+      proyecto = {
+        version: "2.1.0",
+        meta: proyecto.meta || {
+          nombre: "Proyecto Migrado",
+          fechaCreacion: new Date().toISOString(),
+          fechaModificacion: new Date().toISOString()
+        },
+        documentos: [doc],
+        activeDocumentoId: documentoId,
+        templates: (proyecto as any).templates || {},
+        assets: (proyecto as any).assets || [],
+        customFonts: proyecto.customFonts || []
+      };
+    }
+
+    // 4. Calcular distribución de slots del documento activo
+    const activeDoc = proyecto.documentos.find((d: any) => d.id === proyecto.activeDocumentoId) || proyecto.documentos[0];
     const { paginasFrontales, paginasTraseras } = calcularDistribucion(
-      proyecto.canvasConfig,
-      proyecto.cardConfig,
-      proyecto.cards,
-      proyecto.modoTraseras,
-      proyecto.imagenTraseraComun
+      activeDoc.canvasConfig,
+      activeDoc.cardConfig,
+      activeDoc.cards || [],
+      activeDoc.modoTraseras,
+      activeDoc.imagenTraseraComun
     );
 
     // 5. Generar el HTML de impresión y guardarlo como archivo físico temporal para que Chromium lo acceda de forma nativa sin restricciones de seguridad
-    const html = generarHtmlImpresion(proyecto.canvasConfig, proyecto.cardConfig, paginasFrontales, paginasTraseras, tempDir, proyecto);
+    const html = generarHtmlImpresion(activeDoc.canvasConfig, activeDoc.cardConfig, paginasFrontales, paginasTraseras, tempDir, proyecto);
     const htmlPath = path.join(tempDir, "print.html");
     await fs.writeFile(htmlPath, html, "utf8");
 
@@ -637,8 +709,8 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
     // Configurar viewport exacto para evitar reajustes de Chromium basados en viewport por defecto
     const MM_TO_PX = 3.779527559;
     await page.setViewport({
-      width: Math.ceil(proyecto.canvasConfig.anchoMm * MM_TO_PX),
-      height: Math.ceil(proyecto.canvasConfig.altoMm * MM_TO_PX),
+      width: Math.ceil(activeDoc.canvasConfig.anchoMm * MM_TO_PX),
+      height: Math.ceil(activeDoc.canvasConfig.altoMm * MM_TO_PX),
       deviceScaleFactor: 1
     });
 
@@ -672,8 +744,8 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
 
     // 7. Generar el PDF respetando milimétricamente el canvas
     const pdfBuffer = await page.pdf({
-      width: `${proyecto.canvasConfig.anchoMm}mm`,
-      height: `${proyecto.canvasConfig.altoMm}mm`,
+      width: `${activeDoc.canvasConfig.anchoMm}mm`,
+      height: `${activeDoc.canvasConfig.altoMm}mm`,
       margin: { top: 0, bottom: 0, left: 0, right: 0 },
       printBackground: true
     });

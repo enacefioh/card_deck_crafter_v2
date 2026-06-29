@@ -10,20 +10,51 @@ export function validarYParsearProyecto(jsonText: string): any {
     throw new Error("El archivo no contiene un JSON válido.");
   }
 
-  if (proyecto.version !== "2.0.0") {
-    throw new Error("Versión de proyecto no soportada. Se requiere versión 2.0.0.");
+  if (proyecto.version !== "2.0.0" && proyecto.version !== "2.1.0") {
+    throw new Error("Versión de proyecto no soportada. Se requiere versión 2.0.0 o 2.1.0.");
   }
 
-  if (!proyecto.canvasConfig) {
-    throw new Error("Estructura de proyecto inválida. Falta la configuración del lienzo (canvasConfig).");
+  // Si es la versión clásica, migramos a la versión 2.1.0 multidocumento
+  if (proyecto.version === "2.0.0") {
+    if (!proyecto.canvasConfig) {
+      throw new Error("Estructura de proyecto inválida. Falta la configuración del lienzo (canvasConfig).");
+    }
+    if (!proyecto.cardConfig) {
+      throw new Error("Estructura de proyecto inválida. Falta la configuración de la carta (cardConfig).");
+    }
+    if (!Array.isArray(proyecto.cards)) {
+      throw new Error("Estructura de proyecto inválida. La sección de cartas (cards) debe ser una lista.");
+    }
+
+    const defaultDoc = {
+      id: "doc_default",
+      nombre: "Documento 1",
+      canvasConfig: proyecto.canvasConfig,
+      cardConfig: proyecto.cardConfig,
+      modoTraseras: proyecto.modoTraseras || "ninguno",
+      imagenTraseraComun: proyecto.imagenTraseraComun || null,
+      cards: proyecto.cards
+    };
+
+    proyecto.documentos = [defaultDoc];
+    proyecto.activeDocumentoId = "doc_default";
+    proyecto.version = "2.1.0";
+
+    // Opcionalmente eliminar los campos viejos de la raíz del JSON
+    delete proyecto.canvasConfig;
+    delete proyecto.cardConfig;
+    delete proyecto.modoTraseras;
+    delete proyecto.imagenTraseraComun;
+    delete proyecto.cards;
   }
 
-  if (!proyecto.cardConfig) {
-    throw new Error("Estructura de proyecto inválida. Falta la configuración de la carta (cardConfig).");
+  // Validaciones del formato 2.1.0
+  if (!Array.isArray(proyecto.documentos) || proyecto.documentos.length === 0) {
+    throw new Error("Estructura de proyecto inválida. El proyecto debe contener al menos un documento.");
   }
 
-  if (!Array.isArray(proyecto.cards)) {
-    throw new Error("Estructura de proyecto inválida. La sección de cartas (cards) debe ser una lista.");
+  if (!proyecto.activeDocumentoId) {
+    throw new Error("Estructura de proyecto inválida. No se ha definido el documento activo.");
   }
 
   return proyecto;
