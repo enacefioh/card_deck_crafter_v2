@@ -94,4 +94,38 @@ describe("EditCardModal Component - Zoom Tests", () => {
     const zoomText = screen.getByText("4.8x");
     expect(zoomText).toBeTruthy();
   });
+
+  it("permite añadir una capa de tipo Bloque Vacío en la plantilla", () => {
+    const handleSave = vi.fn();
+    render(
+      <EditCardModal
+        carta={mockCarta}
+        cardConfig={mockCardConfig}
+        templatesMap={mockTemplatesMap}
+        generarReversos={false}
+        imagenTraseraComun={null}
+        onSave={handleSave}
+        onClose={vi.fn()}
+      />
+    );
+    
+    const addBtn = screen.getByText("Añadir Elemento");
+    fireEvent.click(addBtn);
+    
+    const blockOption = screen.getByText("Bloque Vacío");
+    fireEvent.click(blockOption);
+    
+    const confirmBtn = screen.getByRole("button", { name: "Añadir" });
+    fireEvent.click(confirmBtn);
+    
+    const saveBtn = screen.getByText("Guardar Cambios");
+    fireEvent.click(saveBtn);
+    
+    expect(handleSave).toHaveBeenCalled();
+    const savedTemplate = handleSave.mock.calls[0][4];
+    const blockLayer = savedTemplate.capas.find((c: any) => c.tipo === "block");
+    expect(blockLayer).toBeDefined();
+    expect(blockLayer.nombre).toContain("bloque_");
+    expect(blockLayer.backgroundColor).toBe("");
+  });
 });

@@ -201,6 +201,34 @@ function generarHtmlImpresion(
               `;
             }
 
+            if (capa.tipo === "block") {
+              const overrides = cardData.capasOverrides?.[capa.id];
+              const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
+              // Bordes y Esquinas (SRS-024)
+              const borderTopMm = resolvedCapa.borderTopWidth || 0;
+              const borderRightMm = resolvedCapa.borderRightWidth || 0;
+              const borderBottomMm = resolvedCapa.borderBottomWidth || 0;
+              const borderLeftMm = resolvedCapa.borderLeftWidth || 0;
+
+              const radiusTopLeftMm = resolvedCapa.borderTopLeftRadius || 0;
+              const radiusTopRightMm = resolvedCapa.borderTopRightRadius || 0;
+              const radiusBottomRightMm = resolvedCapa.borderBottomRightRadius || 0;
+              const radiusBottomLeftMm = resolvedCapa.borderBottomLeftRadius || 0;
+
+              const borderTopStyle = borderTopMm > 0 ? `border-top: ${borderTopMm}mm solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+              const borderRightStyle = borderRightMm > 0 ? `border-right: ${borderRightMm}mm solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+              const borderBottomStyle = borderBottomMm > 0 ? `border-bottom: ${borderBottomMm}mm solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+              const borderLeftStyle = borderLeftMm > 0 ? `border-left: ${borderLeftMm}mm solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+
+              const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftMm}mm; border-top-right-radius: ${radiusTopRightMm}mm; border-bottom-right-radius: ${radiusBottomRightMm}mm; border-bottom-left-radius: ${radiusBottomLeftMm}mm;`;
+              const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
+
+              return `
+                <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; overflow: hidden; ${borderCornersCss}"></div>
+              `;
+            }
+
             if (capa.tipo === "container") {
               const overrides = cardData.capasOverrides?.[capa.id];
               const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;

@@ -214,6 +214,46 @@ export default function DetailModal({
                                 );
                               }
 
+                              if (capa.tipo === "block") {
+                                const overrides = carta.capasOverrides?.[capa.id];
+                                const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
+                                // Bordes y Esquinas (SRS-024)
+                                const borderTopPx = (resolvedCapa.borderTopWidth || 0) * 2.5;
+                                const borderRightPx = (resolvedCapa.borderRightWidth || 0) * 2.5;
+                                const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * 2.5;
+                                const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * 2.5;
+
+                                const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * 2.5;
+                                const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * 2.5;
+                                const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * 2.5;
+                                const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * 2.5;
+
+                                const borderCornersStyle = {
+                                  borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                                  borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                                  borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                                  borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                  borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                                  borderTopRightRadius: `${radiusTopRightPx}px`,
+                                  borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                                  borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                                  boxSizing: "border-box" as const,
+                                  overflow: "hidden" as const,
+                                };
+
+                                return (
+                                  <div
+                                    key={capa.id}
+                                    style={{
+                                      ...style,
+                                      ...borderCornersStyle,
+                                      backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                    }}
+                                  />
+                                );
+                              }
+
                               if (capa.tipo === "image" || capa.tipo === "image-switch") {
                                 const overrides = carta.capasOverrides?.[capa.id];
                                 const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
@@ -496,6 +536,46 @@ export default function DetailModal({
                                   >
                                     {renderCapaRecursiva(capa.id)}
                                   </div>
+                                );
+                              }
+
+                              if (capa.tipo === "block") {
+                                const overrides = carta.capasOverridesTrasera?.[capa.id];
+                                const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
+                                // Bordes y Esquinas (SRS-024)
+                                const borderTopPx = (resolvedCapa.borderTopWidth || 0) * 2.5;
+                                const borderRightPx = (resolvedCapa.borderRightWidth || 0) * 2.5;
+                                const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * 2.5;
+                                const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * 2.5;
+
+                                const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * 2.5;
+                                const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * 2.5;
+                                const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * 2.5;
+                                const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * 2.5;
+
+                                const borderCornersStyle = {
+                                  borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                                  borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                                  borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                                  borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                  borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                                  borderTopRightRadius: `${radiusTopRightPx}px`,
+                                  borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                                  borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                                  boxSizing: "border-box" as const,
+                                  overflow: "hidden" as const,
+                                };
+
+                                return (
+                                  <div
+                                    key={capa.id}
+                                    style={{
+                                      ...style,
+                                      ...borderCornersStyle,
+                                      backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                    }}
+                                  />
                                 );
                               }
 

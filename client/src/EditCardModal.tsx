@@ -98,7 +98,7 @@ export default function EditCardModal({
 
   // Popup de añadir elementos
   const [showAddElementPopup, setShowAddElementPopup] = useState<boolean>(false);
-  const [selectedNewType, setSelectedNewType] = useState<"text" | "image" | "image-switch" | "container">("text");
+  const [selectedNewType, setSelectedNewType] = useState<"text" | "image" | "image-switch" | "container" | "block">("text");
   const [showSwitchResourcesPopup, setShowSwitchResourcesPopup] = useState<boolean>(false);
   const [tempSwitchCapaId, setTempSwitchCapaId] = useState<string | null>(null);
   const [tempSelectedOptionIds, setTempSelectedOptionIds] = useState<string[]>([]);
@@ -309,6 +309,7 @@ export default function EditCardModal({
     const isImage = selectedNewType === "image";
     const isImageSwitch = selectedNewType === "image-switch";
     const isContainer = selectedNewType === "container";
+    const isBlock = selectedNewType === "block";
     const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newClave = `campo_${Date.now().toString().slice(-4)}`;
 
@@ -357,6 +358,31 @@ export default function EditCardModal({
         altoMm: 50,
         parentCapaId: null,
         layout: "none" as const,
+        backgroundColor: "",
+        borderTopWidth: 0,
+        borderRightWidth: 0,
+        borderBottomWidth: 0,
+        borderLeftWidth: 0,
+        borderTopColor: "#000000",
+        borderRightColor: "#000000",
+        borderBottomColor: "#000000",
+        borderLeftColor: "#000000",
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderBottomLeftRadius: 0
+      };
+    } else if (isBlock) {
+      newLayer = {
+        id: newId,
+        nombre: `bloque_${Date.now().toString().slice(-4)}`,
+        visible: true,
+        tipo: "block" as const,
+        xMm: Math.round((cardConfig.anchoMm * 0.1) * 10) / 10,
+        yMm: Math.round((cardConfig.altoMm * 0.1) * 10) / 10,
+        anchoMm: 20,
+        altoMm: 20,
+        parentCapaId: null,
         backgroundColor: "",
         borderTopWidth: 0,
         borderRightWidth: 0,
@@ -1473,6 +1499,9 @@ export default function EditCardModal({
                       } else if (capa.tipo === "container") {
                         title = capa.nombre;
                         subtitle = capa.layout === "vertical" ? "Contenedor Vertical" : capa.layout === "horizontal" ? "Contenedor Horizontal" : "Contenedor Libre";
+                      } else if (capa.tipo === "block") {
+                        title = capa.nombre || "Bloque";
+                        subtitle = "Bloque Vacío";
                       }
 
                       // Calcular profundidad de anidación para margen/indentación
@@ -1529,7 +1558,7 @@ export default function EditCardModal({
                             <span className="collapse-placeholder" />
                           )}
                           <span className="hierarchy-icon">
-                            {capa.tipo === "background" ? "🎨" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : "📝"}
+                            {capa.tipo === "background" ? "🎨" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : capa.tipo === "block" ? "⬜" : "📝"}
                           </span>
                           <div className="hierarchy-text-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                             <span className="hierarchy-label" style={{ fontWeight: 600, fontSize: "13px" }}>{title}</span>
@@ -1742,6 +1771,52 @@ export default function EditCardModal({
                               style={{
                                 ...layerStyle,
                                 backgroundColor: colorFill,
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedLayerId(capa.id);
+                              }}
+                              onMouseEnter={() => setHoveredLayerId(capa.id)}
+                              onMouseLeave={() => setHoveredLayerId(null)}
+                            />
+                          );
+                        }
+
+                        if (capa.tipo === "block") {
+                          const overrides = tempCapasOverridesActivos[capa.id];
+                          const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
+                          // Bordes y Esquinas (SRS-024)
+                          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * scale;
+                          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * scale;
+                          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * scale;
+                          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * scale;
+
+                          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * scale;
+                          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * scale;
+                          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * scale;
+                          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * scale;
+
+                          const borderCornersStyle = {
+                            borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
+                            borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
+                            borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
+                            borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                            borderTopLeftRadius: `${radiusTopLeftPx}px`,
+                            borderTopRightRadius: `${radiusTopRightPx}px`,
+                            borderBottomRightRadius: `${radiusBottomRightPx}px`,
+                            borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
+                            boxSizing: "border-box" as const,
+                            overflow: "hidden" as const,
+                          };
+
+                          return (
+                            <div
+                              key={capa.id}
+                              style={{
+                                ...layerStyle,
+                                ...borderCornersStyle,
+                                backgroundColor: resolvedCapa.backgroundColor || "transparent",
                               }}
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1984,14 +2059,14 @@ export default function EditCardModal({
                 <div className="inspector-panel">
                   <div className="inspector-layer-header">
                     <span className="inspector-layer-icon">
-                      {selectedCapa.tipo === "background" ? "🎨" : (selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") ? "🖼️" : selectedCapa.tipo === "container" ? "📦" : "📝"}
+                      {selectedCapa.tipo === "background" ? "🎨" : (selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") ? "🖼️" : selectedCapa.tipo === "container" ? "📦" : selectedCapa.tipo === "block" ? "⬜" : "📝"}
                     </span>
                     <h3>{selectedCapa.nombre}</h3>
                   </div>
                   <hr className="inspector-separator" />
 
-                  {/* Sub-pestañas si es capa de texto, imagen o contenedor */}
-                  {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container") && (
+                  {/* Sub-pestañas si es capa de texto, imagen, contenedor o bloque */}
+                  {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "block") && (
                     <div className="inspector-tabs">
                       <button
                         type="button"
@@ -2011,13 +2086,20 @@ export default function EditCardModal({
                   )}
 
                   {/* CONTENIDO TAB */}
-                  {inspectorTab === "contenido" || (selectedCapa.tipo !== "text" && selectedCapa.tipo !== "image" && selectedCapa.tipo !== "image-switch" && selectedCapa.tipo !== "container") ? (
+                  {inspectorTab === "contenido" || (selectedCapa.tipo !== "text" && selectedCapa.tipo !== "image" && selectedCapa.tipo !== "image-switch" && selectedCapa.tipo !== "container" && selectedCapa.tipo !== "block") ? (
                     <>
                       {/* Controles para capas de Contenedor (Mensaje informativo en pestaña contenido) */}
                       {selectedCapa.tipo === "container" && (
                         <div className="inspector-section">
                           <p style={{ fontSize: "12.5px", color: "var(--text-secondary)", margin: 0, lineHeight: 1.4 }}>
                             Los contenedores no poseen contenido de variables. Configura su alineación, dimensiones y estilos estéticos en la pestaña de <strong>Diseño</strong>.
+                          </p>
+                        </div>
+                      )}
+                      {selectedCapa.tipo === "block" && (
+                        <div className="inspector-section">
+                          <p style={{ fontSize: "12.5px", color: "var(--text-secondary)", margin: 0, lineHeight: 1.4 }}>
+                            Los bloques vacíos no poseen contenido de variables. Configura sus dimensiones, colores de fondo y bordes en la pestaña de <strong>Diseño</strong>.
                           </p>
                         </div>
                       )}
@@ -3297,6 +3379,13 @@ export default function EditCardModal({
               >
                 <span className="add-element-option-icon">📦</span>
                 <span className="add-element-option-label">Contenedor</span>
+              </div>
+              <div
+                className={`add-element-option ${selectedNewType === "block" ? "selected" : ""}`}
+                onClick={() => setSelectedNewType("block")}
+              >
+                <span className="add-element-option-icon">⬜</span>
+                <span className="add-element-option-label">Bloque Vacío</span>
               </div>
             </div>
 

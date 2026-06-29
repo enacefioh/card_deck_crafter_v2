@@ -242,6 +242,34 @@ function generarHtmlImpresion(
                 `;
               }
 
+              if (capa.tipo === "block") {
+                const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
+                const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
+                // Bordes y Esquinas (SRS-024)
+                const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
+                const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
+                const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
+                const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
+
+                const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
+                const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
+                const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
+                const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
+
+                const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
+                const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
+                const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
+                const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
+
+                const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
+                const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
+
+                return `
+                  <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; overflow: hidden; ${borderCornersCss}"></div>
+                `;
+              }
+
               if (capa.tipo === "container") {
                 const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
                 const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
