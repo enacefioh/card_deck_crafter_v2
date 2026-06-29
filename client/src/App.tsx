@@ -120,6 +120,15 @@ export default function App() {
     setIsDirty(true);
   };
 
+  // --- Estados de Tipografías del Proyecto (SRS-026) ---
+  const [projectFonts, setProjectFontsInternal] = useState<any[]>([]);
+  const [showProjectFonts, setShowProjectFonts] = useState<boolean>(false);
+
+  const setProjectFonts = (value: React.SetStateAction<any[]>) => {
+    setProjectFontsInternal(value);
+    setIsDirty(true);
+  };
+
   const setCanvasConfig = (value: React.SetStateAction<CanvasConfig>) => {
     setCanvasConfigInternal(value);
     setIsDirty(true);
@@ -319,6 +328,65 @@ export default function App() {
       setProjectAssets((prev) =>
         prev.map((a) => (a.id === id ? { ...a, nombre: nuevoNombre.trim() } : a))
       );
+    }
+  };
+
+  // --- Funciones para las Tipografías del Proyecto (SRS-026) ---
+  const handleUploadProjectFonts = (files: FileList) => {
+    const validExtensions = [".ttf", ".otf", ".woff", ".woff2"];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+      if (!validExtensions.includes(ext)) {
+        alert(`El archivo "${file.name}" no es una tipografía soportada (.ttf, .otf, .woff, .woff2).`);
+        continue;
+      }
+      
+      const familyName = file.name
+        .substring(0, file.name.lastIndexOf("."))
+        .replace(/[^a-zA-Z0-9_-]/g, "");
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        const base64Data = result.split(",")[1];
+        
+        const fontSrc = URL.createObjectURL(file);
+        
+        const newFont = {
+          id: `proj_font_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          nombre: familyName,
+          filename: file.name,
+          type: file.type || `font/${ext.replace(".", "")}`,
+          data: base64Data,
+          src: fontSrc
+        };
+        
+        setProjectFonts((prev) => [...prev, newFont]);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDeleteProjectFont = (id: string) => {
+    const font = projectFonts.find((f) => f.id === id);
+    if (!font) return;
+    if (window.confirm(`¿Estás seguro de que deseas eliminar la tipografía "${font.nombre}"?`)) {
+      if (font.src) {
+        URL.revokeObjectURL(font.src);
+      }
+      setProjectFonts((prev) => prev.filter((f) => f.id !== id));
+    }
+  };
+
+  const handleRenameProjectFont = (id: string) => {
+    const font = projectFonts.find((f) => f.id === id);
+    if (!font) return;
+    const nuevoNombre = window.prompt("Introduce el nuevo nombre de la familia de fuentes (sin espacios ni caracteres especiales):", font.nombre);
+    if (nuevoNombre) {
+      const sanitized = nuevoNombre.replace(/[^a-zA-Z0-9_-]/g, "").trim();
+      if (!sanitized) return;
+      setProjectFonts((prev) => prev.map((f) => f.id === id ? { ...f, nombre: sanitized } : f));
     }
   };
 
@@ -728,6 +796,13 @@ export default function App() {
       cards: processedCards,
       templates: processedTemplatesMap,
       assets: processedProjectAssets,
+      customFonts: projectFonts.map((f: any) => ({
+        id: f.id,
+        nombre: f.nombre,
+        filename: f.filename,
+        type: f.type,
+        data: f.data
+      }))
     };
 
     zip.file("project.json", JSON.stringify(proyecto, null, 2));
@@ -824,6 +899,10 @@ export default function App() {
       if (imagenTraseraComun) {
         URL.revokeObjectURL(imagenTraseraComun);
       }
+      projectFonts.forEach((f) => {
+        if (f.src) URL.revokeObjectURL(f.src);
+      });
+      setProjectFontsInternal([]);
 
       const cacheBlobUrls = new Map<string, string>();
       const matchesAssetScheme = (src: string | null | undefined): boolean => {
@@ -1081,6 +1160,67 @@ export default function App() {
         }
       }
       setProjectAssetsInternal(nuevosProjectAssets);
+
+      // Cargar tipografías del proyecto (SRS-026)
+      const nuevosProjectFonts: any[] = [];
+      if (proyecto.customFonts) {
+        for (const font of proyecto.customFonts) {
+          if (font.data) {
+            try {
+              const byteCharacters = atob(font.data);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              const blob = new Blob([byteArray], { type: font.type });
+              const fontSrc = URL.createObjectURL(blob);
+              
+              nuevosProjectFonts.push({
+                id: font.id,
+                nombre: font.nombre,
+                filename: font.filename,
+                type: font.type,
+                data: font.data,
+                src: fontSrc
+              });
+            } catch (err) {
+              console.error("Error al cargar tipografía de proyecto:", font.nombre, err);
+            }
+          }
+        }
+      }
+      setProjectFontsInternal(nuevosProjectFonts);
+
+      // Decodificar tipografías en plantillas de cartas
+      const decodeTemplateFonts = (t: any) => {
+        if (!t || !t.customFonts) return;
+        for (const font of t.customFonts) {
+          if (font.data && !font.src) {
+            try {
+              const byteCharacters = atob(font.data);
+              const byteNumbers = new Array(byteCharacters.length);
+              for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+              }
+              const byteArray = new Uint8Array(byteNumbers);
+              const blob = new Blob([byteArray], { type: font.type });
+              font.src = URL.createObjectURL(blob);
+            } catch (err) {
+              console.error("Error al cargar tipografía de plantilla:", font.nombre, err);
+            }
+          }
+        }
+      };
+
+      for (const card of nuevasCartas) {
+        if (card.plantilla) decodeTemplateFonts(card.plantilla);
+        if (card.plantillaTrasera) decodeTemplateFonts(card.plantillaTrasera);
+      }
+
+      for (const tId of Object.keys(loadedTemplatesMap)) {
+        decodeTemplateFonts(loadedTemplatesMap[tId]);
+      }
 
       setTemplatesMap((prev) => ({
         ...prev,
@@ -1709,12 +1849,21 @@ export default function App() {
 
   return (
     <div className="app-layout">
+      <style>
+        {projectFonts.map((font: any) => `
+          @font-face {
+            font-family: '${font.nombre}';
+            src: url('${font.src}');
+          }
+        `).join("\n")}
+      </style>
       <MenuBar
         onNuevoProyecto={handleNuevoProyecto}
         onCargarProyectoClick={() => fileInputProyectoRef.current?.click()}
         onImportarPlantillaClick={() => fileInputTemplateRef.current?.click()}
         onGuardarProyecto={handleGuardarProyecto}
         onShowProjectGallery={() => setShowProjectGallery(true)}
+        onShowProjectFonts={() => setShowProjectFonts(true)}
         onShowProjectConfig={() => setShowProjectConfig(true)}
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
         onExportarPdf={handleExportarPdf}
@@ -2889,6 +3038,7 @@ export default function App() {
             });
           }}
           projectAssets={projectAssets}
+          projectFonts={projectFonts}
         />
       )}
       {showTemplateModal && (
@@ -3093,6 +3243,114 @@ export default function App() {
                 className="btn-primary"
                 style={{ padding: "6px 16px", fontSize: "12px" }}
                 onClick={() => setShowProjectGallery(false)}
+              >
+                Listo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProjectFonts && (
+        <div className="gallery-popup-backdrop" onClick={() => setShowProjectFonts(false)}>
+          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+            <div className="gallery-popup-title-bar">
+              <h4 className="gallery-popup-title">Tipografías del Proyecto</h4>
+              <button
+                type="button"
+                className="btn-close-modal"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+                onClick={() => setShowProjectFonts(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="gallery-popup-subtitle">
+              Tipografías personalizadas compartidas en todo el proyecto
+            </p>
+
+            <div
+              className="gallery-manager-dropzone"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files) {
+                  handleUploadProjectFonts(e.dataTransfer.files);
+                }
+              }}
+            >
+              <input
+                type="file"
+                multiple
+                accept=".ttf,.otf,.woff,.woff2"
+                id="project-fonts-file-upload"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleUploadProjectFonts(e.target.files);
+                  }
+                }}
+              />
+              <label htmlFor="project-fonts-file-upload" className="gallery-dropzone-label">
+                <span style={{ fontSize: "20px", marginBottom: "4px" }}>📤</span>
+                <span>Arrastra tipografías aquí o haz clic para subir</span>
+                <span className="gallery-dropzone-subtext">Formatos permitidos: TTF, OTF, WOFF, WOFF2</span>
+              </label>
+            </div>
+
+            <div className="gallery-assets-grid">
+              {projectFonts && projectFonts.length > 0 ? (
+                projectFonts.map((font: any) => (
+                  <div key={font.id} className="gallery-asset-item" title={font.filename}>
+                    <button
+                      type="button"
+                      className="gallery-asset-delete-btn"
+                      onClick={() => handleDeleteProjectFont(font.id)}
+                      title="Eliminar tipografía del proyecto"
+                    >
+                      ✕
+                    </button>
+                    <div className="gallery-asset-thumb-container" style={{ display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-secondary)", height: "80px", fontSize: "28px", color: "var(--text-primary)" }}>
+                      <span style={{ fontFamily: `'${font.nombre}'` }}>Aa</span>
+                    </div>
+                    <div className="gallery-asset-name" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "4px", padding: "4px 8px" }}>
+                      <span className="truncate" style={{ flex: 1, textAlign: "left" }} title={font.nombre}>{font.nombre}</span>
+                      <button
+                        type="button"
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", padding: 0 }}
+                        onClick={() => handleRenameProjectFont(font.id)}
+                        title="Renombrar Familia"
+                      >
+                        ✏️
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{
+                  gridColumn: "1 / -1",
+                  padding: "40px 20px",
+                  textAlign: "center",
+                  color: "var(--text-secondary)",
+                  fontSize: "12px"
+                }}>
+                  No hay tipografías en la galería del proyecto. Arrastra archivos arriba para empezar.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: "6px 16px", fontSize: "12px" }}
+                onClick={() => setShowProjectFonts(false)}
               >
                 Listo
               </button>

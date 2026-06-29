@@ -35,6 +35,55 @@ function generarHtmlImpresion(
   tempDir: string,
   proyecto: ProyectoCDC2
 ): string {
+  // Recopilar todas las tipografías para inyectarlas como data URIs base64
+  const tipografiasMap = new Map<string, { nombre: string; type: string; data: string }>();
+
+  if (proyecto.customFonts) {
+    for (const font of proyecto.customFonts) {
+      if (font.nombre && font.data) {
+        tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+      }
+    }
+  }
+
+  if (proyecto.templates) {
+    for (const template of Object.values(proyecto.templates)) {
+      if (template && (template as any).customFonts) {
+        for (const font of (template as any).customFonts) {
+          if (font.nombre && font.data) {
+            tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+          }
+        }
+      }
+    }
+  }
+
+  if (proyecto.cards) {
+    for (const card of proyecto.cards) {
+      if (card.plantilla && card.plantilla.customFonts) {
+        for (const font of card.plantilla.customFonts) {
+          if (font.nombre && font.data) {
+            tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+          }
+        }
+      }
+      if (card.plantillaTrasera && card.plantillaTrasera.customFonts) {
+        for (const font of card.plantillaTrasera.customFonts) {
+          if (font.nombre && font.data) {
+            tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+          }
+        }
+      }
+    }
+  }
+
+  const fontRules = Array.from(tipografiasMap.values()).map((font) => `
+    @font-face {
+      font-family: '${font.nombre}';
+      src: url('data:${font.type};base64,${font.data}');
+    }
+  `).join("\n");
+
   const wMm = canvasConfig.anchoMm;
   const hMm = canvasConfig.altoMm;
   
@@ -310,6 +359,7 @@ function generarHtmlImpresion(
     <head>
       <meta charset="utf-8">
       <style>
+        ${fontRules}
         @page { size: ${wMm}mm ${hMm}mm; margin: 0; }
         body { margin: 0; padding: 0; background-color: #ffffff; }
         .page { width: ${wMm}mm; height: ${hMm}mm; position: relative; page-break-after: always; overflow: hidden; }

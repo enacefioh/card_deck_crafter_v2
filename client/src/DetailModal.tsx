@@ -57,9 +57,26 @@ export default function DetailModal({
   // Imagen trasera a usar: individual si existe, si no, la común
   const traseraUrl = carta.imagenTrasera || imagenTraseraComun;
 
+  const templateFront = carta.plantilla || (carta.plantillaId && templatesMap ? templatesMap[carta.plantillaId] : null);
+  const templateBack = carta.plantillaTrasera || (carta.plantillaTraseraId && templatesMap ? templatesMap[carta.plantillaTraseraId] : null);
+
   return (
     <div className="detail-modal-backdrop" onClick={onClose}>
       <div className="detail-modal-container" onClick={(e) => e.stopPropagation()}>
+        <style>
+          {((templateFront?.customFonts || []) as any[]).map((font) => `
+            @font-face {
+              font-family: '${font.nombre}';
+              src: url('${font.src || ""}');
+            }
+          `).join("\n")}
+          {((templateBack?.customFonts || []) as any[]).map((font) => `
+            @font-face {
+              font-family: '${font.nombre}';
+              src: url('${font.src || ""}');
+            }
+          `).join("\n")}
+        </style>
         <header className="detail-modal-header">
           <h2>Ficha de Carta: {carta.nombre}</h2>
           <button className="detail-modal-close" onClick={onClose} title="Cerrar modal">

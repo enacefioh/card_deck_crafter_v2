@@ -58,6 +58,55 @@ function generarHtmlImpresion(
   tempDir: string,
   proyecto: ProyectoCDC2
 ): string {
+  // Recopilar todas las tipografías para inyectarlas como data URIs base64
+  const tipografiasMap = new Map<string, { nombre: string; type: string; data: string }>();
+
+  if (proyecto.customFonts) {
+    for (const font of proyecto.customFonts) {
+      if (font.nombre && font.data) {
+        tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+      }
+    }
+  }
+
+  if (proyecto.templates) {
+    for (const template of Object.values(proyecto.templates)) {
+      if (template && (template as any).customFonts) {
+        for (const font of (template as any).customFonts) {
+          if (font.nombre && font.data) {
+            tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+          }
+        }
+      }
+    }
+  }
+
+  if (proyecto.cards) {
+    for (const card of proyecto.cards) {
+      if (card.plantilla && card.plantilla.customFonts) {
+        for (const font of card.plantilla.customFonts) {
+          if (font.nombre && font.data) {
+            tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+          }
+        }
+      }
+      if (card.plantillaTrasera && card.plantillaTrasera.customFonts) {
+        for (const font of card.plantillaTrasera.customFonts) {
+          if (font.nombre && font.data) {
+            tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
+          }
+        }
+      }
+    }
+  }
+
+  const fontRules = Array.from(tipografiasMap.values()).map((font) => `
+    @font-face {
+      font-family: '${font.nombre}';
+      src: url('data:${font.type};base64,${font.data}');
+    }
+  `).join("\n");
+
   const wMm = canvasConfig.anchoMm;
   const hMm = canvasConfig.altoMm;
   
@@ -396,6 +445,7 @@ function generarHtmlImpresion(
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
       <style>
+        ${fontRules}
         @page {
           size: ${wMm}mm ${hMm}mm;
           margin: 0;
@@ -549,7 +599,7 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
     page.on("console", (msg) => {
       console.log(`[PUPPETEER CONSOLE] [${msg.type()}] ${msg.text()}`);
     });
-    page.on("pageerror", (err) => {
+    page.on("pageerror", (err: any) => {
       console.error(`[PUPPETEER PAGE ERROR] ${err.toString()}`);
     });
     page.on("requestfailed", (req) => {

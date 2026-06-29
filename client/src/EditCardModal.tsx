@@ -23,6 +23,7 @@ interface EditCardModalProps {
   initialZoom?: number;
   onAssignBackTemplate?: () => void;
   projectAssets?: any[];
+  projectFonts?: any[];
 }
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
@@ -57,6 +58,7 @@ export default function EditCardModal({
   initialZoom,
   onAssignBackTemplate,
   projectAssets = [],
+  projectFonts = [],
 }: EditCardModalProps) {
   // --- Estados de Plantilla Editables Localmente ---
   const [tempPlantilla, setTempPlantilla] = useState<any>(() => {
@@ -116,6 +118,7 @@ export default function EditCardModal({
 
   // Estados para Galería de la Plantilla (SRS-020)
   const [showGalleryManager, setShowGalleryManager] = useState<boolean>(false);
+  const [showTemplateFonts, setShowTemplateFonts] = useState<boolean>(false);
   const [showGallerySelector, setShowGallerySelector] = useState<boolean>(false);
   const [activeSelectorTarget, setActiveSelectorTarget] = useState<{ type: "override" | "default"; capaId: string } | null>(null);
 
@@ -651,6 +654,122 @@ export default function EditCardModal({
       setTempPlantilla(updater);
     } else {
       setTempPlantillaTrasera(updater);
+    }
+  };
+
+  // --- Funciones para Tipografías de la Plantilla (SRS-026) ---
+  const handleUploadTemplateFonts = (files: FileList) => {
+    const validExtensions = [".ttf", ".otf", ".woff", ".woff2"];
+    const newFonts: any[] = [];
+    
+    let filesProcessed = 0;
+    const processFile = (file: File) => {
+      const ext = file.name.substring(file.name.lastIndexOf(".")).toLowerCase();
+      if (!validExtensions.includes(ext)) {
+        alert(`El archivo "${file.name}" no es una tipografía soportada (.ttf, .otf, .woff, .woff2).`);
+        filesProcessed++;
+        if (filesProcessed === files.length && newFonts.length > 0) {
+          applyNewFonts();
+        }
+        return;
+      }
+      
+      const familyName = file.name
+        .substring(0, file.name.lastIndexOf("."))
+        .replace(/[^a-zA-Z0-9_-]/g, "");
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const result = e.target?.result as string;
+        const base64Data = result.split(",")[1];
+        
+        const fontSrc = URL.createObjectURL(file);
+        
+        newFonts.push({
+          id: `font_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+          nombre: familyName,
+          filename: file.name,
+          type: file.type || `font/${ext.replace(".", "")}`,
+          data: base64Data,
+          src: fontSrc
+        });
+
+        filesProcessed++;
+        if (filesProcessed === files.length) {
+          applyNewFonts();
+        }
+      };
+      reader.readAsDataURL(file);
+    };
+
+    const applyNewFonts = () => {
+      const updater = (prev: any) => {
+        if (!prev) return prev;
+        const currentFonts = prev.customFonts || [];
+        return {
+          ...prev,
+          customFonts: [...currentFonts, ...newFonts]
+        };
+      };
+      if (activeTab === "frontal") {
+        setTempPlantilla(updater);
+      } else {
+        setTempPlantillaTrasera(updater);
+      }
+    };
+
+    if (files.length === 0) return;
+    for (let i = 0; i < files.length; i++) {
+      processFile(files[i]);
+    }
+  };
+
+  const handleDeleteTemplateFont = (fontId: string) => {
+    const targetFont = (plantillaActiva?.customFonts || []).find((f: any) => f.id === fontId);
+    if (!targetFont) return;
+    
+    if (window.confirm(`¿Estás seguro de que deseas eliminar la tipografía "${targetFont.nombre}"?`)) {
+      if (targetFont.src) {
+        URL.revokeObjectURL(targetFont.src);
+      }
+      const updater = (prev: any) => {
+        if (!prev) return prev;
+        const currentFonts = prev.customFonts || [];
+        return {
+          ...prev,
+          customFonts: currentFonts.filter((f: any) => f.id !== fontId)
+        };
+      };
+      if (activeTab === "frontal") {
+        setTempPlantilla(updater);
+      } else {
+        setTempPlantillaTrasera(updater);
+      }
+    }
+  };
+
+  const handleRenameTemplateFont = (fontId: string) => {
+    const targetFont = (plantillaActiva?.customFonts || []).find((f: any) => f.id === fontId);
+    if (!targetFont) return;
+    
+    const nuevoNombre = window.prompt("Introduce el nuevo nombre de la familia de fuentes (sin espacios ni caracteres especiales):", targetFont.nombre);
+    if (nuevoNombre) {
+      const sanitized = nuevoNombre.replace(/[^a-zA-Z0-9_-]/g, "").trim();
+      if (!sanitized) return;
+      
+      const updater = (prev: any) => {
+        if (!prev) return prev;
+        const currentFonts = prev.customFonts || [];
+        return {
+          ...prev,
+          customFonts: currentFonts.map((f: any) => f.id === fontId ? { ...f, nombre: sanitized } : f)
+        };
+      };
+      if (activeTab === "frontal") {
+        setTempPlantilla(updater);
+      } else {
+        setTempPlantillaTrasera(updater);
+      }
     }
   };
 
@@ -1230,6 +1349,20 @@ export default function EditCardModal({
   return (
     <div className="edit-modal-backdrop" onClick={handleCancel}>
       <div className="edit-modal-container" onClick={(e) => e.stopPropagation()}>
+        <style>
+          {((tempPlantilla?.customFonts || []) as any[]).map((font) => `
+            @font-face {
+              font-family: '${font.nombre}';
+              src: url('${font.src || ""}');
+            }
+          `).join("\n")}
+          {((tempPlantillaTrasera?.customFonts || []) as any[]).map((font) => `
+            @font-face {
+              font-family: '${font.nombre}';
+              src: url('${font.src || ""}');
+            }
+          `).join("\n")}
+        </style>
         
         {/* Cabecera del modal */}
         <header className="edit-modal-header">
@@ -1979,6 +2112,20 @@ export default function EditCardModal({
                               <option value="Arial">Arial</option>
                               <option value="Times New Roman">Times New Roman</option>
                               <option value="Courier New">Courier New (Monospace)</option>
+                              {projectFonts && projectFonts.length > 0 && (
+                                <optgroup label="Fuentes del Proyecto">
+                                  {projectFonts.map((f: any) => (
+                                    <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {plantillaActiva?.customFonts && plantillaActiva.customFonts.length > 0 && (
+                                <optgroup label="Fuentes de la Plantilla">
+                                  {plantillaActiva.customFonts.map((f: any) => (
+                                    <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                                  ))}
+                                </optgroup>
+                              )}
                             </select>
                           </div>
 
@@ -2730,6 +2877,20 @@ export default function EditCardModal({
                               <option value="Arial">Arial</option>
                               <option value="Times New Roman">Times New Roman</option>
                               <option value="Courier New">Courier New (Monospace)</option>
+                              {projectFonts && projectFonts.length > 0 && (
+                                <optgroup label="Fuentes del Proyecto">
+                                  {projectFonts.map((f: any) => (
+                                    <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                                  ))}
+                                </optgroup>
+                              )}
+                              {plantillaActiva?.customFonts && plantillaActiva.customFonts.length > 0 && (
+                                <optgroup label="Fuentes de la Plantilla">
+                                  {plantillaActiva.customFonts.map((f: any) => (
+                                    <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                                  ))}
+                                </optgroup>
+                              )}
                             </select>
                           </div>
 
@@ -3063,13 +3224,22 @@ export default function EditCardModal({
 
             {/* Botón Galería de la Plantilla */}
             {plantillaActiva && (
-              <div className="inspector-footer-gallery">
+              <div className="inspector-footer-gallery" style={{ display: "flex", gap: "8px" }}>
                 <button
                   type="button"
                   className="btn-gallery-manager-trigger"
                   onClick={() => setShowGalleryManager(true)}
+                  style={{ flex: 1 }}
                 >
-                  🖼️ Galería de la Plantilla
+                  🖼️ Galería
+                </button>
+                <button
+                  type="button"
+                  className="btn-gallery-manager-trigger"
+                  onClick={() => setShowTemplateFonts(true)}
+                  style={{ flex: 1 }}
+                >
+                  🔤 Fuentes
                 </button>
               </div>
             )}
@@ -3228,6 +3398,114 @@ export default function EditCardModal({
                 className="btn-primary"
                 style={{ padding: "6px 16px", fontSize: "12px" }}
                 onClick={() => setShowGalleryManager(false)}
+              >
+                Listo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTemplateFonts && plantillaActiva && (
+        <div className="gallery-popup-backdrop" onClick={() => setShowTemplateFonts(false)}>
+          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+            <div className="gallery-popup-title-bar">
+              <h4 className="gallery-popup-title">Tipografías de la Plantilla</h4>
+              <button
+                type="button"
+                className="btn-close-modal"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+                onClick={() => setShowTemplateFonts(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="gallery-popup-subtitle">
+              Tipografías personalizadas exclusivas de esta plantilla
+            </p>
+
+            <div
+              className="gallery-manager-dropzone"
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={(e) => {
+                e.preventDefault();
+                if (e.dataTransfer.files) {
+                  handleUploadTemplateFonts(e.dataTransfer.files);
+                }
+              }}
+            >
+              <input
+                type="file"
+                multiple
+                accept=".ttf,.otf,.woff,.woff2"
+                id="template-fonts-file-upload"
+                style={{ display: "none" }}
+                onChange={(e) => {
+                  if (e.target.files) {
+                    handleUploadTemplateFonts(e.target.files);
+                  }
+                }}
+              />
+              <label htmlFor="template-fonts-file-upload" className="gallery-dropzone-label">
+                <span style={{ fontSize: "20px", marginBottom: "4px" }}>📤</span>
+                <span>Arrastra tipografías aquí o haz clic para subir</span>
+                <span className="gallery-dropzone-subtext">Formatos permitidos: TTF, OTF, WOFF, WOFF2</span>
+              </label>
+            </div>
+
+            <div className="gallery-assets-grid">
+              {plantillaActiva.customFonts && plantillaActiva.customFonts.length > 0 ? (
+                (plantillaActiva.customFonts as any[]).map((font) => (
+                  <div key={font.id} className="gallery-asset-item" title={font.filename}>
+                    <button
+                      type="button"
+                      className="gallery-asset-delete-btn"
+                      onClick={() => handleDeleteTemplateFont(font.id)}
+                      title="Eliminar tipografía de la plantilla"
+                    >
+                      ✕
+                    </button>
+                    <div className="gallery-asset-thumb-container" style={{ display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-secondary)", height: "80px", fontSize: "28px", color: "var(--text-primary)" }}>
+                      <span style={{ fontFamily: `'${font.nombre}'` }}>Aa</span>
+                    </div>
+                    <div className="gallery-asset-name" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "4px", padding: "4px 8px" }}>
+                      <span className="truncate" style={{ flex: 1, textAlign: "left" }} title={font.nombre}>{font.nombre}</span>
+                      <button
+                        type="button"
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", padding: 0 }}
+                        onClick={() => handleRenameTemplateFont(font.id)}
+                        title="Renombrar Familia"
+                      >
+                        ✏️
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{
+                  gridColumn: "1 / -1",
+                  padding: "40px 20px",
+                  textAlign: "center",
+                  color: "var(--text-secondary)",
+                  fontSize: "12px"
+                }}>
+                  No hay tipografías en la galería de esta plantilla. Arrastra archivos arriba para empezar.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: "6px 16px", fontSize: "12px" }}
+                onClick={() => setShowTemplateFonts(false)}
               >
                 Listo
               </button>

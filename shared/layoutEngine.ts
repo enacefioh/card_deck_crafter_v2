@@ -61,6 +61,7 @@ export interface Carta {
       nombre: string;
       src: string;
     }>;
+    customFonts?: CustomFont[];
   };
   plantillaTrasera?: {
     id: string;
@@ -72,7 +73,17 @@ export interface Carta {
       nombre: string;
       src: string;
     }>;
+    customFonts?: CustomFont[];
   };
+}
+
+export interface CustomFont {
+  id: string;
+  nombre: string;
+  filename: string;
+  type: string;
+  data?: string; // base64
+  src?: string;  // Object URL runtime
 }
 
 export interface ProjectAsset {
@@ -95,6 +106,7 @@ export interface ProyectoCDC2 {
   cards: Carta[];
   templates?: Record<string, any>;
   assets?: ProjectAsset[];
+  customFonts?: CustomFont[];
 }
 
 export interface LayoutSlot {

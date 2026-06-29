@@ -21,6 +21,7 @@ interface MenuBarProps {
   onImportarPlantillaClick: () => void;
   onShowProjectGallery?: () => void;
   onShowProjectConfig?: () => void;
+  onShowProjectFonts?: () => void;
 
   // Acciones de Selección
   selectedCount: number;
@@ -57,6 +58,7 @@ export default function MenuBar({
   onImportarPlantillaClick,
   onShowProjectGallery,
   onShowProjectConfig,
+  onShowProjectFonts,
   selectedCount,
   puedeMoverArriba,
   puedeMoverAbajo,
@@ -154,6 +156,12 @@ export default function MenuBar({
                 onClick={() => handleAction(onShowProjectGallery || (() => {}))}
               >
                 <span className="menu-item-icon">🖼️</span> Galería del Proyecto...
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onShowProjectFonts || (() => {}))}
+              >
+                <span className="menu-item-icon">🔤</span> Tipografías del Proyecto...
               </button>
               <button
                 className="menu-item"
