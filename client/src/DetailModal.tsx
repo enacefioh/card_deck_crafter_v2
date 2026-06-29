@@ -232,10 +232,10 @@ export default function DetailModal({
                                 const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * 2.5;
 
                                 const borderCornersStyle = {
-                                  borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
-                                  borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
-                                  borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
-                                  borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                  borderTop: showPlaceholder ? "1px dashed #cbd5e1" : (borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none"),
+                                  borderRight: showPlaceholder ? "1px dashed #cbd5e1" : (borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none"),
+                                  borderBottom: showPlaceholder ? "1px dashed #cbd5e1" : (borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none"),
+                                  borderLeft: showPlaceholder ? "1px dashed #cbd5e1" : (borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none"),
                                   borderTopLeftRadius: `${radiusTopLeftPx}px`,
                                   borderTopRightRadius: `${radiusTopRightPx}px`,
                                   borderBottomRightRadius: `${radiusBottomRightPx}px`,
@@ -254,7 +254,6 @@ export default function DetailModal({
                                       alignItems: "center",
                                       justifyContent: "center",
                                       backgroundColor: showPlaceholder ? "#e2e8f0" : (resolvedCapa.backgroundColor || "transparent"),
-                                      border: showPlaceholder ? "1px dashed #cbd5e1" : undefined,
                                     }}
                                   >
                                     {showPlaceholder ? (
@@ -518,10 +517,10 @@ export default function DetailModal({
                                 const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * 2.5;
 
                                 const borderCornersStyle = {
-                                  borderTop: borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none",
-                                  borderRight: borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none",
-                                  borderBottom: borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none",
-                                  borderLeft: borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none",
+                                  borderTop: showPlaceholder ? "1px dashed #cbd5e1" : (borderTopPx > 0 ? `${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"}` : "none"),
+                                  borderRight: showPlaceholder ? "1px dashed #cbd5e1" : (borderRightPx > 0 ? `${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"}` : "none"),
+                                  borderBottom: showPlaceholder ? "1px dashed #cbd5e1" : (borderBottomPx > 0 ? `${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"}` : "none"),
+                                  borderLeft: showPlaceholder ? "1px dashed #cbd5e1" : (borderLeftPx > 0 ? `${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"}` : "none"),
                                   borderTopLeftRadius: `${radiusTopLeftPx}px`,
                                   borderTopRightRadius: `${radiusTopRightPx}px`,
                                   borderBottomRightRadius: `${radiusBottomRightPx}px`,
@@ -540,7 +539,6 @@ export default function DetailModal({
                                       alignItems: "center",
                                       justifyContent: "center",
                                       backgroundColor: showPlaceholder ? "#e2e8f0" : (resolvedCapa.backgroundColor || "transparent"),
-                                      border: showPlaceholder ? "1px dashed #cbd5e1" : undefined,
                                     }}
                                   >
                                     {showPlaceholder ? (
