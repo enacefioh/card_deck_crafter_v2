@@ -2526,6 +2526,9 @@ export default function App() {
                                               style={{
                                                 ...style,
                                                 ...borderCornersStyle,
+                                                display: "flex",
+                                                alignItems: "center",
+                                                justifyContent: "center",
                                                 backgroundColor: resolvedCapa.backgroundColor || "transparent",
                                               }}
                                             >
@@ -2818,6 +2821,9 @@ export default function App() {
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
+                                                    display: "flex",
+                                                    alignItems: "center",
+                                                    justifyContent: "center",
                                                     backgroundColor: resolvedCapa.backgroundColor || "transparent",
                                                   }}
                                                 >
