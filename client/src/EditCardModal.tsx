@@ -107,7 +107,23 @@ export default function EditCardModal({
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
 
   // Estados para jerarquía y arrastre (SRS-025)
-  const [collapsedContainerIds, setCollapsedContainerIds] = useState<string[]>([]);
+  const [collapsedContainerIds, setCollapsedContainerIds] = useState<string[]>(() => {
+    const list: string[] = [];
+    const collectIds = (plantilla: any) => {
+      if (plantilla && plantilla.capas) {
+        plantilla.capas.forEach((c: any) => {
+          if (c.tipo === "container") {
+            list.push(c.id);
+          }
+        });
+      }
+    };
+    const pFront = carta.plantilla || (carta.plantillaId ? templatesMap[carta.plantillaId] : null);
+    const pBack = carta.plantillaTrasera || (carta.plantillaTraseraId ? templatesMap[carta.plantillaTraseraId] : null);
+    collectIds(pFront);
+    collectIds(pBack);
+    return list;
+  });
   const [draggedLayerId, setDraggedLayerId] = useState<string | null>(null);
   const [dragOverLayerId, setDragOverLayerId] = useState<string | null>(null);
   const [isDragOverRoot, setIsDragOverRoot] = useState<boolean>(false);
