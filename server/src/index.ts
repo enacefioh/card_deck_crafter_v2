@@ -30,10 +30,17 @@ fs.ensureDirSync(EXPORTS_DIR);
 const upload = multer({ dest: UPLOADS_DIR });
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
+  let texto = capa.contenidoRaw || "";
   if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
-    return valoresCampos[capa.nombre];
+    texto = valoresCampos[capa.nombre];
   }
-  return capa.contenidoRaw || "";
+  if (valoresCampos) {
+    texto = texto.replace(/\{\{([^}]+)\}\}/g, (match, clave) => {
+      const trimmedClave = clave.trim();
+      return valoresCampos[trimmedClave] !== undefined ? valoresCampos[trimmedClave] : match;
+    });
+  }
+  return texto;
 }
 
 function parseMarkdownToHtml(text: string): string {
@@ -360,7 +367,16 @@ function generarHtmlImpresion(
                 const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
                 const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
 
-                return `<div style="${baseStyle} font-family: ${resolvedCapa.fontFamily === 'sans-serif' || !resolvedCapa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : resolvedCapa.fontFamily}; font-size: ${fontSizePx}px; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; padding: 2px; ${borderCornersCss}">${htmlText}</div>`;
+                const paddingTopMm = resolvedCapa.paddingTopMm !== undefined ? resolvedCapa.paddingTopMm : 0;
+                const paddingRightMm = resolvedCapa.paddingRightMm !== undefined ? resolvedCapa.paddingRightMm : 0;
+                const paddingBottomMm = resolvedCapa.paddingBottomMm !== undefined ? resolvedCapa.paddingBottomMm : 0;
+                const paddingLeftMm = resolvedCapa.paddingLeftMm !== undefined ? resolvedCapa.paddingLeftMm : 0;
+
+                const paddingCss = (paddingTopMm > 0 || paddingRightMm > 0 || paddingBottomMm > 0 || paddingLeftMm > 0)
+                  ? `padding: ${paddingTopMm}mm ${paddingRightMm}mm ${paddingBottomMm}mm ${paddingLeftMm}mm;`
+                  : "padding: 2px;";
+
+                return `<div style="${baseStyle} font-family: ${resolvedCapa.fontFamily === 'sans-serif' || !resolvedCapa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : resolvedCapa.fontFamily}; font-size: ${fontSizePx}px; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; ${paddingCss} ${borderCornersCss}">${htmlText}</div>`;
               }
 
               if (capa.tipo === "image" || capa.tipo === "image-switch") {

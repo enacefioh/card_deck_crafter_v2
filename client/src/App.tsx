@@ -27,10 +27,17 @@ const PREAJUSTES_HOJAS = {
 };
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
+  let texto = capa.contenidoRaw || "";
   if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
-    return valoresCampos[capa.nombre];
+    texto = valoresCampos[capa.nombre];
   }
-  return capa.contenidoRaw || "";
+  if (valoresCampos) {
+    texto = texto.replace(/\{\{([^}]+)\}\}/g, (match, clave) => {
+      const trimmedClave = clave.trim();
+      return valoresCampos[trimmedClave] !== undefined ? valoresCampos[trimmedClave] : match;
+    });
+  }
+  return texto;
 }
 
 function parseMarkdownToHtml(text: string): string {
@@ -289,6 +296,7 @@ export default function App() {
   // --- Estados de Tipografías del Proyecto (SRS-026) ---
   const [projectFonts, setProjectFontsInternal] = useState<any[]>([]);
   const [showProjectFonts, setShowProjectFonts] = useState<boolean>(false);
+  const [showTemplatesManager, setShowTemplatesManager] = useState<boolean>(false);
 
   const setProjectFonts = (value: React.SetStateAction<any[]>) => {
     setProjectFontsInternal(value);
@@ -1527,6 +1535,76 @@ export default function App() {
     }
   };
 
+  const handleEliminarPlantilla = (plantillaId: string) => {
+    if (plantillaId === "simple" || plantillaId === "vacia") return;
+
+    let cartasUsandola = 0;
+    documentos.forEach((doc) => {
+      doc.cards.forEach((c) => {
+        if (c.plantillaId === plantillaId || c.plantillaTraseraId === plantillaId) {
+          cartasUsandola++;
+        }
+      });
+    });
+
+    if (cartasUsandola > 0) {
+      const confirmar = window.confirm(
+        `Esta plantilla está siendo usada por ${cartasUsandola} cartas. Si la eliminas, estas cartas volverán a usar la plantilla por defecto. ¿Deseas continuar?`
+      );
+      if (!confirmar) return;
+    }
+
+    // Reasignar cartas
+    setDocumentos((prevDocs) =>
+      prevDocs.map((doc) => ({
+        ...doc,
+        cards: doc.cards.map((c) => {
+          let nextCard = { ...c };
+          if (c.plantillaId === plantillaId) {
+            nextCard.plantillaId = "simple";
+            nextCard.valoresCampos = {};
+          }
+          if (c.plantillaTraseraId === plantillaId) {
+            nextCard.plantillaTraseraId = "vacia";
+            nextCard.valoresCamposTrasera = {};
+          }
+          return nextCard;
+        }),
+      }))
+    );
+
+    // Quitar de importedTemplates
+    setImportedTemplates((prev) => prev.filter((t) => t.id !== plantillaId));
+    // Quitar de templatesMap
+    setTemplatesMap((prev) => {
+      const updated = { ...prev };
+      delete updated[plantillaId];
+      return updated;
+    });
+    setIsDirty(true);
+  };
+
+  const handleRenombrarPlantilla = (plantillaId: string, nuevoNombre: string) => {
+    if (!nuevoNombre.trim() || plantillaId === "simple" || plantillaId === "vacia") return;
+
+    setImportedTemplates((prev) =>
+      prev.map((t) => (t.id === plantillaId ? { ...t, nombre: nuevoNombre } : t))
+    );
+    setTemplatesMap((prev) => {
+      if (prev[plantillaId]) {
+        return {
+          ...prev,
+          [plantillaId]: {
+            ...prev[plantillaId],
+            nombre: nuevoNombre,
+          },
+        };
+      }
+      return prev;
+    });
+    setIsDirty(true);
+  };
+
   // --- Añadir Carta desde Plantilla (SRS-006) y Asignar Reverso ---
   const handleSelectTemplate = (plantilla: any) => {
     let templateInstance = JSON.parse(JSON.stringify(plantilla));
@@ -2043,6 +2121,7 @@ export default function App() {
         onGuardarProyecto={handleGuardarProyecto}
         onShowProjectGallery={() => setShowProjectGallery(true)}
         onShowProjectFonts={() => setShowProjectFonts(true)}
+        onShowTemplatesManager={() => setShowTemplatesManager(true)}
         onShowProjectConfig={() => setShowProjectConfig(true)}
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
         onExportarPdf={handleExportarPdf}
@@ -2629,6 +2708,12 @@ export default function App() {
                                           const htmlText = parseMarkdownToHtml(textoInterp);
                                           const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
 
+                                          // Padding (SRS-033)
+                                          const paddingTopPx = (resolvedCapa.paddingTopMm || 0) * zoomFactor;
+                                          const paddingRightPx = (resolvedCapa.paddingRightMm || 0) * zoomFactor;
+                                          const paddingBottomPx = (resolvedCapa.paddingBottomMm || 0) * zoomFactor;
+                                          const paddingLeftPx = (resolvedCapa.paddingLeftMm || 0) * zoomFactor;
+
                                           // Bordes y Esquinas (SRS-024)
                                           const borderTopPx = (resolvedCapa.borderTopWidth || 0) * zoomFactor;
                                           const borderRightPx = (resolvedCapa.borderRightWidth || 0) * zoomFactor;
@@ -2670,6 +2755,10 @@ export default function App() {
                                                 whiteSpace: "pre-wrap",
                                                 wordBreak: "break-word",
                                                 lineHeight: 1.2,
+                                                paddingTop: paddingTopPx > 0 ? `${paddingTopPx}px` : "2px",
+                                                paddingRight: paddingRightPx > 0 ? `${paddingRightPx}px` : "2px",
+                                                paddingBottom: paddingBottomPx > 0 ? `${paddingBottomPx}px` : "2px",
+                                                paddingLeft: paddingLeftPx > 0 ? `${paddingLeftPx}px` : "2px",
                                               }}
                                               dangerouslySetInnerHTML={{ __html: htmlText }}
                                             />
@@ -3115,6 +3204,12 @@ export default function App() {
                                               const htmlText = parseMarkdownToHtml(textoInterp);
                                               const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
 
+                                              // Padding (SRS-033)
+                                              const paddingTopPx = (resolvedCapa.paddingTopMm || 0) * zoomFactor;
+                                              const paddingRightPx = (resolvedCapa.paddingRightMm || 0) * zoomFactor;
+                                              const paddingBottomPx = (resolvedCapa.paddingBottomMm || 0) * zoomFactor;
+                                              const paddingLeftPx = (resolvedCapa.paddingLeftMm || 0) * zoomFactor;
+
                                               // Bordes y Esquinas (SRS-024)
                                               const borderTopPx = (resolvedCapa.borderTopWidth || 0) * zoomFactor;
                                               const borderRightPx = (resolvedCapa.borderRightWidth || 0) * zoomFactor;
@@ -3156,6 +3251,10 @@ export default function App() {
                                                     whiteSpace: "pre-wrap",
                                                     wordBreak: "break-word",
                                                     lineHeight: 1.2,
+                                                    paddingTop: paddingTopPx > 0 ? `${paddingTopPx}px` : "2px",
+                                                    paddingRight: paddingRightPx > 0 ? `${paddingRightPx}px` : "2px",
+                                                    paddingBottom: paddingBottomPx > 0 ? `${paddingBottomPx}px` : "2px",
+                                                    paddingLeft: paddingLeftPx > 0 ? `${paddingLeftPx}px` : "2px",
                                                   }}
                                                   dangerouslySetInnerHTML={{ __html: htmlText }}
                                                 />
@@ -3624,6 +3723,109 @@ export default function App() {
                 onClick={() => setShowProjectFonts(false)}
               >
                 Listo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showTemplatesManager && (
+        <div className="gallery-popup-backdrop" onClick={() => setShowTemplatesManager(false)}>
+          <div className="gallery-popup-container" style={{ maxWidth: "800px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="gallery-popup-title-bar">
+              <h4 className="gallery-popup-title">Gestión de Plantillas</h4>
+              <button
+                type="button"
+                className="btn-close-modal"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+                onClick={() => setShowTemplatesManager(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="gallery-popup-subtitle">
+              Administra las plantillas personalizadas e importadas del proyecto
+            </p>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "16px" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: "6px 14px", fontSize: "12px", display: "flex", alignItems: "center", gap: "6px" }}
+                onClick={() => fileInputTemplateRef.current?.click()}
+              >
+                <span>📥</span> Importar Nueva Plantilla (.cdc2t)
+              </button>
+            </div>
+
+            <div style={{ maxHeight: "450px", overflowY: "auto", border: "1px solid var(--border-color)", borderRadius: "4px" }}>
+              {importedTemplates.length > 0 ? (
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ borderBottom: "1px solid var(--border-color)", background: "var(--bg-secondary)", textAlign: "left" }}>
+                      <th style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>Nombre de la Plantilla</th>
+                      <th style={{ padding: "8px 12px", color: "var(--text-secondary)" }}>ID de Plantilla</th>
+                      <th style={{ padding: "8px 12px", textAlign: "right", color: "var(--text-secondary)" }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importedTemplates.map((tmpl) => (
+                      <tr key={tmpl.id} style={{ borderBottom: "1px solid var(--border-color)" }}>
+                        <td style={{ padding: "8px 12px" }}>
+                          <input
+                            type="text"
+                            value={tmpl.nombre || ""}
+                            className="inspector-input"
+                            style={{ padding: "4px 8px", fontSize: "12px", width: "100%", boxSizing: "border-box" }}
+                            onChange={(e) => handleRenombrarPlantilla(tmpl.id, e.target.value)}
+                          />
+                        </td>
+                        <td style={{ padding: "8px 12px", fontFamily: "monospace", color: "var(--text-secondary)" }}>
+                          {tmpl.id}
+                        </td>
+                        <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                          <button
+                            type="button"
+                            className="btn-delete"
+                            style={{
+                              background: "#ea4335",
+                              border: "none",
+                              color: "white",
+                              padding: "4px 10px",
+                              borderRadius: "4px",
+                              fontSize: "11px",
+                              cursor: "pointer"
+                            }}
+                            onClick={() => handleEliminarPlantilla(tmpl.id)}
+                          >
+                            Eliminar
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : (
+                <div style={{ padding: "30px", textAlign: "center", color: "var(--text-secondary)" }}>
+                  No hay plantillas personalizadas importadas en este proyecto.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                style={{ padding: "6px 16px", fontSize: "12px" }}
+                onClick={() => setShowTemplatesManager(false)}
+              >
+                Cerrar
               </button>
             </div>
           </div>

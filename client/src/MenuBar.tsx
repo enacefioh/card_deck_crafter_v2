@@ -23,6 +23,7 @@ interface MenuBarProps {
   onShowProjectGallery?: () => void;
   onShowProjectConfig?: () => void;
   onShowProjectFonts?: () => void;
+  onShowTemplatesManager?: () => void;
 
   // Acciones de Selección
   selectedCount: number;
@@ -68,6 +69,7 @@ export default function MenuBar({
   onShowProjectGallery,
   onShowProjectConfig,
   onShowProjectFonts,
+  onShowTemplatesManager,
   selectedCount,
   puedeMoverArriba,
   puedeMoverAbajo,
@@ -173,18 +175,7 @@ export default function MenuBar({
               >
                 <span className="menu-item-icon">💾</span> Guardar Proyecto
               </button>
-              <button
-                className="menu-item"
-                onClick={() => handleAction(onShowProjectGallery || (() => {}))}
-              >
-                <span className="menu-item-icon">🖼️</span> Galería del Proyecto...
-              </button>
-              <button
-                className="menu-item"
-                onClick={() => handleAction(onShowProjectFonts || (() => {}))}
-              >
-                <span className="menu-item-icon">🔤</span> Tipografías del Proyecto...
-              </button>
+
               <button
                 className="menu-item"
                 onClick={() => handleAction(onShowProjectConfig || (() => {}))}
@@ -253,6 +244,39 @@ export default function MenuBar({
               </button>
               <button className="menu-item" onClick={() => handleAction(onFocusCartaConfig)}>
                 <span className="menu-item-icon">📏</span> Configurar Dimensiones de Carta
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Menú Recursos */}
+        <div className={`menu-group ${activeDropdown === "recursos" ? "active" : ""}`}>
+          <button
+            className="menu-trigger"
+            onClick={() => handleMenuClick("recursos")}
+            onMouseEnter={() => handleMenuMouseEnter("recursos")}
+          >
+            Recursos
+          </button>
+          {activeDropdown === "recursos" && (
+            <div className="menu-dropdown">
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onShowProjectGallery || (() => {}))}
+              >
+                <span className="menu-item-icon">🖼️</span> Galería del Proyecto...
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onShowProjectFonts || (() => {}))}
+              >
+                <span className="menu-item-icon">🔤</span> Tipografías del Proyecto...
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onShowTemplatesManager || (() => {}))}
+              >
+                <span className="menu-item-icon">📋</span> Gestor de Plantillas...
               </button>
             </div>
           )}

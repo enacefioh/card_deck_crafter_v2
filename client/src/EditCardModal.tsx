@@ -27,10 +27,17 @@ interface EditCardModalProps {
 }
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
+  let texto = capa.contenidoRaw || "";
   if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
-    return valoresCampos[capa.nombre];
+    texto = valoresCampos[capa.nombre];
   }
-  return capa.contenidoRaw || "";
+  if (valoresCampos) {
+    texto = texto.replace(/\{\{([^}]+)\}\}/g, (match, clave) => {
+      const trimmedClave = clave.trim();
+      return valoresCampos[trimmedClave] !== undefined ? valoresCampos[trimmedClave] : match;
+    });
+  }
+  return texto;
 }
 
 function parseMarkdownToHtml(text: string): string {
@@ -131,6 +138,7 @@ export default function EditCardModal({
   // Estados para expansión de controles de bordes y esquinas (SRS-024)
   const [expandBorders, setExpandBorders] = useState<boolean>(false);
   const [expandRadii, setExpandRadii] = useState<boolean>(false);
+  const [expandPadding, setExpandPadding] = useState<boolean>(false);
 
   // Estados para Galería de la Plantilla (SRS-020)
   const [showGalleryManager, setShowGalleryManager] = useState<boolean>(false);
@@ -1377,6 +1385,13 @@ export default function EditCardModal({
     handleUpdateCapaProp(capaId, "borderLeftWidth", val);
   };
 
+  const handleUpdatePaddingGeneral = (capaId: string, val: number) => {
+    handleUpdateCapaProp(capaId, "paddingTopMm", val);
+    handleUpdateCapaProp(capaId, "paddingRightMm", val);
+    handleUpdateCapaProp(capaId, "paddingBottomMm", val);
+    handleUpdateCapaProp(capaId, "paddingLeftMm", val);
+  };
+
   const handleUpdateBorderColorGeneral = (capaId: string, color: string) => {
     handleUpdateCapaProp(capaId, "borderTopColor", color);
     handleUpdateCapaProp(capaId, "borderRightColor", color);
@@ -1906,6 +1921,12 @@ export default function EditCardModal({
                           const htmlText = parseMarkdownToHtml(textoInterp);
                           const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * scale;
 
+                          // Padding (SRS-033)
+                          const paddingTopPx = (resolvedCapa.paddingTopMm || 0) * scale;
+                          const paddingRightPx = (resolvedCapa.paddingRightMm || 0) * scale;
+                          const paddingBottomPx = (resolvedCapa.paddingBottomMm || 0) * scale;
+                          const paddingLeftPx = (resolvedCapa.paddingLeftMm || 0) * scale;
+
                           // Bordes y Esquinas (SRS-024)
                           const borderTopPx = (resolvedCapa.borderTopWidth || 0) * scale;
                           const borderRightPx = (resolvedCapa.borderRightWidth || 0) * scale;
@@ -1952,7 +1973,10 @@ export default function EditCardModal({
                                 whiteSpace: "pre-wrap",
                                 wordBreak: "break-word",
                                 lineHeight: 1.2,
-                                padding: "2px",
+                                paddingTop: paddingTopPx > 0 ? `${paddingTopPx}px` : "2px",
+                                paddingRight: paddingRightPx > 0 ? `${paddingRightPx}px` : "2px",
+                                paddingBottom: paddingBottomPx > 0 ? `${paddingBottomPx}px` : "2px",
+                                paddingLeft: paddingLeftPx > 0 ? `${paddingLeftPx}px` : "2px",
                                 userSelect: "none",
                               }}
                               onClick={(e) => {
@@ -3108,6 +3132,77 @@ export default function EditCardModal({
                             </div>
                           </div>
                         </>
+                      )}
+
+                      {/* Padding del Texto (SRS-033) */}
+                      {selectedCapa.tipo === "text" && (
+                        <div className="inspector-section border-corners-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "12px" }}>
+                          <div className="section-header-row" onClick={() => setExpandPadding(!expandPadding)}>
+                            <label className="inspector-label" style={{ cursor: "pointer", margin: 0 }}>Padding del Texto</label>
+                            <span className={`expand-toggle-icon ${expandPadding ? "expanded" : ""}`}>▶</span>
+                          </div>
+
+                          {!expandPadding ? (
+                            <div className="inspector-section">
+                              <label className="inspector-label">Padding General (mm)</label>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                className="inspector-input"
+                                value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
+                                onChange={(e) => handleUpdatePaddingGeneral(selectedCapa.id, Number(e.target.value))}
+                              />
+                            </div>
+                          ) : (
+                            <div className="expanded-inputs-grid">
+                              <div className="expanded-input-item">
+                                <label>Sup. (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingTopMm", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Der. (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.paddingRightMm !== undefined ? selectedCapa.paddingRightMm : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingRightMm", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Inf. (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.paddingBottomMm !== undefined ? selectedCapa.paddingBottomMm : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingBottomMm", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Izq. (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.paddingLeftMm !== undefined ? selectedCapa.paddingLeftMm : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingLeftMm", Number(e.target.value))}
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       )}
 
                       {/* Bordes, Esquinas y Fondo (SRS-024) */}

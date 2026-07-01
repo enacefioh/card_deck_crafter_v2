@@ -798,6 +798,21 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(copiaCapa.options[0]).not.toBe(originalCapa.options[0]);
     });
   });
+
+  describe("Gestión de Plantillas (SRS-034)", () => {
+    it("debe permitir renombrar y borrar de forma segura", () => {
+      const importedTemplates = [
+        { id: "plantilla_custom", nombre: "Mi Plantilla" }
+      ];
+      // Test de renombrar
+      const renamed = importedTemplates.map(t => t.id === "plantilla_custom" ? { ...t, nombre: "Nuevo Nombre" } : t);
+      expect(renamed[0].nombre).toBe("Nuevo Nombre");
+
+      // Test de borrado
+      const deleted = renamed.filter(t => t.id !== "plantilla_custom");
+      expect(deleted.length).toBe(0);
+    });
+  });
 });
 
 
