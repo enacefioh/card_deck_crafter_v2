@@ -395,6 +395,15 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(res.plantilla.camposConfig[0].clave).toBe("poder");
       expect(res.valoresCampos.poder).toBe("99");
     });
+
+    it("debe permitir espacios en la clave saneada", () => {
+      const valores = { poder: "99" };
+      const res = actualizarClavePlantillaYValores(plantillaMock, valores, "capa1", "poder", "poder maximo");
+      
+      expect(res.plantilla.capas[0].nombre).toBe("poder maximo");
+      expect(res.plantilla.camposConfig[0].clave).toBe("poder maximo");
+      expect(res.valoresCampos["poder maximo"]).toBe("99");
+    });
   });
 
   describe("validarYParsearPlantilla", () => {

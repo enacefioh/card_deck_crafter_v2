@@ -257,6 +257,20 @@ export default function App() {
   // --- Estados del Setup y Configuración del Proyecto (SRS-022) ---
   const [nombreProyecto, setNombreProyectoInternal] = useState<string>("Mi Baraja");
   const [projectCreated, setProjectCreated] = useState<boolean>(false);
+
+  // Auto-ajustar zoom factor según la pantalla al crear/cargar proyecto
+  useEffect(() => {
+    if (projectCreated && activeDocumentoId) {
+      const activeDoc = documentos.find(d => d.id === activeDocumentoId) || documentos[0];
+      if (activeDoc && activeDoc.canvasConfig) {
+        const availableWidth = window.innerWidth - 380;
+        const computedZoom = (availableWidth * 0.85) / activeDoc.canvasConfig.anchoMm;
+        const finalZoom = Math.max(1.0, Math.min(9.0, Number(computedZoom.toFixed(1))));
+        setZoomFactor(finalZoom);
+      }
+    }
+  }, [projectCreated, activeDocumentoId]);
+
   const [showProjectConfig, setShowProjectConfig] = useState<boolean>(false);
 
   // --- Estado de cambios sin guardar (IsDirty) ---
@@ -2435,7 +2449,7 @@ export default function App() {
             <input
               type="range"
               min="1.0"
-              max="4.5"
+              max="9.0"
               step="0.1"
               value={zoomFactor}
               onChange={(e) => setZoomFactor(Number(e.target.value))}

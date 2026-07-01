@@ -142,7 +142,7 @@ export function actualizarClavePlantillaYValores(
   oldClave: string | null,
   newClave: string
 ): { plantilla: any; valoresCampos: Record<string, string> } {
-  const sanitizedClave = newClave.replace(/[^a-zA-Z0-9_]/g, "").trim();
+  const sanitizedClave = newClave.replace(/[^a-zA-Z0-9_ ]/g, "").replace(/\s+/g, " ").trim();
   if (!sanitizedClave) return { plantilla, valoresCampos };
 
   const updatedCapas = plantilla.capas.map((c: any) => {
@@ -236,9 +236,10 @@ export function validarYParsearPlantilla(jsonText: string): any {
 export function prepararPlantillaParaExportacion(
   plantilla: any,
   nuevoNombre: string,
-  valoresCarta: Record<string, string>
+  valoresCarta: Record<string, string>,
+  idOverride?: string
 ): any {
-  const newId = `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const newId = idOverride || `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
   const updatedCamposConfig = (plantilla.camposConfig || []).map((campo: any) => {
     const currentVal = valoresCarta[campo.clave];

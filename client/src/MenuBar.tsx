@@ -272,9 +272,9 @@ export default function MenuBar({
               <button
                 className="menu-item"
                 onClick={() =>
-                  handleAction(() => setZoomFactor((z) => Math.min(4.5, z + 0.2)))
+                  handleAction(() => setZoomFactor((z) => Math.min(9.0, z + 0.2)))
                 }
-                disabled={zoomFactor >= 4.5}
+                disabled={zoomFactor >= 9.0}
               >
                 <span className="menu-item-icon">➕</span> Acercar Zoom <span className="menu-item-shortcut">Alt+Plus</span>
               </button>

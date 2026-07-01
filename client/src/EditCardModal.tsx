@@ -166,12 +166,7 @@ export default function EditCardModal({
 
   // --- Comprobar si hay cambios sin guardar ---
   const hasChanges = () => {
-    // Estructuras de plantillas
-    const originalPlantilla = carta.plantillaId ? templatesMap[carta.plantillaId] : null;
-    const originalPlantillaTrasera = carta.plantillaTraseraId ? templatesMap[carta.plantillaTraseraId] : null;
-    
-    if (JSON.stringify(tempPlantilla) !== JSON.stringify(originalPlantilla)) return true;
-    if (JSON.stringify(tempPlantillaTrasera) !== JSON.stringify(originalPlantillaTrasera)) return true;
+    // Estructuras de plantillas (Omitimos para advertir únicamente sobre cambios de la carta, según SRS-031 RF-3)
 
     // Frontal
     const originalValores = carta.valoresCampos || {};
@@ -474,14 +469,25 @@ export default function EditCardModal({
   };
 
   // --- Guardar y Exportar Plantilla ---
-  const ejecutarExportacion = async (guardarEnProyecto: boolean, descargarArchivo: boolean) => {
+  const ejecutarExportacion = async (guardarEnProyecto: boolean, descargarArchivo: boolean, esGuardarComo: boolean = false) => {
     if (!plantillaActiva) return;
 
-    const name = window.prompt("Nombre de la plantilla:", plantillaActiva.nombre || "Mi Plantilla");
-    if (!name) return;
+    let name = plantillaActiva.nombre || "Mi Plantilla";
+    let idOverride: string | undefined = undefined;
+
+    const isDefaultTemplate = plantillaActiva.id === "simple" || plantillaActiva.id === "vacia";
+
+    if (esGuardarComo || isDefaultTemplate) {
+      const promptName = window.prompt("Nombre de la plantilla:", isDefaultTemplate ? "Mi Plantilla" : `${name} (Copia)`);
+      if (!promptName) return;
+      name = promptName;
+    } else {
+      // Si no es guardar como y no es por defecto, sobrescribimos reutilizando el ID existente
+      idOverride = plantillaActiva.id;
+    }
 
     const valoresActivos = activeTab === "frontal" ? tempValoresCampos : tempValoresCamposTrasera;
-    const updatedTemplate = prepararPlantillaParaExportacion(plantillaActiva, name, valoresActivos);
+    const updatedTemplate = prepararPlantillaParaExportacion(plantillaActiva, name, valoresActivos, idOverride);
 
     if (guardarEnProyecto) {
       if (activeTab === "frontal") {
@@ -870,9 +876,18 @@ export default function EditCardModal({
   const handleApplyAlignment = (type: "izq" | "der" | "arr" | "abj" | "anchoMax" | "altoMax" | "expandir") => {
     if (!selectedCapa || selectedCapa.tipo === "background") return;
 
-    // Obtener dimensiones de la carta
-    const anchoCarta = plantillaActiva.anchoMm || cardConfig.anchoMm || 63.5;
-    const altoCarta = plantillaActiva.altoMm || cardConfig.altoMm || 88.9;
+    // Obtener dimensiones base (por defecto las de la carta)
+    let anchoCarta = plantillaActiva.anchoMm || cardConfig.anchoMm || 63.5;
+    let altoCarta = plantillaActiva.altoMm || cardConfig.altoMm || 88.9;
+
+    // Si tiene un contenedor padre, usar sus dimensiones
+    if (selectedCapa.parentCapaId) {
+      const parentCapa = plantillaActiva.capas?.find((c: any) => c.id === selectedCapa.parentCapaId);
+      if (parentCapa && parentCapa.tipo === "container") {
+        anchoCarta = parentCapa.anchoMm || 0;
+        altoCarta = parentCapa.altoMm || 0;
+      }
+    }
 
     // Dimensiones actuales de la capa
     const w = selectedCapa.anchoMm || 0;
@@ -1125,7 +1140,7 @@ export default function EditCardModal({
       idMap.set(node.id, nodeNewId);
       overridesToDuplicate.push({ oldId: node.id, newId: nodeNewId });
 
-      const nodeNewNombre = `${node.nombre || (node.tipo === "image" ? "Imagen" : node.tipo === "image-switch" ? "Imagen Switch" : node.tipo === "container" ? "Contenedor" : "Texto")} (Copia)`;
+      const nodeNewNombre = node.nombre || (node.tipo === "image" ? "Imagen" : node.tipo === "image-switch" ? "Imagen Switch" : node.tipo === "container" ? "Contenedor" : node.tipo === "block" ? "Bloque" : "Texto");
 
       const dupNode = {
         ...node,
@@ -1137,16 +1152,9 @@ export default function EditCardModal({
 
       if (node.tipo === "text") {
         const oldNombre = node.nombre || "texto";
-        const newNombre = `${oldNombre}_copia_${Math.random().toString(36).substring(2, 5)}`;
+        const newNombre = oldNombre;
         
         dupNode.nombre = newNombre;
-        if (node.contenidoRaw) {
-          if (node.contenidoRaw.includes(`{{${oldNombre}}}`)) {
-            dupNode.contenidoRaw = node.contenidoRaw.replace(`{{${oldNombre}}}`, `{{${newNombre}}}`);
-          } else if (node.contenidoRaw.includes(`{{ ${oldNombre} }}`)) {
-            dupNode.contenidoRaw = node.contenidoRaw.replace(`{{ ${oldNombre} }}`, `{{ ${newNombre} }}`);
-          }
-        }
 
         const origCampo = plantillaActiva.camposConfig?.find((f: any) => f.clave === oldNombre);
         let copiedCampoConfig = null;
@@ -1161,12 +1169,12 @@ export default function EditCardModal({
           copiedCampoConfig = {
             ...origCampo,
             clave: newNombre,
-            nombreLegible: `${origCampo.nombreLegible || oldNombre} (Copia)`
+            nombreLegible: origCampo.nombreLegible || oldNombre
           };
         } else {
           copiedCampoConfig = {
             clave: newNombre,
-            nombreLegible: `${newNombre} (Copia)`,
+            nombreLegible: newNombre,
             tipo: "text",
             valorDefecto: node.contenidoRaw || ""
           };
@@ -1213,7 +1221,7 @@ export default function EditCardModal({
       
       let nextCamposConfig = [...(prev.camposConfig || [])];
       for (const field of fieldsToDuplicate) {
-        if (field.copiedCampoConfig) {
+        if (field.copiedCampoConfig && !nextCamposConfig.some((f: any) => f.clave === field.newClave)) {
           nextCamposConfig.push(field.copiedCampoConfig);
         }
       }
@@ -1333,7 +1341,7 @@ export default function EditCardModal({
 
   // --- Modificar Clave de Capa (Sincronizada con camposConfig y valores de carta) ---
   const handleUpdateCapaClave = (capaId: string, oldClave: string | null, newClave: string) => {
-    const sanitizedClave = newClave.replace(/[^a-zA-Z0-9_]/g, "").trim();
+    const sanitizedClave = newClave.replace(/[^a-zA-Z0-9_ ]/g, "").replace(/\s+/g, " ").trim();
     if (!sanitizedClave) return;
 
     if (activeTab === "frontal") {
@@ -1668,7 +1676,16 @@ export default function EditCardModal({
                         type="button"
                         onClick={() => {
                           setShowDropdown(false);
-                          ejecutarExportacion(true, true);
+                          ejecutarExportacion(true, false, true);
+                        }}
+                      >
+                        <span>💾</span> Guardar plantilla como...
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowDropdown(false);
+                          ejecutarExportacion(true, true, false);
                         }}
                       >
                         <span>📥</span> Guardar y Exportar (.cdc2t)
@@ -1677,7 +1694,7 @@ export default function EditCardModal({
                         type="button"
                         onClick={() => {
                           setShowDropdown(false);
-                          ejecutarExportacion(false, true);
+                          ejecutarExportacion(false, true, false);
                         }}
                       >
                         <span>📤</span> Exportar sin Guardar
@@ -1698,7 +1715,7 @@ export default function EditCardModal({
                 <input
                   type="range"
                   min="0.5"
-                  max="6.0"
+                  max="12.0"
                   step="0.1"
                   value={scale}
                   onChange={(e) => setScale(Number(e.target.value))}
@@ -2574,6 +2591,19 @@ export default function EditCardModal({
                   ) : (
                     /* DISEÑO TAB */
                     <div className="inspector-panel" style={{ gap: "12px" }}>
+                      {selectedCapa.tipo === "block" && (
+                        <div className="inspector-section">
+                          <label className="inspector-label">Nombre del Bloque</label>
+                          <input
+                            type="text"
+                            className="inspector-input"
+                            value={selectedCapa.nombre || ""}
+                            placeholder="ej. Bloque de Fondo"
+                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
+                          />
+                        </div>
+                      )}
+
                       {selectedCapa.tipo === "container" && (
                         <>
                           <div className="inspector-section">
@@ -3081,7 +3111,7 @@ export default function EditCardModal({
                       )}
 
                       {/* Bordes, Esquinas y Fondo (SRS-024) */}
-                      {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container") && (
+                      {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "block") && (
                         <div className="inspector-section border-corners-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "12px" }}>
                           
                           {/* Sección de Bordes */}
