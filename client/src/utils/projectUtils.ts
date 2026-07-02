@@ -190,30 +190,13 @@ export function actualizarClavePlantillaYValores(
     }
   }
 
-  const updatedValores = { ...valoresCampos };
-  if (oldClave) {
-    if (sanitizedClave !== oldClave) {
-      updatedValores[sanitizedClave] = valoresCampos[oldClave] || "";
-
-      const isClaveUsedElsewhere = updatedCapas.some((c: any) => 
-        c.id !== capaId && c.tipo === "text" && c.nombre === oldClave
-      );
-      if (!isClaveUsedElsewhere) {
-        delete updatedValores[oldClave];
-      }
-    }
-  } else {
-    const capa = updatedCapas.find((c: any) => c.id === capaId);
-    updatedValores[sanitizedClave] = capa?.contenidoRaw || "";
-  }
-
   return {
     plantilla: {
       ...plantilla,
       capas: updatedCapas,
       camposConfig: updatedCamposConfig
     },
-    valoresCampos: updatedValores
+    valoresCampos
   };
 }
 

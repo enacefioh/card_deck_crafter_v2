@@ -26,15 +26,21 @@ interface EditCardModalProps {
   projectFonts?: any[];
 }
 
-function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
+function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
   let texto = capa.contenidoRaw || "";
-  if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
-    texto = valoresCampos[capa.nombre];
+  if (valoresCampos && valoresCampos[capa.id] !== undefined) {
+    texto = valoresCampos[capa.id];
   }
   if (valoresCampos) {
     texto = texto.replace(/\{\{([^}]+)\}\}/g, (match, clave) => {
       const trimmedClave = clave.trim();
-      return valoresCampos[trimmedClave] !== undefined ? valoresCampos[trimmedClave] : match;
+      if (capasDePlantilla) {
+        const targetCapa = capasDePlantilla.find(c => c.nombre === trimmedClave);
+        if (targetCapa && valoresCampos[targetCapa.id] !== undefined) {
+          return valoresCampos[targetCapa.id];
+        }
+      }
+      return match;
     });
   }
   return texto;
@@ -1917,7 +1923,7 @@ export default function EditCardModal({
                         if (capa.tipo === "text") {
                           const overrides = tempCapasOverridesActivos[capa.id];
                           const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-                          const textoInterp = renderizarTextoCapa(resolvedCapa, tempValoresActivos);
+                          const textoInterp = renderizarTextoCapa(resolvedCapa, tempValoresActivos, plantillaActiva?.capas);
                           const htmlText = parseMarkdownToHtml(textoInterp);
                           const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * scale;
 
@@ -2202,14 +2208,14 @@ export default function EditCardModal({
                             {selectedCapa.multiline !== false ? (
                               <textarea
                                 className="inspector-textarea"
-                                value={tempValoresActivos[selectedCapa.nombre] !== undefined ? tempValoresActivos[selectedCapa.nombre] : (selectedCapa.contenidoRaw || "")}
+                                value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
                                 rows={4}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   if (activeTab === "frontal") {
-                                    setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.nombre]: val }));
+                                    setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
                                   } else {
-                                    setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.nombre]: val }));
+                                    setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
                                   }
                                 }}
                               />
@@ -2217,13 +2223,13 @@ export default function EditCardModal({
                               <input
                                 type="text"
                                 className="inspector-input"
-                                value={tempValoresActivos[selectedCapa.nombre] !== undefined ? tempValoresActivos[selectedCapa.nombre] : (selectedCapa.contenidoRaw || "")}
+                                value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
                                 onChange={(e) => {
                                   const val = e.target.value;
                                   if (activeTab === "frontal") {
-                                    setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.nombre]: val }));
+                                    setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
                                   } else {
-                                    setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.nombre]: val }));
+                                    setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
                                   }
                                 }}
                               />
@@ -2691,7 +2697,7 @@ export default function EditCardModal({
                                 style={{ cursor: "pointer", fontSize: "14px" }}
                                 title="Copiar el texto del contenido"
                                 onClick={() => {
-                                  const currentValue = tempValoresActivos[selectedCapa.nombre] || "";
+                                  const currentValue = tempValoresActivos[selectedCapa.id] || "";
                                   handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", currentValue);
                                 }}
                               >

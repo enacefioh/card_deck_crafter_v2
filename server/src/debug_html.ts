@@ -7,15 +7,21 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
+function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
   let texto = capa.contenidoRaw || "";
-  if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
-    texto = valoresCampos[capa.nombre];
+  if (valoresCampos && valoresCampos[capa.id] !== undefined) {
+    texto = valoresCampos[capa.id];
   }
   if (valoresCampos) {
     texto = texto.replace(/\{\{([^}]+)\}\}/g, (match, clave) => {
       const trimmedClave = clave.trim();
-      return valoresCampos[trimmedClave] !== undefined ? valoresCampos[trimmedClave] : match;
+      if (capasDePlantilla) {
+        const targetCapa = capasDePlantilla.find(c => c.nombre === trimmedClave);
+        if (targetCapa && valoresCampos[targetCapa.id] !== undefined) {
+          return valoresCampos[targetCapa.id];
+        }
+      }
+      return match;
     });
   }
   return texto;
@@ -296,7 +302,7 @@ function generarHtmlImpresion(
             if (capa.tipo === "text") {
               const overrides = cardData.capasOverrides?.[capa.id];
               const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-              const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos);
+              const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos, plantilla?.capas);
               const htmlText = parseMarkdownToHtml(textoInterp);
               const fontSizePt = resolvedCapa.fontSizePt || 12;
               const align = resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : resolvedCapa.alineacion === "justify" ? "justify" : "left";

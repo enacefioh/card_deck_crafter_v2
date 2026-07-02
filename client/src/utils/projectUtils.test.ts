@@ -356,15 +356,14 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       ]
     };
 
-    it("debe actualizar la clave en la capa y en camposConfig, y mover el valor", () => {
-      const valores = { poder: "99" };
+    it("debe actualizar la clave en la capa y en camposConfig, y mantener el valor por ID intacto", () => {
+      const valores = { capa1: "99" };
       const res = actualizarClavePlantillaYValores(plantillaMock, valores, "capa1", "poder", "fuerza");
       
       expect(res.plantilla.capas[0].nombre).toBe("fuerza");
       expect(res.plantilla.capas[0].contenidoRaw).toBe("Poder por defecto");
       expect(res.plantilla.camposConfig[0].clave).toBe("fuerza");
-      expect(res.valoresCampos.fuerza).toBe("99");
-      expect(res.valoresCampos.poder).toBeUndefined();
+      expect(res.valoresCampos.capa1).toBe("99");
     });
 
     it("debe conservar la clave original en camposConfig si está usada en otra capa", () => {
@@ -375,7 +374,7 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
           { id: "capa2", tipo: "text", nombre: "poder", contenidoRaw: "Poder 2" }
         ]
       };
-      const valores = { poder: "99" };
+      const valores = { capa1: "99", capa2: "99" };
       const res = actualizarClavePlantillaYValores(plantillaConClaveCompartida, valores, "capa1", "poder", "fuerza");
 
       expect(res.plantilla.capas[0].nombre).toBe("fuerza");
@@ -383,26 +382,26 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       // Se debe haber añadido "fuerza" a camposConfig, manteniendo "poder"
       expect(res.plantilla.camposConfig.map((f: any) => f.clave)).toContain("poder");
       expect(res.plantilla.camposConfig.map((f: any) => f.clave)).toContain("fuerza");
-      expect(res.valoresCampos.fuerza).toBe("99");
-      expect(res.valoresCampos.poder).toBe("99");
+      expect(res.valoresCampos.capa1).toBe("99");
+      expect(res.valoresCampos.capa2).toBe("99");
     });
 
     it("no debe borrar el valor si la clave saneada resulta ser idéntica a la clave anterior (ej. al escribir un carácter inválido)", () => {
-      const valores = { poder: "99" };
+      const valores = { capa1: "99" };
       const res = actualizarClavePlantillaYValores(plantillaMock, valores, "capa1", "poder", "poder!");
       
       expect(res.plantilla.capas[0].nombre).toBe("poder");
       expect(res.plantilla.camposConfig[0].clave).toBe("poder");
-      expect(res.valoresCampos.poder).toBe("99");
+      expect(res.valoresCampos.capa1).toBe("99");
     });
 
     it("debe permitir espacios en la clave saneada", () => {
-      const valores = { poder: "99" };
+      const valores = { capa1: "99" };
       const res = actualizarClavePlantillaYValores(plantillaMock, valores, "capa1", "poder", "poder maximo");
       
       expect(res.plantilla.capas[0].nombre).toBe("poder maximo");
       expect(res.plantilla.camposConfig[0].clave).toBe("poder maximo");
-      expect(res.valoresCampos["poder maximo"]).toBe("99");
+      expect(res.valoresCampos.capa1).toBe("99");
     });
   });
 

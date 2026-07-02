@@ -26,15 +26,21 @@ const PREAJUSTES_HOJAS = {
   custom: { ancho: 210, alto: 297 },
 };
 
-function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
+function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
   let texto = capa.contenidoRaw || "";
-  if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
-    texto = valoresCampos[capa.nombre];
+  if (valoresCampos && valoresCampos[capa.id] !== undefined) {
+    texto = valoresCampos[capa.id];
   }
   if (valoresCampos) {
     texto = texto.replace(/\{\{([^}]+)\}\}/g, (match, clave) => {
       const trimmedClave = clave.trim();
-      return valoresCampos[trimmedClave] !== undefined ? valoresCampos[trimmedClave] : match;
+      if (capasDePlantilla) {
+        const targetCapa = capasDePlantilla.find(c => c.nombre === trimmedClave);
+        if (targetCapa && valoresCampos[targetCapa.id] !== undefined) {
+          return valoresCampos[targetCapa.id];
+        }
+      }
+      return match;
     });
   }
   return texto;
@@ -1655,7 +1661,7 @@ export default function App() {
       if (templateInstance.capas) {
         templateInstance.capas.forEach((capa: any) => {
           if (capa.tipo === "text") {
-            nuevaCarta.valoresCampos![capa.nombre] = capa.contenidoRaw || "";
+            nuevaCarta.valoresCampos![capa.id] = capa.contenidoRaw || "";
           }
         });
       }
@@ -1685,7 +1691,7 @@ export default function App() {
             if (templateInstance.capas) {
               templateInstance.capas.forEach((capa: any) => {
                 if (capa.tipo === "text") {
-                  valoresCamposTrasera[capa.nombre] = capa.contenidoRaw || "";
+                  valoresCamposTrasera[capa.id] = capa.contenidoRaw || "";
                 }
               });
             }
@@ -2704,7 +2710,7 @@ export default function App() {
                                         if (capa.tipo === "text") {
                                           const overrides = cardData.capasOverrides?.[capa.id];
                                           const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-                                          const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos);
+                                          const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos, plantilla?.capas);
                                           const htmlText = parseMarkdownToHtml(textoInterp);
                                           const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
 
@@ -3200,7 +3206,7 @@ export default function App() {
                                             if (capa.tipo === "text") {
                                               const overrides = cardData.capasOverridesTrasera?.[capa.id];
                                               const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-                                              const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCamposTrasera);
+                                              const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCamposTrasera, plantilla?.capas);
                                               const htmlText = parseMarkdownToHtml(textoInterp);
                                               const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
 
