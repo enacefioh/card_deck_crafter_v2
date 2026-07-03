@@ -32,7 +32,7 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, 
     texto = valoresCampos[capa.id];
   }
   if (valoresCampos) {
-    texto = texto.replace(/\{\{([^}]+)\}\}/g, (match, clave) => {
+    texto = texto.replace(/\{\{([^}]+)\}\}/g, (match: string, clave: string) => {
       const trimmedClave = clave.trim();
       if (capasDePlantilla) {
         const targetCapa = capasDePlantilla.find(c => c.nombre === trimmedClave);
