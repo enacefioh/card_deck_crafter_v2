@@ -1,3 +1,13 @@
+export function obtenerRutaJerarquica(capaId: string, capas: any[]): string {
+  const ruta: string[] = [];
+  let current = capas.find(c => c.id === capaId);
+  while (current) {
+    ruta.unshift(current.nombre);
+    current = current.parentCapaId ? capas.find(c => c.id === current.parentCapaId) : null;
+  }
+  return ruta.join(" > ");
+}
+
 export function validarYParsearProyecto(jsonText: string): any {
   if (!jsonText || jsonText.trim() === "") {
     throw new Error("El archivo de configuración JSON está vacío.");

@@ -6,7 +6,8 @@ import {
   insertarCartaDesdePlantilla,
   actualizarClavePlantillaYValores,
   validarYParsearPlantilla,
-  prepararPlantillaParaExportacion
+  prepararPlantillaParaExportacion,
+  obtenerRutaJerarquica
 } from "./projectUtils";
 
 describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
@@ -840,6 +841,20 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(copia.exposedProperties[0].label).toBe("Mi Titulo");
       expect(copia.plantilla.exposedProperties).toBeDefined();
       expect(copia.plantilla.exposedProperties[0].label).toBe("Mi Titulo");
+    });
+  });
+
+  describe("Obtención de Ruta Jerárquica de Capas (SRS-037)", () => {
+    it("debe calcular la ruta correcta para capas anidadas y raíz", () => {
+      const capasMock = [
+        { id: "root1", nombre: "Cabecera", parentCapaId: null },
+        { id: "sub1", nombre: "Barra Titulo", parentCapaId: "root1" },
+        { id: "layer1", nombre: "texto", parentCapaId: "sub1" },
+        { id: "root2", nombre: "Pie", parentCapaId: null }
+      ];
+
+      expect(obtenerRutaJerarquica("layer1", capasMock)).toBe("Cabecera > Barra Titulo > texto");
+      expect(obtenerRutaJerarquica("root2", capasMock)).toBe("Pie");
     });
   });
 });

@@ -4125,12 +4125,12 @@ export default function EditCardModal({
                 style={{ padding: "8px 16px", fontSize: "13px" }}
                 onClick={() => {
                   if (activeTab === "frontal") {
-                    setTempPlantilla(prev => ({
+                    setTempPlantilla((prev: any) => ({
                       ...prev,
                       exposedProperties: tempExposedProperties,
                     }));
                   } else {
-                    setTempPlantillaTrasera(prev => ({
+                    setTempPlantillaTrasera((prev: any) => ({
                       ...prev,
                       exposedProperties: tempExposedProperties,
                     }));

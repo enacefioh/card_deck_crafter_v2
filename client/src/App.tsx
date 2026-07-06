@@ -3,7 +3,7 @@ import { calcularDistribucion } from "shared";
 import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2 } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
-import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla } from "./utils/projectUtils";
+import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla, obtenerRutaJerarquica } from "./utils/projectUtils";
 import DetailModal from "./DetailModal";
 import EditCardModal from "./EditCardModal";
 import "./App.css";
@@ -266,6 +266,11 @@ export default function App() {
   // --- Estados de la Galería Multimedia del Proyecto (SRS-014) ---
   const [projectAssets, setProjectAssetsInternal] = useState<any[]>([]);
   const [showProjectGallery, setShowProjectGallery] = useState<boolean>(false);
+
+  // --- Estados del Selector de Galería de la Sidebar (SRS-037) ---
+  const [showSidebarGallerySelector, setShowSidebarGallerySelector] = useState<boolean>(false);
+  const [sidebarGalleryTargetField, setSidebarGalleryTargetField] = useState<any | null>(null);
+  const [sidebarGallerySelectorTab, setSidebarGallerySelectorTab] = useState<"project" | "template">("project");
 
   // --- Estados del Setup y Configuración del Proyecto (SRS-022) ---
   const [nombreProyecto, setNombreProyectoInternal] = useState<string>("Mi Baraja");
@@ -3367,47 +3372,261 @@ export default function App() {
         )}
       </main>
 
-      {/* Panel Lateral Derecho: Campos Editables (SRS-036) */}
+      {/* Panel Lateral Derecho: Campos Editables (SRS-037) */}
       <aside className="sidebar-right">
         <div className="sidebar-header">
           <h1>Campos Editables</h1>
-          <p>Propiedades rápidas de la carta seleccionada</p>
+          <p>Edición rápida de las cartas seleccionadas</p>
         </div>
         <div className="sidebar-content" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-          {selectedCardIds.length === 1 ? (() => {
-            const selectedCarta = cartas.find((c) => c.id === selectedCardIds[0]);
-            if (!selectedCarta) return null;
-            const plantilla = selectedCarta.plantilla || (selectedCarta.plantillaId ? templatesMap[selectedCarta.plantillaId] : null);
-            const propsList = selectedCarta.exposedProperties || plantilla?.exposedProperties || [];
-            if (propsList.length === 0) {
+          {(() => {
+            const selectedCartas = cartas.filter((c) => selectedCardIds.includes(c.id));
+            if (selectedCartas.length === 0) {
               return (
                 <div style={{ textAlign: "center", padding: "24px", color: "var(--text-secondary)", fontSize: "13px", fontStyle: "italic" }}>
-                  Esta carta no posee campos editables configurados.
+                  Selecciona al menos una carta para editar sus campos.
                 </div>
               );
             }
+
+            const cartaBase = selectedCartas[0];
+            const plantillaBase = cartaBase.plantilla || (cartaBase.plantillaId ? templatesMap[cartaBase.plantillaId] : null);
+            const exposedBase = cartaBase.exposedProperties || plantillaBase?.exposedProperties || [];
+            const baseCapas = plantillaBase?.capas || [];
+            const camposCoincidentes: any[] = [];
+
+            for (const prop of exposedBase) {
+              const capaBase = baseCapas.find((c: any) => c.id === prop.layerId);
+              if (!capaBase) continue;
+
+              const rutaBase = obtenerRutaJerarquica(prop.layerId, baseCapas);
+              let coincidenTodas = true;
+              const mapaCartaCapaId: Record<string, string> = { [cartaBase.id]: prop.layerId };
+
+              for (let i = 1; i < selectedCartas.length; i++) {
+                const cOther = selectedCartas[i];
+                const pOther = cOther.plantilla || (cOther.plantillaId ? templatesMap[cOther.plantillaId] : null);
+                const capasOther = pOther?.capas || [];
+                const expOther = cOther.exposedProperties || pOther?.exposedProperties || [];
+
+                const matchExposed = expOther.find((eo: any) => {
+                  if (eo.property !== prop.property) return false;
+                  const cL = capasOther.find((x: any) => x.id === eo.layerId);
+                  if (!cL || cL.tipo !== capaBase.tipo || cL.nombre !== capaBase.nombre) return false;
+                  return obtenerRutaJerarquica(eo.layerId, capasOther) === rutaBase;
+                });
+
+                if (matchExposed) {
+                  mapaCartaCapaId[cOther.id] = matchExposed.layerId;
+                } else {
+                  coincidenTodas = false;
+                  break;
+                }
+              }
+
+              if (coincidenTodas) {
+                camposCoincidentes.push({
+                  ruta: rutaBase,
+                  property: prop.property,
+                  label: prop.label,
+                  tipoCapa: capaBase.tipo,
+                  multiline: capaBase.multiline,
+                  options: capaBase.options,
+                  mapaCartaCapaId
+                });
+              }
+            }
+
+            if (camposCoincidentes.length === 0) {
+              return (
+                <div style={{ textAlign: "center", padding: "24px", color: "var(--text-secondary)", fontSize: "13px", fontStyle: "italic" }}>
+                  No hay campos editables coincidentes entre las cartas seleccionadas.
+                </div>
+              );
+            }
+
             return (
-              <section className="config-group">
-                <h3 className="config-group-title">Propiedades Expuestas</h3>
-                <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "6px" }}>
-                  {propsList.map((prop: any, idx: number) => {
-                    const capas = selectedCarta.plantilla?.capas || (selectedCarta.plantillaId ? templatesMap[selectedCarta.plantillaId]?.capas : []) || [];
-                    const capa = capas.find((c: any) => c.id === prop.layerId);
-                    const tipoLabel = capa?.tipo === "text" ? "Texto" : (capa?.tipo === "image" || capa?.tipo === "image-switch") ? "Imagen" : "Propiedad";
-                    return (
-                      <li key={idx} style={{ lineHeight: "1.4" }}>
-                        <strong>{prop.label}</strong> <span style={{ opacity: 0.6 }}>({tipoLabel}: {prop.property})</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </section>
+              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
+                {camposCoincidentes.map((campo: any, idx: number) => {
+                  const valores = selectedCartas.map((c) => {
+                    const capaId = campo.mapaCartaCapaId[c.id];
+                    if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
+                      if (c.valoresCampos && c.valoresCampos[capaId] !== undefined) return c.valoresCampos[capaId];
+                      if (c.capasOverrides?.[capaId]?.contenidoRaw !== undefined) return c.capasOverrides[capaId].contenidoRaw;
+                      const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
+                      return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
+                    }
+                    const overrideObj = c.capasOverrides?.[capaId] as any;
+                    if (overrideObj?.[campo.property] !== undefined) {
+                      return overrideObj[campo.property];
+                    }
+                    const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
+                    const layerObj = p?.capas?.find((x: any) => x.id === capaId) as any;
+                    return layerObj?.[campo.property] || "";
+                  });
+
+                  const todosIguales = valores.every((v) => v === valores[0]);
+                  const valorMostrar = todosIguales ? (valores[0] || "") : "";
+                  const placeholderTexto = todosIguales ? "" : "<Valores múltiples>";
+
+                  const handleUpdateValorLote = (nuevoValor: any) => {
+                    const nuevasCartas = cartas.map((c) => {
+                      if (!selectedCardIds.includes(c.id)) return c;
+                      const capaId = campo.mapaCartaCapaId[c.id];
+                      if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
+                        const nextValoresCampos = { ...(c.valoresCampos || {}) };
+                        nextValoresCampos[capaId] = nuevoValor;
+                        return { ...c, valoresCampos: nextValoresCampos };
+                      }
+                      const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                      nextOverrides[capaId] = {
+                        ...(nextOverrides[capaId] || {}),
+                        [campo.property]: nuevoValor
+                      };
+                      return { ...c, capasOverrides: nextOverrides };
+                    });
+                    setCartas(nuevasCartas);
+                    setIsDirty(true);
+                  };
+
+                  return (
+                    <div key={idx} className="inspector-section" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "16px" }}>
+                      <label className="inspector-label" style={{ fontWeight: "600", color: "var(--text-primary)", display: "block", marginBottom: "6px" }}>
+                        {campo.label} <span style={{ fontSize: "10px", fontWeight: "normal", color: "var(--text-secondary)" }}>({campo.ruta})</span>
+                      </label>
+
+                      {campo.tipoCapa === "text" && campo.property === "contenidoRaw" && (
+                        campo.multiline !== false ? (
+                          <textarea
+                            className="inspector-textarea"
+                            value={valorMostrar}
+                            placeholder={placeholderTexto}
+                            rows={3}
+                            onChange={(e) => handleUpdateValorLote(e.target.value)}
+                          />
+                        ) : (
+                          <input
+                            type="text"
+                            className="inspector-input"
+                            value={valorMostrar}
+                            placeholder={placeholderTexto}
+                            onChange={(e) => handleUpdateValorLote(e.target.value)}
+                          />
+                        )
+                      )}
+
+                      {campo.property === "colorFill" && (
+                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                          <input
+                            type="color"
+                            style={{ width: "36px", height: "30px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer" }}
+                            value={todosIguales && valorMostrar.startsWith("#") ? valorMostrar : "#ffffff"}
+                            onChange={(e) => handleUpdateValorLote(e.target.value)}
+                          />
+                          <input
+                            type="text"
+                            className="inspector-input"
+                            style={{ flex: 1 }}
+                            value={valorMostrar}
+                            placeholder={placeholderTexto || "ej. #ffffff"}
+                            onChange={(e) => handleUpdateValorLote(e.target.value)}
+                          />
+                        </div>
+                      )}
+
+                      {(campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src" && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                          {valorMostrar && (
+                            <div style={{ width: "100%", height: "80px", border: "1px solid var(--border-color)", borderRadius: "4px", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-secondary)" }}>
+                              <img src={valorMostrar} alt="Miniatura" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
+                            </div>
+                          )}
+                          {!todosIguales && (
+                            <div style={{ padding: "8px", textAlign: "center", fontSize: "11px", color: "var(--text-secondary)", border: "1px dashed var(--border-color)", borderRadius: "4px" }}>
+                              &lt;Valores de imagen múltiples&gt;
+                            </div>
+                          )}
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              type="button"
+                              className="btn-action"
+                              style={{ flex: 1, padding: "6px", fontSize: "11px" }}
+                              onClick={() => {
+                                setSidebarGalleryTargetField(campo);
+                                setSidebarGallerySelectorTab("project");
+                                setShowSidebarGallerySelector(true);
+                              }}
+                            >
+                              🖼️ Galería
+                            </button>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              id={`sidebar-upload-${idx}`}
+                              style={{ display: "none" }}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = async (event) => {
+                                    const base64 = event.target?.result as string;
+                                    const assetId = `proj_asset_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                                    const nuevoRecurso = { id: assetId, nombre: file.name, src: base64 };
+                                    setProjectAssetsInternal(prev => [...prev, nuevoRecurso]);
+                                    handleUpdateValorLote(base64);
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                            <label
+                              htmlFor={`sidebar-upload-${idx}`}
+                              className="btn-action"
+                              style={{ flex: 1, padding: "6px", fontSize: "11px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            >
+                              📤 Subir
+                            </label>
+                          </div>
+
+                          {campo.tipoCapa === "image-switch" && campo.options && campo.options.length > 0 && (
+                            <div style={{ marginTop: "6px" }}>
+                              <span style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>Opciones del Switch:</span>
+                              <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "4px" }}>
+                                {campo.options.map((opt: any) => {
+                                  const seleccionado = todosIguales && valorMostrar === opt.src;
+                                  return (
+                                    <button
+                                      key={opt.id}
+                                      type="button"
+                                      style={{
+                                        flexShrink: 0,
+                                        width: "40px",
+                                        height: "40px",
+                                        border: seleccionado ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                                        borderRadius: "4px",
+                                        overflow: "hidden",
+                                        cursor: "pointer",
+                                        padding: 0,
+                                        backgroundColor: seleccionado ? "var(--bg-primary)" : "transparent"
+                                      }}
+                                      onClick={() => handleUpdateValorLote(opt.src)}
+                                      title={opt.nombre}
+                                    >
+                                      <img src={opt.src} alt={opt.nombre} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             );
-          })() : (
-            <div style={{ textAlign: "center", padding: "24px", color: "var(--text-secondary)", fontSize: "13px" }}>
-              Selecciona una sola carta para visualizar sus campos editables.
-            </div>
-          )}
+          })()}
         </div>
       </aside>
 
@@ -3882,6 +4101,143 @@ export default function App() {
               >
                 Cerrar
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showSidebarGallerySelector && sidebarGalleryTargetField && (
+        <div className="gallery-popup-backdrop" style={{ zIndex: 5000 }} onClick={() => { setShowSidebarGallerySelector(false); setSidebarGalleryTargetField(null); }}>
+          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+            <div className="gallery-popup-title-bar">
+              <h4 className="gallery-popup-title">Seleccionar de la Galería</h4>
+              <button
+                type="button"
+                className="btn-close-modal"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+                onClick={() => { setShowSidebarGallerySelector(false); setSidebarGalleryTargetField(null); }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Pestañas (Tabs) para Galería de Proyecto vs Plantilla */}
+            <div style={{ display: "flex", borderBottom: "1px solid var(--border-color)", marginBottom: "12px", gap: "16px" }}>
+              <button
+                type="button"
+                style={{
+                  padding: "8px 4px",
+                  background: "none",
+                  border: "none",
+                  borderBottom: sidebarGallerySelectorTab === "project" ? "2px solid var(--accent-primary)" : "2px solid transparent",
+                  color: sidebarGallerySelectorTab === "project" ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: sidebarGallerySelectorTab === "project" ? "bold" : "normal",
+                  cursor: "pointer",
+                  fontSize: "13px"
+                }}
+                onClick={() => setSidebarGallerySelectorTab("project")}
+              >
+                Imágenes del Proyecto
+              </button>
+              <button
+                type="button"
+                style={{
+                  padding: "8px 4px",
+                  background: "none",
+                  border: "none",
+                  borderBottom: sidebarGallerySelectorTab === "template" ? "2px solid var(--accent-primary)" : "2px solid transparent",
+                  color: sidebarGallerySelectorTab === "template" ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: sidebarGallerySelectorTab === "template" ? "bold" : "normal",
+                  cursor: "pointer",
+                  fontSize: "13px"
+                }}
+                onClick={() => setSidebarGallerySelectorTab("template")}
+              >
+                Imágenes de la Plantilla
+              </button>
+            </div>
+
+            <div className="gallery-assets-grid" style={{ maxHeight: "350px", overflowY: "auto" }}>
+              {sidebarGallerySelectorTab === "project" ? (
+                projectAssets && projectAssets.length > 0 ? (
+                  projectAssets.map((asset: any) => (
+                    <div
+                      key={asset.id}
+                      className="gallery-asset-item"
+                      onClick={() => {
+                        const nuevasCartas = cartas.map((c) => {
+                          if (!selectedCardIds.includes(c.id)) return c;
+                          const capaId = sidebarGalleryTargetField.mapaCartaCapaId[c.id];
+                          const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                          nextOverrides[capaId] = {
+                            ...(nextOverrides[capaId] || {}),
+                            [sidebarGalleryTargetField.property]: asset.src
+                          };
+                          return { ...c, capasOverrides: nextOverrides };
+                        });
+                        setCartas(nuevasCartas);
+                        setIsDirty(true);
+                        setShowSidebarGallerySelector(false);
+                        setSidebarGalleryTargetField(null);
+                      }}
+                      title={`Seleccionar ${asset.nombre}`}
+                    >
+                      <div className="gallery-asset-thumb-container">
+                        <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                      </div>
+                      <div className="gallery-asset-name">{asset.nombre}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ gridColumn: "1 / -1", padding: "40px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "12px" }}>
+                    La galería del proyecto está vacía. Añade imágenes desde el menú superior "Recursos".
+                  </div>
+                )
+              ) : (() => {
+                const primerCarta = cartas.find(c => c.id === selectedCardIds[0]);
+                const plantilla = primerCarta?.plantilla || (primerCarta?.plantillaId ? templatesMap[primerCarta.plantillaId] : null);
+                const assets = plantilla?.assets || [];
+                return assets.length > 0 ? (
+                  assets.map((asset: any) => (
+                    <div
+                      key={asset.id}
+                      className="gallery-asset-item"
+                      onClick={() => {
+                        const nuevasCartas = cartas.map((c) => {
+                          if (!selectedCardIds.includes(c.id)) return c;
+                          const capaId = sidebarGalleryTargetField.mapaCartaCapaId[c.id];
+                          const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                          nextOverrides[capaId] = {
+                            ...(nextOverrides[capaId] || {}),
+                            [sidebarGalleryTargetField.property]: asset.src
+                          };
+                          return { ...c, capasOverrides: nextOverrides };
+                        });
+                        setCartas(nuevasCartas);
+                        setIsDirty(true);
+                        setShowSidebarGallerySelector(false);
+                        setSidebarGalleryTargetField(null);
+                      }}
+                      title={`Seleccionar ${asset.nombre}`}
+                    >
+                      <div className="gallery-asset-thumb-container">
+                        <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                      </div>
+                      <div className="gallery-asset-name">{asset.nombre}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{ gridColumn: "1 / -1", padding: "40px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "12px" }}>
+                    La galería de esta plantilla está vacía.
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
