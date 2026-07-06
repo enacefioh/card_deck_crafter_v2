@@ -1656,6 +1656,7 @@ export default function App() {
         valoresCampos: {},
         capasOverrides: overrides,
         plantilla: templateInstance,
+        exposedProperties: templateInstance.exposedProperties ? JSON.parse(JSON.stringify(templateInstance.exposedProperties)) : undefined,
       };
 
       if (templateInstance.capas) {
@@ -1897,6 +1898,7 @@ export default function App() {
           capasOverridesTrasera: nextOverridesTrasera,
           plantilla: plantillaActualizada || c.plantilla,
           plantillaTrasera: plantillaTraseraActualizada || c.plantillaTrasera,
+          exposedProperties: plantillaActualizada ? (plantillaActualizada.exposedProperties || []) : c.exposedProperties,
         };
       })
     );
@@ -2366,6 +2368,8 @@ export default function App() {
                         </div>
                       </div>
                     )}
+
+
 
                     <button
                       className="btn-primary btn-danger"
@@ -3362,6 +3366,51 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Panel Lateral Derecho: Campos Editables (SRS-036) */}
+      <aside className="sidebar-right">
+        <div className="sidebar-header">
+          <h1>Campos Editables</h1>
+          <p>Propiedades rápidas de la carta seleccionada</p>
+        </div>
+        <div className="sidebar-content" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          {selectedCardIds.length === 1 ? (() => {
+            const selectedCarta = cartas.find((c) => c.id === selectedCardIds[0]);
+            if (!selectedCarta) return null;
+            const plantilla = selectedCarta.plantilla || (selectedCarta.plantillaId ? templatesMap[selectedCarta.plantillaId] : null);
+            const propsList = selectedCarta.exposedProperties || plantilla?.exposedProperties || [];
+            if (propsList.length === 0) {
+              return (
+                <div style={{ textAlign: "center", padding: "24px", color: "var(--text-secondary)", fontSize: "13px", fontStyle: "italic" }}>
+                  Esta carta no posee campos editables configurados.
+                </div>
+              );
+            }
+            return (
+              <section className="config-group">
+                <h3 className="config-group-title">Propiedades Expuestas</h3>
+                <ul style={{ margin: 0, paddingLeft: "16px", fontSize: "12px", color: "var(--text-secondary)", display: "flex", flexDirection: "column", gap: "6px" }}>
+                  {propsList.map((prop: any, idx: number) => {
+                    const capas = selectedCarta.plantilla?.capas || (selectedCarta.plantillaId ? templatesMap[selectedCarta.plantillaId]?.capas : []) || [];
+                    const capa = capas.find((c: any) => c.id === prop.layerId);
+                    const tipoLabel = capa?.tipo === "text" ? "Texto" : (capa?.tipo === "image" || capa?.tipo === "image-switch") ? "Imagen" : "Propiedad";
+                    return (
+                      <li key={idx} style={{ lineHeight: "1.4" }}>
+                        <strong>{prop.label}</strong> <span style={{ opacity: 0.6 }}>({tipoLabel}: {prop.property})</span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            );
+          })() : (
+            <div style={{ textAlign: "center", padding: "24px", color: "var(--text-secondary)", fontSize: "13px" }}>
+              Selecciona una sola carta para visualizar sus campos editables.
+            </div>
+          )}
+        </div>
+      </aside>
+
       <input
         ref={fileInputProyectoRef}
         type="file"

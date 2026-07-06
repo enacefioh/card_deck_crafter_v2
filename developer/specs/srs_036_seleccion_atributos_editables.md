@@ -1,51 +1,44 @@
-# SRS-036: Selección de Atributos Editables y Vista Simplificada de Edición
+# SRS-036: Configuración de Atributos Editables (Modo Maquetador)
 
-## Descripción del Problema
-Cuando un maquetador crea una plantilla compleja, esta puede tener decenas de capas (fondos, contenedores, marcos, múltiples campos de texto e imágenes). Sin embargo, el usuario "editor" (que solo utiliza la plantilla para crear cartas) solo necesita modificar valores puntuales (como el título, descripción, fuerza/resistencia o la ilustración), sin riesgo de desalinear capas, alterar fuentes o cambiar colores accidentalmente.
+## 1. Descripción del Problema
+Para permitir una edición simplificada de cartas sin que los editores tengan que interactuar con el árbol completo de capas o el editor avanzado, el maquetador debe poder seleccionar qué atributos de cada capa de la plantilla se exponen para su edición rápida.
 
-Actualmente, no hay forma de filtrar o simplificar qué propiedades se exponen a un editor de cartas, forzándolo a usar el editor avanzado completo y navegar por el árbol de capas.
-
----
-
-## Requisitos Funcionales
-
-### RF-1: Estructura de Datos de Propiedades Expuestas
-El objeto de plantilla (`Template`) incluirá una nueva propiedad `exposedProperties` que almacenará la lista de campos que el maquetador decide simplificar para la carta:
-```typescript
-interface ExposedProperty {
-  layerId: string;      // ID de la capa a la que pertenece
-  property: string;     // Propiedad expuesta (ej. "contenidoRaw" para texto, "src" para imagen, "color" para texto)
-  label: string;        // Nombre legible personalizado (ej. "Nombre de la Carta", "Fuerza/Resistencia")
-}
-```
-
-### RF-2: Panel de Configuración en el Editor de Plantillas (Modo Maquetador)
-Para definir qué atributos exponer, el maquetador contará con una interfaz de configuración:
-
-*   **Ubicación de Acceso**: Un botón en la barra superior o menú de opciones de la plantilla en `EditCardModal` titulado **"Configurar Campos Editables"**.
-*   **Interfaz (Modal Dedicado - Opción Recomendada)**:
-    *   **Estructura**: Abre un popup modal espacioso con una distribución de dos columnas (Transfer List).
-    *   **Columna Izquierda (Disponibles)**: Lista de todos los atributos editables de las capas de la plantilla. Se agruparán por capa (ej. `[Texto] Nombre - Contenido`, `[Texto] Nombre - Color de Texto`, `[Imagen] Ilustración - Archivo`).
-    *   **Columna Derecha (Expuestos/Seleccionados)**: Lista de atributos seleccionados que se mostrarán al editor.
-    *   **Botones de Transferencia**: Flechas (`>` y `<`) para añadir o quitar propiedades seleccionadas (también mediante doble clic).
-    *   **Ordenación**: Flechas de subir/bajar (`▲` y `▼`) para ordenar los campos de la columna derecha, determinando en qué orden se le mostrarán al editor final.
-    *   **Renombrado (Etiquetas Legibles)**: Cada elemento en la columna derecha tendrá un campo de texto para que el maquetador asigne un nombre legible (ej. mapear `capa_texto_1.contenidoRaw` a `"Título de la Carta"`).
+Esta especificación cubre la interfaz para que el maquetador seleccione y guarde esta lista de atributos editables a nivel de plantilla, la herencia de esta configuración en cada carta de forma independiente, y la visualización de la lista de atributos seleccionados en la barra lateral del workspace principal al seleccionar una carta (como texto plano informativo, sin inputs).
 
 ---
 
-## Criterio de Ubicación y Flujo para el Editor Simplificado (Respuesta a Consulta de Diseño)
+## 2. Requisitos Funcionales
 
-Para ofrecer una experiencia de usuario fluida y libre de distracciones, se proponen dos niveles de edición simplificada:
+### RF-1: Definición del Esquema e Independencia en la Carta
+*   La plantilla (`Template`) almacenará una propiedad `exposedProperties`:
+    ```typescript
+    interface ExposedProperty {
+      layerId: string;      // ID de la capa
+      property: string;     // Propiedad (ej. "contenidoRaw" o "src")
+      label: string;        // Nombre amigable (ej. "Título", "Ilustración")
+    }
+    ```
+*   **Herencia e Independencia**: Al crear una carta a partir de una plantilla, la carta hereda la lista `exposedProperties` actual de dicha plantilla. A partir de ese momento, la configuración de propiedades editables de la carta es completamente **independiente** de la plantilla. Modificar la plantilla posteriormente no afectará a las cartas ya existentes en el proyecto.
 
-### Flujo 1: Edición Directa en el Lateral del Workspace Principal (`App.tsx`)
-Cuando el usuario selecciona una carta en el lienzo o en la lista de cartas de la pantalla principal (`App.tsx`):
-*   Si la carta está asociada a una plantilla con `exposedProperties` configurados, el panel lateral izquierdo o derecho del workspace principal (la **Sidebar** de la app) mostrará un panel dinámico de **"Edición Rápida"**.
-*   Este panel contendrá directamente los inputs del formulario simplificado (inputs de texto, selectores de imágenes, etc.) ordenados y con las etiquetas legibles que configuró el maquetador.
-*   El usuario puede modificar los valores en caliente y ver los cambios inmediatamente reflejados en el lienzo de impresión, **sin necesidad de abrir ningún modal**.
+### RF-2: Acceso en el Editor de Cartas / Plantillas
+*   En la columna lateral del inspector o panel de acciones de `EditCardModal` (modo maquetador), se añadirá un botón titulado **"Configurar campos editables"**.
+*   Este botón estará ubicado justo **encima del botón de "Guardar plantilla"**.
 
-### Flujo 2: Modal de Edición Simplificada (Doble Clic)
-Al hacer doble clic en una carta que tiene campos editables configurados:
-*   En lugar de abrir el editor avanzado de capas directamente (`EditCardModal`), se abrirá una versión simplificada del modal (o el mismo modal pero con una vista por defecto del formulario de campos editables).
-*   En esta vista, a la izquierda se previsualizará la carta a gran tamaño y a la derecha aparecerá únicamente el formulario simple de propiedades configuradas.
-*   Se añadirá un botón **"Diseñar Plantilla (Avanzado)"** en una esquina para permitir a los maquetadores saltar al editor avanzado de capas cuando sea necesario.
-*   Si la plantilla no tiene campos editables configurados, el sistema abrirá por defecto el editor avanzado directamente.
+### RF-3: Modal de Selección de Atributos (Dos Columnas)
+Al hacer clic en "Configurar campos editables", se abrirá un modal superpuesto:
+1.  **Columna Izquierda (Disponibles)**: Muestra todas las capas y sus propiedades editables (ej. `[Texto] Título - Contenido`, `[Imagen] Ilustración - Imagen`).
+2.  **Columna Derecha (Expuestos/Seleccionados)**: Muestra los atributos seleccionados para esta carta/plantilla.
+3.  **Configuración por Defecto**: Al crear o iniciar esta configuración, se preseleccionarán automáticamente:
+    *   Para capas de **Texto (`text`)**: El contenido del texto (`contenidoRaw`).
+    *   Para capas de **Imagen o Image-Switch (`image` | `image-switch`)**: El archivo de imagen o selección (`src`).
+    *   Para **Contenedores y Bloques Vacíos**: Ninguna propiedad por defecto.
+4.  **Acciones del Modal**:
+    *   Botones de transferencia (`>` y `<`) para añadir y remover elementos.
+    *   Controles de ordenación (`▲` y `▼`) para organizar la lista en la columna derecha.
+    *   Input de edición de texto para que el maquetador personalice la etiqueta (Label) legible (ej. cambiar `CapaTexto1 - contenidoRaw` a `Nombre de la Criatura`).
+    *   Botones de **Aceptar** (guarda la configuración local temporal) y **Cerrar/Cancelar** (descarta cambios).
+
+### RF-4: Previsualización de la Lista en la Sidebar (`App.tsx`)
+*   Al seleccionar una carta en el workspace principal (`App.tsx`), el panel lateral (Sidebar) mostrará una nueva sección titulada **"Campos Editables"**.
+*   En esta versión, esta sección **solo listará en texto plano** las propiedades expuestas configuradas para esa carta (ej. `• Nombre de la Criatura (Texto)`, `• Ilustración (Imagen)`), como verificación de que se han heredado y guardado correctamente.
+*   No se renderizarán inputs ni formularios de edición interactiva. El renderizado de inputs interactivos y el procesamiento de cambios se definirán en la especificación [SRS-037](file:///c:/Users/victo/proyectos/cdc2/developer/specs/srs_037_formulario_edicion_simplificada.md).

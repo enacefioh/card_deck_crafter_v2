@@ -812,6 +812,36 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(deleted.length).toBe(0);
     });
   });
+
+  describe("Configuración de Atributos Editables (SRS-036)", () => {
+    it("debe clonar y conservar exposedProperties de la plantilla al duplicar cartas", () => {
+      const mockCarta: any = {
+        id: "carta_ex",
+        nombre: "Carta Expuesta",
+        valoresCampos: {},
+        exposedProperties: [
+          { layerId: "capa1", property: "contenidoRaw", label: "Mi Titulo" }
+        ],
+        plantilla: {
+          id: "plantilla_ex",
+          nombre: "Plantilla Expuesta",
+          capas: [],
+          camposConfig: [],
+          exposedProperties: [
+            { layerId: "capa1", property: "contenidoRaw", label: "Mi Titulo" }
+          ]
+        }
+      };
+
+      const resultado = duplicarCartas([mockCarta], ["carta_ex"]);
+      expect(resultado.length).toBe(2);
+      const copia = resultado[1];
+      expect(copia.exposedProperties).toBeDefined();
+      expect(copia.exposedProperties[0].label).toBe("Mi Titulo");
+      expect(copia.plantilla.exposedProperties).toBeDefined();
+      expect(copia.plantilla.exposedProperties[0].label).toBe("Mi Titulo");
+    });
+  });
 });
 
 

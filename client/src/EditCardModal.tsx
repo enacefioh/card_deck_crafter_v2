@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import type { CardConfig, Carta } from "shared";
+import type { CardConfig, Carta, ExposedProperty } from "shared";
 import JSZip from "jszip";
 import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion } from "./utils/projectUtils";
 import "./EditCardModal.css";
@@ -115,6 +115,11 @@ export default function EditCardModal({
 
   // Estado del menú desplegable de opciones de plantilla
   const [showDropdown, setShowDropdown] = useState<boolean>(false);
+
+  // Estados para el Modal de Configuración de Campos Editables (SRS-036)
+  const [showExposedConfigModal, setShowExposedConfigModal] = useState<boolean>(false);
+  const [tempExposedProperties, setTempExposedProperties] = useState<ExposedProperty[]>([]);
+  const [expandedConfigLayerIds, setExpandedConfigLayerIds] = useState<string[]>([]);
 
   // Estados para jerarquía y arrastre (SRS-025)
   const [collapsedContainerIds, setCollapsedContainerIds] = useState<string[]>(() => {
@@ -305,6 +310,34 @@ export default function EditCardModal({
       tempPlantilla,
       tempPlantillaTrasera
     );
+  };
+
+  const handleOpenExposedConfigModal = () => {
+    if (!plantillaActiva) return;
+    
+    let list: ExposedProperty[] = [];
+    if (plantillaActiva.exposedProperties && plantillaActiva.exposedProperties.length > 0) {
+      list = JSON.parse(JSON.stringify(plantillaActiva.exposedProperties));
+    } else {
+      (plantillaActiva.capas || []).forEach((capa: any) => {
+        if (capa.tipo === "text") {
+          list.push({
+            layerId: capa.id,
+            property: "contenidoRaw",
+            label: capa.nombre || "Texto",
+          });
+        } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
+          list.push({
+            layerId: capa.id,
+            property: "src",
+            label: capa.nombre || "Imagen",
+          });
+        }
+      });
+    }
+    
+    setTempExposedProperties(list);
+    setShowExposedConfigModal(true);
   };
 
   // --- Añadir Elemento ---
@@ -1666,6 +1699,30 @@ export default function EditCardModal({
                   }}
                 >
                   <span>➕</span> Añadir Elemento
+                </button>
+                <button
+                  type="button"
+                  className="btn-configure-exposed"
+                  onClick={handleOpenExposedConfigModal}
+                  style={{
+                    width: "100%",
+                    padding: "8px 12px",
+                    backgroundColor: "var(--bg-app)",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-primary)",
+                    borderRadius: "6px",
+                    fontFamily: "var(--font-sans)",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                    cursor: "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    transition: "all 0.15s ease",
+                  }}
+                >
+                  <span>⚙️</span> Configurar campos editables
                 </button>
                 <div className="template-actions-group">
                   <button
@@ -3734,6 +3791,357 @@ export default function EditCardModal({
                 Listo
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Configuración de Campos Editables (SRS-036) */}
+      {showExposedConfigModal && plantillaActiva && (
+        <div className="exposed-config-backdrop" style={{
+          position: "fixed",
+          top: 0,
+          left: 0,
+          width: "100vw",
+          height: "100vh",
+          backgroundColor: "rgba(0, 0, 0, 0.75)",
+          backdropFilter: "blur(4px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 3000,
+        }} onClick={() => setShowExposedConfigModal(false)}>
+          <div className="exposed-config-container" style={{
+            backgroundColor: "var(--bg-card)",
+            border: "1px solid var(--border-color)",
+            borderRadius: "12px",
+            width: "700px",
+            maxWidth: "90vw",
+            height: "550px",
+            maxHeight: "85vh",
+            display: "flex",
+            flexDirection: "column",
+            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)",
+            overflow: "hidden",
+          }} onClick={(e) => e.stopPropagation()}>
+            
+            {/* Cabecera */}
+            <header style={{
+              padding: "16px 24px",
+              borderBottom: "1px solid var(--border-color)",
+              display: "flex",
+              alignItems: "center",
+            }}>
+              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "var(--text-primary)" }}>
+                Configurar Campos Editables (Modo Maquetador)
+              </h3>
+              <button
+                type="button"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  marginLeft: "auto"
+                }}
+                onClick={() => setShowExposedConfigModal(false)}
+              >
+                ✕
+              </button>
+            </header>
+
+            {/* Dos Columnas */}
+            <div style={{ height: "360px", display: "grid", gridTemplateColumns: "1fr 1fr", overflow: "hidden" }}>
+              
+              <div style={{ padding: "16px", borderRight: "1px solid var(--border-color)", display: "flex", flexDirection: "column", overflow: "hidden", height: "100%", boxSizing: "border-box" }}>
+                <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>
+                  Propiedades Disponibles
+                </span>
+                <div className="exposed-scrollable-list" style={{ height: "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {(() => {
+                    const getPropertiesForCapa = (capa: any) => {
+                      const list = [
+                        { property: "xMm", label: "Posición X" },
+                        { property: "yMm", label: "Posición Y" },
+                        { property: "anchoMm", label: "Ancho" },
+                        { property: "altoMm", label: "Alto" },
+                        { property: "borderTopWidth", label: "Grosor Borde" },
+                        { property: "borderTopColor", label: "Color Borde" },
+                        { property: "backgroundColor", label: "Color Fondo" },
+                        { property: "borderTopLeftRadius", label: "Radio Esquinas" },
+                      ];
+                      if (capa.tipo === "text") {
+                        list.push(
+                          { property: "contenidoRaw", label: "Contenido Texto" },
+                          { property: "fontFamily", label: "Tipografía" },
+                          { property: "fontSizePt", label: "Tamaño Fuente" },
+                          { property: "color", label: "Color Texto" },
+                          { property: "alineacion", label: "Alineación Texto" },
+                          { property: "paddingTopMm", label: "Padding Texto" }
+                        );
+                      } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
+                        list.push(
+                          { property: "src", label: "Recurso Imagen" },
+                          { property: "modoAjuste", label: "Ajuste Imagen" }
+                        );
+                      } else if (capa.tipo === "container") {
+                        list.push(
+                          { property: "layout", label: "Tipo Layout" }
+                        );
+                      } else if (capa.tipo === "background") {
+                        list.push(
+                          { property: "colorFill", label: "Color Relleno" }
+                        );
+                      }
+                      return list;
+                    };
+
+                    return (plantillaActiva.capas || []).map((capa: any) => {
+                      const isExpanded = expandedConfigLayerIds.includes(capa.id);
+                      const availableProps = getPropertiesForCapa(capa);
+                      const capaEmoji = capa.tipo === "text" ? "📝" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : "⬜";
+
+                      return (
+                        <div key={capa.id} style={{
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "6px",
+                          overflow: "hidden",
+                          marginBottom: "4px",
+                          backgroundColor: "var(--bg-app)",
+                          flexShrink: 0,
+                        }}>
+                          {/* Cabecera Colapsable de Capa */}
+                          <div
+                            style={{
+                              padding: "8px 12px",
+                              backgroundColor: "var(--bg-card)",
+                              cursor: "pointer",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "space-between",
+                              userSelect: "none"
+                            }}
+                            onClick={() => {
+                              setExpandedConfigLayerIds(prev => 
+                                prev.includes(capa.id) 
+                                  ? prev.filter(id => id !== capa.id) 
+                                  : [...prev, capa.id]
+                              );
+                            }}
+                          >
+                            <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-primary)" }}>
+                              {capaEmoji} {capa.nombre || `${capa.tipo} (${capa.id})`}
+                            </span>
+                            <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
+                              {isExpanded ? "▼" : "▶"}
+                            </span>
+                          </div>
+
+                          {/* Cuerpo con Propiedades */}
+                          {isExpanded && (
+                            <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "6px", borderTop: "1px solid var(--border-color)", backgroundColor: "var(--bg-app)" }}>
+                              {availableProps.map((p) => {
+                                const isAlreadyExposed = tempExposedProperties.some(
+                                  item => item.layerId === capa.id && item.property === p.property
+                                );
+                                return (
+                                  <div
+                                    key={p.property}
+                                    style={{
+                                      padding: "6px 8px",
+                                      backgroundColor: "var(--bg-card)",
+                                      border: "1px solid var(--border-color)",
+                                      borderRadius: "4px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      justifyContent: "space-between",
+                                      opacity: isAlreadyExposed ? 0.5 : 1,
+                                    }}
+                                  >
+                                    <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>
+                                      {p.label} <span style={{ fontSize: "10px", color: "var(--text-secondary)", opacity: 0.8 }}>({p.property})</span>
+                                    </span>
+                                    {!isAlreadyExposed && (
+                                      <button
+                                        type="button"
+                                        style={{
+                                          padding: "2px 6px",
+                                          fontSize: "10px",
+                                          backgroundColor: "var(--accent-primary)",
+                                          color: "#fff",
+                                          border: "none",
+                                          borderRadius: "3px",
+                                          cursor: "pointer",
+                                        }}
+                                        onClick={() => {
+                                          setTempExposedProperties(prev => [
+                                            ...prev,
+                                            {
+                                              layerId: capa.id,
+                                              property: p.property,
+                                              label: `${capa.nombre || capa.tipo} - ${p.label}`,
+                                            }
+                                          ]);
+                                        }}
+                                      >
+                                        + Añadir
+                                      </button>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    });
+                  })()}
+                </div>
+              </div>
+
+              <div style={{ padding: "16px", display: "flex", flexDirection: "column", overflow: "hidden", height: "100%", boxSizing: "border-box" }}>
+                <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>
+                  Campos Expuestos / Orden de Edición
+                </span>
+                <div className="exposed-scrollable-list" style={{ height: "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                  {tempExposedProperties.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "32px", fontSize: "12.5px", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                      No hay campos seleccionados. Añade uno de la izquierda.
+                    </div>
+                  ) : (
+                    tempExposedProperties.map((prop, idx) => {
+                      const capa = (plantillaActiva.capas || []).find((c: any) => c.id === prop.layerId);
+                      return (
+                        <div
+                          key={`${prop.layerId}-${prop.property}`}
+                          style={{
+                            padding: "8px 12px",
+                            backgroundColor: "var(--bg-app)",
+                            border: "1px solid var(--border-color)",
+                            borderRadius: "6px",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "6px",
+                          }}
+                        >
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                            <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
+                              Capa: {capa?.tipo || "Desconocida"} ({prop.property})
+                            </span>
+                            <div style={{ display: "flex", gap: "4px" }}>
+                              <button
+                                type="button"
+                                style={{ padding: "2px 6px", fontSize: "10px", cursor: "pointer", border: "1px solid var(--border-color)", borderRadius: "3px", backgroundColor: "var(--bg-card)", color: "var(--text-primary)" }}
+                                disabled={idx === 0}
+                                onClick={() => {
+                                  setTempExposedProperties(prev => {
+                                    const next = [...prev];
+                                    const temp = next[idx];
+                                    next[idx] = next[idx - 1];
+                                    next[idx - 1] = temp;
+                                    return next;
+                                  });
+                                }}
+                              >
+                                ▲
+                              </button>
+                              <button
+                                type="button"
+                                style={{ padding: "2px 6px", fontSize: "10px", cursor: "pointer", border: "1px solid var(--border-color)", borderRadius: "3px", backgroundColor: "var(--bg-card)", color: "var(--text-primary)" }}
+                                disabled={idx === tempExposedProperties.length - 1}
+                                onClick={() => {
+                                  setTempExposedProperties(prev => {
+                                    const next = [...prev];
+                                    const temp = next[idx];
+                                    next[idx] = next[idx + 1];
+                                    next[idx + 1] = temp;
+                                    return next;
+                                  });
+                                }}
+                              >
+                                ▼
+                              </button>
+                              <button
+                                type="button"
+                                style={{ padding: "2px 6px", fontSize: "10px", cursor: "pointer", border: "1px solid var(--border-color)", borderRadius: "3px", backgroundColor: "rgba(239,68,68,0.1)", color: "var(--text-danger)" }}
+                                onClick={() => {
+                                  setTempExposedProperties(prev => prev.filter((_, i) => i !== idx));
+                                }}
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          </div>
+                          
+                          <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                            <span style={{ fontSize: "12px", color: "var(--text-primary)" }}>Etiqueta:</span>
+                            <input
+                              type="text"
+                              value={prop.label}
+                              style={{
+                                flex: 1,
+                                padding: "4px 8px",
+                                fontSize: "12px",
+                                backgroundColor: "var(--bg-card)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "4px",
+                                color: "var(--text-primary)"
+                              }}
+                              onChange={(e) => {
+                                const newLabel = e.target.value;
+                                setTempExposedProperties(prev => prev.map((item, i) => i === idx ? { ...item, label: newLabel } : item));
+                              }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Footer */}
+            <footer style={{
+              padding: "16px 24px",
+              borderTop: "1px solid var(--border-color)",
+              display: "flex",
+              justifyContent: "flex-end",
+              gap: "12px",
+              backgroundColor: "var(--bg-card)"
+            }}>
+              <button
+                type="button"
+                className="btn-secundario"
+                style={{ padding: "8px 16px", fontSize: "13px" }}
+                onClick={() => setShowExposedConfigModal(false)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: "8px 16px", fontSize: "13px" }}
+                onClick={() => {
+                  if (activeTab === "frontal") {
+                    setTempPlantilla(prev => ({
+                      ...prev,
+                      exposedProperties: tempExposedProperties,
+                    }));
+                  } else {
+                    setTempPlantillaTrasera(prev => ({
+                      ...prev,
+                      exposedProperties: tempExposedProperties,
+                    }));
+                  }
+                  setShowExposedConfigModal(false);
+                }}
+              >
+                Aceptar
+              </button>
+            </footer>
+
           </div>
         </div>
       )}

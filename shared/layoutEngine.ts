@@ -23,6 +23,12 @@ export interface CardConfig {
   reducirArteAlBorde?: boolean;
 }
 
+export interface ExposedProperty {
+  layerId: string;
+  property: string;
+  label: string;
+}
+
 export interface Carta {
   id: string;
   nombre: string;
@@ -51,6 +57,7 @@ export interface Carta {
     fontFamily?: string;
     fontSizePt?: number;
   }>;
+  exposedProperties?: ExposedProperty[];
   plantilla?: {
     id: string;
     nombre: string;
@@ -62,6 +69,7 @@ export interface Carta {
       src: string;
     }>;
     customFonts?: CustomFont[];
+    exposedProperties?: ExposedProperty[];
   };
   plantillaTrasera?: {
     id: string;
@@ -74,6 +82,7 @@ export interface Carta {
       src: string;
     }>;
     customFonts?: CustomFont[];
+    exposedProperties?: ExposedProperty[];
   };
 }
 
