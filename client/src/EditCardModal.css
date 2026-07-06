@@ -1272,3 +1272,19 @@ select.inspector-input option {
   border-radius: 8px;
   padding: 4px;
 }
+
+/* Estilos para el Formulario Unificado (SRS-035) */
+.inspector-group-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.inspector-group-title {
+  margin: 0 0 4px 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
