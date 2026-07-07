@@ -2189,7 +2189,10 @@ export default function App() {
         onEliminarSeleccion={handleEliminarSeleccion}
         onMoverSeleccionArriba={() => handleMoverSeleccion("arriba")}
         onMoverSeleccionAbajo={() => handleMoverSeleccion("abajo")}
-        onAddCardFromTemplate={() => setShowTemplateModal(true)}
+        onAddCardFromTemplate={() => {
+          setTemplateModalMode("addCard");
+          setShowTemplateModal(true);
+        }}
         onEditCardSelected={() => {
           if (selectedCardIds.length === 1) {
             setEditingCardId(selectedCardIds[0]);
@@ -2305,7 +2308,10 @@ export default function App() {
             <button
               className="btn-secondary"
               style={{ marginTop: "12px", width: "100%", padding: "10px", borderRadius: "8px", display: "flex", alignItems: "center", justifyContent: "center", gap: "8px" }}
-              onClick={() => setShowTemplateModal(true)}
+              onClick={() => {
+                setTemplateModalMode("addCard");
+                setShowTemplateModal(true);
+              }}
             >
               <span>✨</span> Añadir Carta desde Plantilla
             </button>
