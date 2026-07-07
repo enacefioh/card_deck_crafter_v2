@@ -136,6 +136,8 @@ export default function DetailModal({
                               const isParentVertical = parentCapa && parentCapa.layout === "vertical";
                               const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
+                              const activeVisibility = carta.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible";
+
                               const style: React.CSSProperties = {
                                 position: isParentFlex ? "relative" : "absolute",
                                 left: isParentFlex 
@@ -149,6 +151,8 @@ export default function DetailModal({
                                 pointerEvents: "none",
                                 boxSizing: "border-box",
                                 flexShrink: 0,
+                                visibility: activeVisibility === "hidden" ? "hidden" : undefined,
+                                display: activeVisibility === "collapsed" ? "none" : undefined,
                               };
 
                               if (capa.tipo === "background") {
@@ -202,12 +206,13 @@ export default function DetailModal({
                                   <div
                                     key={capa.id}
                                     style={{
-                                      ...style,
-                                      ...borderCornersStyle,
-                                      ...flexStyle,
-                                      backgroundColor: resolvedCapa.backgroundColor || "transparent",
-                                      overflow: "hidden",
-                                    }}
+                                    ...style,
+                                    ...borderCornersStyle,
+                                    ...flexStyle,
+                                    display: activeVisibility === "collapsed" ? "none" : (isFlex ? "flex" : undefined),
+                                    backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                    overflow: "hidden",
+                                  }}
                                   >
                                     {renderCapaRecursiva(capa.id)}
                                   </div>
@@ -461,6 +466,8 @@ export default function DetailModal({
                               const isParentVertical = parentCapa && parentCapa.layout === "vertical";
                               const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
+                              const activeVisibility = carta.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible";
+
                               const style: React.CSSProperties = {
                                 position: isParentFlex ? "relative" : "absolute",
                                 left: isParentFlex 
@@ -474,6 +481,8 @@ export default function DetailModal({
                                 pointerEvents: "none",
                                 boxSizing: "border-box",
                                 flexShrink: 0,
+                                visibility: activeVisibility === "hidden" ? "hidden" : undefined,
+                                display: activeVisibility === "collapsed" ? "none" : undefined,
                               };
 
                               if (capa.tipo === "background") {
@@ -527,12 +536,13 @@ export default function DetailModal({
                                   <div
                                     key={capa.id}
                                     style={{
-                                      ...style,
-                                      ...borderCornersStyle,
-                                      ...flexStyle,
-                                      backgroundColor: resolvedCapa.backgroundColor || "transparent",
-                                      overflow: "hidden",
-                                    }}
+                                    ...style,
+                                    ...borderCornersStyle,
+                                    ...flexStyle,
+                                    display: activeVisibility === "collapsed" ? "none" : (isFlex ? "flex" : undefined),
+                                    backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                    overflow: "hidden",
+                                  }}
                                   >
                                     {renderCapaRecursiva(capa.id)}
                                   </div>

@@ -2651,6 +2651,8 @@ export default function App() {
                                           pointerEvents: "none",
                                           boxSizing: "border-box",
                                           flexShrink: 0,
+                                          visibility: (cardData.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible") === "hidden" ? "hidden" : undefined,
+                                          display: (cardData.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : undefined,
                                         };
 
                                         if (capa.tipo === "background") {
@@ -2704,12 +2706,13 @@ export default function App() {
                                             <div
                                               key={capa.id}
                                               style={{
-                                                ...style,
-                                                ...borderCornersStyle,
-                                                ...flexStyle,
-                                                backgroundColor: resolvedCapa.backgroundColor || "transparent",
-                                                overflow: "hidden",
-                                              }}
+                                    ...style,
+                                    ...borderCornersStyle,
+                                    ...flexStyle,
+                                    display: (cardData.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : (isFlex ? "flex" : undefined),
+                                    backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                    overflow: "hidden",
+                                  }}
                                             >
                                               {renderCapaRecursiva(capa.id)}
                                             </div>
@@ -3052,6 +3055,8 @@ export default function App() {
                                               pointerEvents: "none",
                                               boxSizing: "border-box",
                                               flexShrink: 0,
+                                              visibility: (cardData.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible") === "hidden" ? "hidden" : undefined,
+                                              display: (cardData.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : undefined,
                                             };
 
                                             if (capa.tipo === "background") {
@@ -3106,6 +3111,7 @@ export default function App() {
                                                     ...style,
                                                     ...borderCornersStyle,
                                                     ...flexStyle,
+                                                    display: (cardData.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : (isFlex ? "flex" : undefined),
                                                     backgroundColor: resolvedCapa.backgroundColor || "transparent",
                                                     overflow: "hidden",
                                                   }}
@@ -3620,6 +3626,19 @@ export default function App() {
                             </div>
                           )}
                         </div>
+                      )}
+
+                      {campo.property === "visibility" && (
+                        <select
+                          className="inspector-input"
+                          value={todosIguales ? valorMostrar : ""}
+                          onChange={(e) => handleUpdateValorLote(e.target.value)}
+                        >
+                          {!todosIguales && <option value="" disabled>&lt;Valores múltiples&gt;</option>}
+                          <option value="visible">Visible</option>
+                          <option value="hidden">Invisible (reserva espacio)</option>
+                          <option value="collapsed">Eliminado (no ocupa espacio)</option>
+                        </select>
                       )}
                     </div>
                   );

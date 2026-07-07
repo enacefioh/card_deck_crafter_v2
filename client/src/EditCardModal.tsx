@@ -1832,6 +1832,10 @@ export default function EditCardModal({
                         const isSelected = selectedLayerId === capa.id;
                         const isHovered = hoveredLayerId === capa.id;
 
+                        const activeVisibility = tempCapasOverridesActivos[capa.id]?.visibility || capa.visibility || "visible";
+                        const isHidden = activeVisibility === "hidden";
+                        const isCollapsed = activeVisibility === "collapsed";
+
                         const layerStyle: React.CSSProperties = {
                           position: isParentFlex ? "relative" : "absolute",
                           left: isParentFlex 
@@ -1853,6 +1857,9 @@ export default function EditCardModal({
                           outlineOffset: "-1px",
                           zIndex: isSelected ? 10 : isHovered ? 9 : 1,
                           flexShrink: 0,
+                          visibility: (isHidden && !isSelected) ? "hidden" : undefined,
+                          display: (isCollapsed && !isSelected) ? "none" : undefined,
+                          opacity: (isSelected && (isHidden || isCollapsed)) ? 0.4 : undefined,
                         };
 
                         if (capa.tipo === "background") {
@@ -1959,6 +1966,7 @@ export default function EditCardModal({
                                 ...layerStyle,
                                 ...borderCornersStyle,
                                 ...flexStyle,
+                                display: (isCollapsed && !isSelected) ? "none" : (isFlex ? "flex" : undefined),
                                 backgroundColor: resolvedCapa.backgroundColor || "transparent",
                                 overflow: "hidden",
                               }}
@@ -2168,6 +2176,47 @@ export default function EditCardModal({
 
                   {/* Formulario Unificado de Propiedades (SRS-035) */}
                   <div className="inspector-properties-form" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    
+                    {/* Visibilidad (SRS-039) */}
+                    <div className="inspector-group-section" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "16px" }}>
+                      <h4 className="inspector-group-title">Visibilidad</h4>
+                      
+                      <div className="inspector-section">
+                        <label className="inspector-label">Visibilidad de esta Carta (Anulación)</label>
+                        <select
+                          className="inspector-input"
+                          value={tempCapasOverridesActivos[selectedCapa.id]?.visibility || ""}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setTempCapasOverridesActivos((prev) => ({
+                              ...prev,
+                              [selectedCapa.id]: {
+                                ...(prev[selectedCapa.id] || {}),
+                                visibility: val === "" ? undefined : val as any,
+                              },
+                            }));
+                          }}
+                        >
+                          <option value="">(Heredar de plantilla: {selectedCapa.visibility || "visible"})</option>
+                          <option value="visible">Visible</option>
+                          <option value="hidden">Invisible (reserva espacio)</option>
+                          <option value="collapsed">Eliminado (no ocupa espacio)</option>
+                        </select>
+                      </div>
+
+                      <div className="inspector-section" style={{ marginTop: "8px" }}>
+                        <label className="inspector-label">Visibilidad por Defecto (Plantilla Base)</label>
+                        <select
+                          className="inspector-input"
+                          value={selectedCapa.visibility || "visible"}
+                          onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "visibility", e.target.value)}
+                        >
+                          <option value="visible">Visible</option>
+                          <option value="hidden">Invisible (reserva espacio)</option>
+                          <option value="collapsed">Eliminado (no ocupa espacio)</option>
+                        </select>
+                      </div>
+                    </div>
                     
                     {/* Capa de Fondo (Background) */}
                     {selectedCapa.tipo === "background" && (
@@ -3917,6 +3966,7 @@ export default function EditCardModal({
                     {(() => {
                     const getPropertiesForCapa = (capa: any) => {
                       const list = [
+                        { property: "visibility", label: "Visibilidad" },
                         { property: "xMm", label: "Posición X" },
                         { property: "yMm", label: "Posición Y" },
                         { property: "anchoMm", label: "Ancho" },

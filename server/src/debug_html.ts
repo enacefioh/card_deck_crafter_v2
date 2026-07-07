@@ -227,7 +227,15 @@ function generarHtmlImpresion(
             const widthMm = `${capa.anchoMm}mm`;
             const heightMm = `${capa.altoMm}mm`;
 
-            const baseStyle = `${positionCss} ${leftMm} ${topMm} width: ${widthMm}; height: ${heightMm}; pointer-events: none; box-sizing: border-box; flex-shrink: 0;`;
+            const activeVisibility = (cardData.capasOverrides?.[capa.id]?.visibility || cardData.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible");
+            let visStyle = "";
+            if (activeVisibility === "hidden") {
+              visStyle = "visibility: hidden;";
+            } else if (activeVisibility === "collapsed") {
+              visStyle = "display: none;";
+            }
+
+            const baseStyle = `${positionCss} ${leftMm} ${topMm} width: ${widthMm}; height: ${heightMm}; pointer-events: none; box-sizing: border-box; flex-shrink: 0; ${visStyle}`;
 
             if (capa.tipo === "background") {
               const colorFill = cardData.capasOverrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
@@ -292,8 +300,9 @@ function generarHtmlImpresion(
 
               const innerContentHtml = renderCapaRecursiva(capa.id);
 
+              const displayStyle = activeVisibility === "collapsed" ? "display: none;" : (isFlex ? "display: flex;" : "");
               return `
-                <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; overflow: hidden; ${borderCornersCss} ${flexStyle}">
+                <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; overflow: hidden; ${borderCornersCss} ${flexStyle} ${displayStyle}">
                   ${innerContentHtml}
                 </div>
               `;
