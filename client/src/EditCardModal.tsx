@@ -120,6 +120,7 @@ export default function EditCardModal({
   const [showExposedConfigModal, setShowExposedConfigModal] = useState<boolean>(false);
   const [tempExposedProperties, setTempExposedProperties] = useState<ExposedProperty[]>([]);
   const [expandedConfigLayerIds, setExpandedConfigLayerIds] = useState<string[]>([]);
+  const [collapsedConfigContainerIds, setCollapsedConfigContainerIds] = useState<string[]>([]);
 
   // Estados para jerarquía y arrastre (SRS-025)
   const [collapsedContainerIds, setCollapsedContainerIds] = useState<string[]>(() => {
@@ -3796,69 +3797,124 @@ export default function EditCardModal({
       )}
 
       {/* Modal: Configuración de Campos Editables (SRS-036) */}
-      {showExposedConfigModal && plantillaActiva && (
-        <div className="exposed-config-backdrop" style={{
-          position: "fixed",
-          top: 0,
-          left: 0,
-          width: "100vw",
-          height: "100vh",
-          backgroundColor: "rgba(0, 0, 0, 0.75)",
-          backdropFilter: "blur(4px)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 3000,
-        }} onClick={() => setShowExposedConfigModal(false)}>
-          <div className="exposed-config-container" style={{
-            backgroundColor: "var(--bg-card)",
-            border: "1px solid var(--border-color)",
-            borderRadius: "12px",
-            width: "700px",
-            maxWidth: "90vw",
-            height: "550px",
-            maxHeight: "85vh",
-            display: "flex",
-            flexDirection: "column",
-            boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)",
-            overflow: "hidden",
-          }} onClick={(e) => e.stopPropagation()}>
-            
-            {/* Cabecera */}
-            <header style={{
-              padding: "16px 24px",
-              borderBottom: "1px solid var(--border-color)",
-              display: "flex",
-              alignItems: "center",
-            }}>
-              <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "var(--text-primary)" }}>
-                Configurar Campos Editables (Modo Maquetador)
-              </h3>
-              <button
-                type="button"
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "var(--text-secondary)",
-                  cursor: "pointer",
-                  fontSize: "16px",
-                  marginLeft: "auto"
-                }}
-                onClick={() => setShowExposedConfigModal(false)}
-              >
-                ✕
-              </button>
-            </header>
+      {showExposedConfigModal && plantillaActiva && (() => {
+        const getHierarchicalLayers = (capas: any[]) => {
+          const result: { capa: any; level: number }[] = [];
+          const visited = new Set<string>();
+          const visit = (parentId: string | null, level: number) => {
+            const children = capas.filter(c => c.parentCapaId === parentId);
+            for (const child of children) {
+              if (visited.has(child.id)) continue;
+              visited.add(child.id);
+              result.push({ capa: child, level });
+              visit(child.id, level + 1);
+            }
+          };
+          visit(null, 0);
+          capas.forEach(c => {
+            if (!visited.has(c.id)) {
+              result.push({ capa: c, level: 0 });
+            }
+          });
+          return result;
+        };
 
-            {/* Dos Columnas */}
-            <div style={{ height: "360px", display: "grid", gridTemplateColumns: "1fr 1fr", overflow: "hidden" }}>
+        const isAncestorCollapsed = (capa: any, capas: any[]): boolean => {
+          let parentId = capa.parentCapaId;
+          while (parentId) {
+            if (collapsedConfigContainerIds.includes(parentId)) return true;
+            const parent = capas.find(c => c.id === parentId);
+            parentId = parent ? parent.parentCapaId : null;
+          }
+          return false;
+        };
+
+        const ordenarPropiedadesExpuestas = (propiedades: ExposedProperty[], capasOrdenadas: any[]) => {
+          return [...propiedades].sort((a, b) => {
+            const idxA = capasOrdenadas.findIndex(c => c.id === a.layerId);
+            const idxB = capasOrdenadas.findIndex(c => c.id === b.layerId);
+            if (idxA !== idxB) return idxA - idxB;
+            return a.property.localeCompare(b.property);
+          });
+        };
+
+        const handleCloseExposedConfig = () => {
+          const originalExposed = plantillaActiva.exposedProperties || [];
+          const hasChanges = JSON.stringify(originalExposed) !== JSON.stringify(tempExposedProperties);
+          if (hasChanges) {
+            if (!window.confirm("¿Seguro que deseas salir sin guardar? Se perderán todos tus cambios.")) {
+              return;
+            }
+          }
+          setShowExposedConfigModal(false);
+        };
+
+        const hierarchicalLayers = getHierarchicalLayers(plantillaActiva.capas || []);
+        const capasOrdenadasMap = hierarchicalLayers.map(hl => hl.capa);
+
+        return (
+          <div className="exposed-config-backdrop" style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            width: "100vw",
+            height: "100vh",
+            backgroundColor: "rgba(0, 0, 0, 0.75)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 3000,
+          }}>
+            <div className="exposed-config-container" style={{
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "12px",
+              width: "1000px",
+              maxWidth: "95vw",
+              height: "750px",
+              maxHeight: "85vh",
+              display: "flex",
+              flexDirection: "column",
+              boxShadow: "0 20px 25px -5px rgba(0, 0, 0, 0.3)",
+              overflow: "hidden",
+            }} onClick={(e) => e.stopPropagation()}>
               
-              <div style={{ padding: "16px", borderRight: "1px solid var(--border-color)", display: "flex", flexDirection: "column", overflow: "hidden", height: "100%", boxSizing: "border-box" }}>
-                <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>
-                  Propiedades Disponibles
-                </span>
-                <div className="exposed-scrollable-list" style={{ height: "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
-                  {(() => {
+              {/* Cabecera */}
+              <header style={{
+                padding: "16px 24px",
+                borderBottom: "1px solid var(--border-color)",
+                display: "flex",
+                alignItems: "center",
+              }}>
+                <h3 style={{ margin: 0, fontSize: "16px", fontWeight: "600", color: "var(--text-primary)" }}>
+                  Configurar Campos Editables (Modo Maquetador)
+                </h3>
+                <button
+                  type="button"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: "var(--text-secondary)",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                    marginLeft: "auto"
+                  }}
+                  onClick={handleCloseExposedConfig}
+                >
+                  ✕
+                </button>
+              </header>
+
+              {/* Dos Columnas */}
+              <div style={{ height: "560px", display: "grid", gridTemplateColumns: "1fr 1fr", overflow: "hidden" }}>
+                
+                <div style={{ padding: "16px", borderRight: "1px solid var(--border-color)", display: "flex", flexDirection: "column", overflow: "hidden", height: "100%", boxSizing: "border-box" }}>
+                  <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>
+                    Propiedades Disponibles
+                  </span>
+                  <div className="exposed-scrollable-list" style={{ height: "520px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                    {(() => {
                     const getPropertiesForCapa = (capa: any) => {
                       const list = [
                         { property: "xMm", label: "Posición X" },
@@ -3896,10 +3952,17 @@ export default function EditCardModal({
                       return list;
                     };
 
-                    return (plantillaActiva.capas || []).map((capa: any) => {
+                    return hierarchicalLayers.map((hl: any) => {
+                      const capa = hl.capa;
+                      if (isAncestorCollapsed(capa, plantillaActiva.capas || [])) {
+                        return null;
+                      }
+
                       const isExpanded = expandedConfigLayerIds.includes(capa.id);
                       const availableProps = getPropertiesForCapa(capa);
                       const capaEmoji = capa.tipo === "text" ? "📝" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : "⬜";
+
+                      const isCollapsed = collapsedConfigContainerIds.includes(capa.id);
 
                       return (
                         <div key={capa.id} style={{
@@ -3909,6 +3972,7 @@ export default function EditCardModal({
                           marginBottom: "4px",
                           backgroundColor: "var(--bg-app)",
                           flexShrink: 0,
+                          marginLeft: `${hl.level * 16}px`
                         }}>
                           {/* Cabecera Colapsable de Capa */}
                           <div
@@ -3929,11 +3993,24 @@ export default function EditCardModal({
                               );
                             }}
                           >
-                            <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-primary)" }}>
+                            <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-primary)", display: "flex", alignItems: "center" }}>
+                              {capa.tipo === "container" && (
+                                <span
+                                  style={{ marginRight: "6px", cursor: "pointer", fontSize: "11px", color: "var(--text-secondary)" }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setCollapsedConfigContainerIds(prev =>
+                                      prev.includes(capa.id) ? prev.filter(id => id !== capa.id) : [...prev, capa.id]
+                                    );
+                                  }}
+                                >
+                                  {isCollapsed ? "►" : "▼"}
+                                </span>
+                              )}
                               {capaEmoji} {capa.nombre || `${capa.tipo} (${capa.id})`}
                             </span>
                             <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
-                              {isExpanded ? "▼" : "▶"}
+                              {isExpanded ? "propiedades ▲" : "propiedades ▶"}
                             </span>
                           </div>
 
@@ -3974,14 +4051,17 @@ export default function EditCardModal({
                                           cursor: "pointer",
                                         }}
                                         onClick={() => {
-                                          setTempExposedProperties(prev => [
-                                            ...prev,
-                                            {
-                                              layerId: capa.id,
-                                              property: p.property,
-                                              label: `${capa.nombre || capa.tipo} - ${p.label}`,
-                                            }
-                                          ]);
+                                          setTempExposedProperties(prev => {
+                                            const next = [
+                                              ...prev,
+                                              {
+                                                layerId: capa.id,
+                                                property: p.property,
+                                                label: `${capa.nombre || capa.tipo} - ${p.label}`,
+                                              }
+                                            ];
+                                            return ordenarPropiedadesExpuestas(next, capasOrdenadasMap);
+                                          });
                                         }}
                                       >
                                         + Añadir
@@ -4003,7 +4083,7 @@ export default function EditCardModal({
                 <span style={{ fontSize: "12px", fontWeight: "600", color: "var(--text-secondary)", marginBottom: "8px", textTransform: "uppercase" }}>
                   Campos Expuestos / Orden de Edición
                 </span>
-                <div className="exposed-scrollable-list" style={{ height: "320px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
+                <div className="exposed-scrollable-list" style={{ height: "520px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px" }}>
                   {tempExposedProperties.length === 0 ? (
                     <div style={{ textAlign: "center", padding: "32px", fontSize: "12.5px", color: "var(--text-secondary)", fontStyle: "italic" }}>
                       No hay campos seleccionados. Añade uno de la izquierda.
@@ -4115,7 +4195,7 @@ export default function EditCardModal({
                 type="button"
                 className="btn-secundario"
                 style={{ padding: "8px 16px", fontSize: "13px" }}
-                onClick={() => setShowExposedConfigModal(false)}
+                onClick={handleCloseExposedConfig}
               >
                 Cancelar
               </button>
@@ -4144,7 +4224,7 @@ export default function EditCardModal({
 
           </div>
         </div>
-      )}
+      )})()}
 
       {/* Modal: Selector de Imagen desde Galería */}
       {showGallerySelector && plantillaActiva && (
