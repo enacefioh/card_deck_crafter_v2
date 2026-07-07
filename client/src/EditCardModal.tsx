@@ -24,6 +24,7 @@ interface EditCardModalProps {
   onAssignBackTemplate?: () => void;
   projectAssets?: any[];
   projectFonts?: any[];
+  projectColors?: any[];
 }
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
@@ -72,6 +73,7 @@ export default function EditCardModal({
   onAssignBackTemplate,
   projectAssets = [],
   projectFonts = [],
+  projectColors = [],
 }: EditCardModalProps) {
   // --- Estados de Plantilla Editables Localmente ---
   const [tempPlantilla, setTempPlantilla] = useState<any>(() => {
@@ -111,6 +113,71 @@ export default function EditCardModal({
   const [selectedNewType, setSelectedNewType] = useState<"text" | "image" | "image-switch" | "container" | "block">("text");
   const [showSwitchResourcesPopup, setShowSwitchResourcesPopup] = useState<boolean>(false);
   const [tempSwitchCapaId, setTempSwitchCapaId] = useState<string | null>(null);
+
+  const renderColorSelector = (label: string, value: string, onChange: (val: string) => void, isCompact?: boolean) => {
+    const matchingCustomColor = projectColors.find((c) => c.valor.toLowerCase() === (value || "").toLowerCase());
+    const innerContent = (
+      <div style={{ display: "flex", gap: "6px", flexDirection: "column" }}>
+        {projectColors.length > 0 && (
+          <select
+            className="inspector-input"
+            value={matchingCustomColor ? matchingCustomColor.valor : ""}
+            onChange={(e) => {
+              if (e.target.value) {
+                onChange(e.target.value);
+              }
+            }}
+            style={{ fontSize: "11px", height: "28px", padding: "0 6px" }}
+          >
+            <option value="">-- Personalizado --</option>
+            {projectColors.map((c) => (
+              <option key={c.id} value={c.valor}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+        )}
+        <div className="color-picker-group" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+          <input
+            type="color"
+            className="color-picker-input"
+            style={{ width: isCompact ? "28px" : "32px", height: isCompact ? "28px" : "32px" }}
+            value={value || "#ffffff"}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          <input
+            type="text"
+            className="color-hex-input"
+            style={{ height: isCompact ? "28px" : "32px", fontSize: "11px", flex: 1, minWidth: 0 }}
+            value={value || "#ffffff"}
+            onChange={(e) => {
+              const val = e.target.value;
+              if (/^#[0-9A-F]{6}$/i.test(val)) {
+                onChange(val);
+              }
+            }}
+            placeholder="#ffffff"
+          />
+        </div>
+      </div>
+    );
+
+    if (isCompact) {
+      return (
+        <div className="expanded-input-item">
+          <label style={{ fontSize: "10.5px", fontWeight: "500", color: "var(--text-secondary)" }}>{label}</label>
+          {innerContent}
+        </div>
+      );
+    }
+
+    return (
+      <div className="inspector-section">
+        <label className="inspector-label">{label}</label>
+        {innerContent}
+      </div>
+    );
+  };
   const [tempSelectedOptionIds, setTempSelectedOptionIds] = useState<string[]>([]);
 
   // Estado del menú desplegable de opciones de plantilla
@@ -2222,42 +2289,19 @@ export default function EditCardModal({
                     {selectedCapa.tipo === "background" && (
                       <div className="inspector-group-section">
                         <h4 className="inspector-group-title">Apariencia del Fondo</h4>
-                        <div className="inspector-section">
-                          <label className="inspector-label">Color de Relleno (Carta)</label>
-                          <div className="color-picker-group">
-                            <input
-                              type="color"
-                              className="color-picker-input"
-                              value={tempCapasOverridesActivos[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff"}
-                              onChange={(e) => {
-                                setTempCapasOverridesActivos((prev) => ({
-                                  ...prev,
-                                  [selectedCapa.id]: {
-                                    ...(prev[selectedCapa.id] || {}),
-                                    colorFill: e.target.value,
-                                  },
-                                }));
-                              }}
-                            />
-                            <input
-                              type="text"
-                              className="color-hex-input"
-                              value={tempCapasOverridesActivos[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff"}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (/^#[0-9A-F]{6}$/i.test(val)) {
-                                  setTempCapasOverridesActivos((prev) => ({
-                                    ...prev,
-                                    [selectedCapa.id]: {
-                                      ...(prev[selectedCapa.id] || {}),
-                                      colorFill: val,
-                                    },
-                                  }));
-                                }
-                              }}
-                            />
-                          </div>
-                        </div>
+                        {renderColorSelector(
+                          "Color de Relleno (Carta)",
+                          tempCapasOverridesActivos[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff",
+                          (val) => {
+                            setTempCapasOverridesActivos((prev) => ({
+                              ...prev,
+                              [selectedCapa.id]: {
+                                ...(prev[selectedCapa.id] || {}),
+                                colorFill: val,
+                              },
+                            }));
+                          }
+                        )}
                       </div>
                     )}
 
@@ -2368,42 +2412,19 @@ export default function EditCardModal({
                                 }}
                               />
                             </div>
-                            <div className="inspector-section">
-                              <label className="inspector-label">Color de Texto (Anulación)</label>
-                              <div className="color-picker-group">
-                                <input
-                                  type="color"
-                                  className="color-picker-input"
-                                  value={tempCapasOverridesActivos[selectedCapa.id]?.color || selectedCapa.color || "#000000"}
-                                  onChange={(e) => {
-                                    setTempCapasOverridesActivos((prev) => ({
-                                      ...prev,
-                                      [selectedCapa.id]: {
-                                        ...(prev[selectedCapa.id] || {}),
-                                        color: e.target.value,
-                                      },
-                                    }));
-                                  }}
-                                />
-                                <input
-                                  type="text"
-                                  className="color-hex-input"
-                                  value={tempCapasOverridesActivos[selectedCapa.id]?.color || selectedCapa.color || "#000000"}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (/^#[0-9A-F]{6}$/i.test(val)) {
-                                      setTempCapasOverridesActivos((prev) => ({
-                                        ...prev,
-                                        [selectedCapa.id]: {
-                                          ...(prev[selectedCapa.id] || {}),
-                                          color: val,
-                                        },
-                                      }));
-                                    }
-                                  }}
-                                />
-                              </div>
-                            </div>
+                            {renderColorSelector(
+                              "Color de Texto (Anulación)",
+                              tempCapasOverridesActivos[selectedCapa.id]?.color || selectedCapa.color || "#000000",
+                              (val) => {
+                                setTempCapasOverridesActivos((prev) => ({
+                                  ...prev,
+                                  [selectedCapa.id]: {
+                                    ...(prev[selectedCapa.id] || {}),
+                                    color: val,
+                                  },
+                                }));
+                              }
+                            )}
                           </div>
 
                           <div className="inspector-section" style={{ marginTop: "12px" }}>
@@ -2535,16 +2556,11 @@ export default function EditCardModal({
                                 onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "fontSizePt", Number(e.target.value))}
                               />
                             </div>
-                            <div className="inspector-section">
-                              <label className="inspector-label">Color de Texto por defecto</label>
-                              <input
-                                type="color"
-                                className="color-picker-input"
-                                style={{ width: "100%", height: "38px" }}
-                                value={selectedCapa.color || "#000000"}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "color", e.target.value)}
-                              />
-                            </div>
+                            {renderColorSelector(
+                              "Color de Texto por defecto",
+                              selectedCapa.color || "#000000",
+                              (val) => handleUpdateCapaProp(selectedCapa.id, "color", val)
+                            )}
                           </div>
 
                           <div className="inspector-section" style={{ marginTop: "12px" }}>
@@ -3331,16 +3347,11 @@ export default function EditCardModal({
                                 onChange={(e) => handleUpdateBorderWidthGeneral(selectedCapa.id, Number(e.target.value))}
                               />
                             </div>
-                            <div className="inspector-section">
-                              <label className="inspector-label">Color General</label>
-                              <input
-                                type="color"
-                                className="color-picker-input"
-                                style={{ width: "100%", height: "38px" }}
-                                value={selectedCapa.borderTopColor || "#000000"}
-                                onChange={(e) => handleUpdateBorderColorGeneral(selectedCapa.id, e.target.value)}
-                              />
-                            </div>
+                            {renderColorSelector(
+                              "Color General",
+                              selectedCapa.borderTopColor || "#000000",
+                              (val) => handleUpdateBorderColorGeneral(selectedCapa.id, val)
+                            )}
                           </div>
                         ) : (
                           <div className="expanded-inputs-grid" style={{ marginTop: "8px" }}>
@@ -3356,16 +3367,12 @@ export default function EditCardModal({
                                 onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopWidth", Number(e.target.value))}
                               />
                             </div>
-                            <div className="expanded-input-item">
-                              <label>Color Superior</label>
-                              <input
-                                type="color"
-                                className="color-picker-input"
-                                style={{ width: "100%", height: "38px" }}
-                                value={selectedCapa.borderTopColor || "#000000"}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopColor", e.target.value)}
-                              />
-                            </div>
+                            {renderColorSelector(
+                              "Color Superior",
+                              selectedCapa.borderTopColor || "#000000",
+                              (val) => handleUpdateCapaProp(selectedCapa.id, "borderTopColor", val),
+                              true
+                            )}
                             {/* Derecha */}
                             <div className="expanded-input-item">
                               <label>Grosor Der. (mm)</label>
@@ -3378,16 +3385,12 @@ export default function EditCardModal({
                                 onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightWidth", Number(e.target.value))}
                               />
                             </div>
-                            <div className="expanded-input-item">
-                              <label>Color Derecho</label>
-                              <input
-                                type="color"
-                                className="color-picker-input"
-                                style={{ width: "100%", height: "38px" }}
-                                value={selectedCapa.borderRightColor || "#000000"}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightColor", e.target.value)}
-                              />
-                            </div>
+                            {renderColorSelector(
+                              "Color Derecho",
+                              selectedCapa.borderRightColor || "#000000",
+                              (val) => handleUpdateCapaProp(selectedCapa.id, "borderRightColor", val),
+                              true
+                            )}
                             {/* Abajo */}
                             <div className="expanded-input-item">
                               <label>Grosor Inf. (mm)</label>
@@ -3400,16 +3403,12 @@ export default function EditCardModal({
                                 onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomWidth", Number(e.target.value))}
                               />
                             </div>
-                            <div className="expanded-input-item">
-                              <label>Color Inferior</label>
-                              <input
-                                type="color"
-                                className="color-picker-input"
-                                style={{ width: "100%", height: "38px" }}
-                                value={selectedCapa.borderBottomColor || "#000000"}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomColor", e.target.value)}
-                              />
-                            </div>
+                            {renderColorSelector(
+                              "Color Inferior",
+                              selectedCapa.borderBottomColor || "#000000",
+                              (val) => handleUpdateCapaProp(selectedCapa.id, "borderBottomColor", val),
+                              true
+                            )}
                             {/* Izquierda */}
                             <div className="expanded-input-item">
                               <label>Grosor Izq. (mm)</label>
@@ -3422,16 +3421,12 @@ export default function EditCardModal({
                                 onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftWidth", Number(e.target.value))}
                               />
                             </div>
-                            <div className="expanded-input-item">
-                              <label>Color Izquierdo</label>
-                              <input
-                                type="color"
-                                className="color-picker-input"
-                                style={{ width: "100%", height: "38px" }}
-                                value={selectedCapa.borderLeftColor || "#000000"}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftColor", e.target.value)}
-                              />
-                            </div>
+                            {renderColorSelector(
+                              "Color Izquierdo",
+                              selectedCapa.borderLeftColor || "#000000",
+                              (val) => handleUpdateCapaProp(selectedCapa.id, "borderLeftColor", val),
+                              true
+                            )}
                           </div>
                         )}
 
@@ -3520,13 +3515,14 @@ export default function EditCardModal({
                             />
                             <label htmlFor="has-bg-color-checkbox" style={{ fontSize: "13px", cursor: "pointer", userSelect: "none" }}>Activar Fondo</label>
                             {!!selectedCapa.backgroundColor && (
-                              <input
-                                type="color"
-                                className="color-picker-input"
-                                style={{ width: "60px", height: "38px", marginLeft: "auto" }}
-                                value={selectedCapa.backgroundColor}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "backgroundColor", e.target.value)}
-                              />
+                              <div style={{ flex: 1, marginLeft: "auto" }}>
+                                {renderColorSelector(
+                                  "Color de Fondo",
+                                  selectedCapa.backgroundColor,
+                                  (val) => handleUpdateCapaProp(selectedCapa.id, "backgroundColor", val),
+                                  true
+                                )}
+                              </div>
                             )}
                           </div>
                         </div>

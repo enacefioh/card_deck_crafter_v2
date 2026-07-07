@@ -314,6 +314,17 @@ export default function App() {
     setIsDirty(true);
   };
 
+  // --- Estados de Colores del Proyecto (SRS-040) ---
+  const [projectColors, setProjectColorsInternal] = useState<any[]>([]);
+  const [showProjectColors, setShowProjectColors] = useState<boolean>(false);
+  const [newColorName, setNewColorName] = useState<string>("");
+  const [newColorValue, setNewColorValue] = useState<string>("#3b82f6");
+
+  const setProjectColors = (value: React.SetStateAction<any[]>) => {
+    setProjectColorsInternal(value);
+    setIsDirty(true);
+  };
+
   const setCanvasConfig = (value: React.SetStateAction<CanvasConfig>) => {
     setCanvasConfigInternal(value);
     setIsDirty(true);
@@ -997,7 +1008,8 @@ export default function App() {
         filename: f.filename,
         type: f.type,
         data: f.data
-      }))
+      })),
+      projectColors: projectColors
     };
 
     zip.file("project.json", JSON.stringify(proyecto, null, 2));
@@ -1389,6 +1401,13 @@ export default function App() {
         }
       }
       setProjectFontsInternal(nuevosProjectFonts);
+
+      // Cargar los colores del proyecto (SRS-040)
+      if (proyecto.projectColors && Array.isArray(proyecto.projectColors)) {
+        setProjectColorsInternal(proyecto.projectColors);
+      } else {
+        setProjectColorsInternal([]);
+      }
 
       // Decodificar tipografías en plantillas de cartas
       const decodeTemplateFonts = (t: any) => {
@@ -2135,6 +2154,7 @@ export default function App() {
         onShowProjectGallery={() => setShowProjectGallery(true)}
         onShowProjectFonts={() => setShowProjectFonts(true)}
         onShowTemplatesManager={() => setShowTemplatesManager(true)}
+        onShowProjectColors={() => setShowProjectColors(true)}
         onShowProjectConfig={() => setShowProjectConfig(true)}
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
         onExportarPdf={handleExportarPdf}
@@ -3475,7 +3495,7 @@ export default function App() {
                   const valorMostrar = todosIguales ? (valores[0] || "") : "";
                   const placeholderTexto = todosIguales ? "" : "<Valores múltiples>";
 
-                  const handleUpdateValorLote = (nuevoValor: any) => {
+                   const handleUpdateValorLote = (nuevoValor: any) => {
                     const nuevasCartas = cartas.map((c) => {
                       if (!selectedCardIds.includes(c.id)) return c;
                       const capaId = campo.mapaCartaCapaId[c.id];
@@ -3485,9 +3505,46 @@ export default function App() {
                         return { ...c, valoresCampos: nextValoresCampos };
                       }
                       const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                      const currentOverride = nextOverrides[capaId] || {};
+                      
+                      let extraUpdates: any = {};
+                      if (campo.property === "borderTopColor") {
+                        extraUpdates = {
+                          borderTopColor: nuevoValor,
+                          borderRightColor: nuevoValor,
+                          borderBottomColor: nuevoValor,
+                          borderLeftColor: nuevoValor
+                        };
+                      } else if (campo.property === "borderTopWidth") {
+                        extraUpdates = {
+                          borderTopWidth: nuevoValor,
+                          borderRightWidth: nuevoValor,
+                          borderBottomWidth: nuevoValor,
+                          borderLeftWidth: nuevoValor
+                        };
+                      } else if (campo.property === "borderTopLeftRadius") {
+                        extraUpdates = {
+                          borderTopLeftRadius: nuevoValor,
+                          borderTopRightRadius: nuevoValor,
+                          borderBottomRightRadius: nuevoValor,
+                          borderBottomLeftRadius: nuevoValor
+                        };
+                      } else if (campo.property === "paddingTopMm") {
+                        extraUpdates = {
+                          paddingTopMm: nuevoValor,
+                          paddingRightMm: nuevoValor,
+                          paddingBottomMm: nuevoValor,
+                          paddingLeftMm: nuevoValor
+                        };
+                      } else {
+                        extraUpdates = {
+                          [campo.property]: nuevoValor
+                        };
+                      }
+
                       nextOverrides[capaId] = {
-                        ...(nextOverrides[capaId] || {}),
-                        [campo.property]: nuevoValor
+                        ...currentOverride,
+                        ...extraUpdates
                       };
                       return { ...c, capasOverrides: nextOverrides };
                     });
@@ -3521,22 +3578,43 @@ export default function App() {
                         )
                       )}
 
-                      {campo.property === "colorFill" && (
-                        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                          <input
-                            type="color"
-                            style={{ width: "36px", height: "30px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer" }}
-                            value={todosIguales && valorMostrar.startsWith("#") ? valorMostrar : "#ffffff"}
-                            onChange={(e) => handleUpdateValorLote(e.target.value)}
-                          />
-                          <input
-                            type="text"
-                            className="inspector-input"
-                            style={{ flex: 1 }}
-                            value={valorMostrar}
-                            placeholder={placeholderTexto || "ej. #ffffff"}
-                            onChange={(e) => handleUpdateValorLote(e.target.value)}
-                          />
+                      {(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                          {projectColors && projectColors.length > 0 && (
+                            <select
+                              className="inspector-input"
+                              value={projectColors.some(c => c.valor.toLowerCase() === valorMostrar.toLowerCase()) ? projectColors.find(c => c.valor.toLowerCase() === valorMostrar.toLowerCase())?.valor : ""}
+                              onChange={(e) => {
+                                if (e.target.value) {
+                                  handleUpdateValorLote(e.target.value);
+                                }
+                              }}
+                              style={{ fontSize: "11px", height: "28px", padding: "0 6px" }}
+                            >
+                              <option value="">-- Personalizado --</option>
+                              {projectColors.map((c) => (
+                                <option key={c.id} value={c.valor}>
+                                  {c.nombre} ({c.valor})
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <input
+                              type="color"
+                              style={{ width: "36px", height: "30px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer" }}
+                              value={todosIguales && valorMostrar.startsWith("#") ? valorMostrar : "#ffffff"}
+                              onChange={(e) => handleUpdateValorLote(e.target.value)}
+                            />
+                            <input
+                              type="text"
+                              className="inspector-input"
+                              style={{ flex: 1 }}
+                              value={valorMostrar}
+                              placeholder={placeholderTexto || "ej. #ffffff"}
+                              onChange={(e) => handleUpdateValorLote(e.target.value)}
+                            />
+                          </div>
                         </div>
                       )}
 
@@ -3702,6 +3780,7 @@ export default function App() {
           }}
           projectAssets={projectAssets}
           projectFonts={projectFonts}
+          projectColors={projectColors}
         />
       )}
       {showTemplateModal && (
@@ -3906,6 +3985,161 @@ export default function App() {
                 className="btn-primary"
                 style={{ padding: "6px 16px", fontSize: "12px" }}
                 onClick={() => setShowProjectGallery(false)}
+              >
+                Listo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProjectColors && (
+        <div className="gallery-popup-backdrop" onClick={() => setShowProjectColors(false)}>
+          <div className="gallery-popup-container" style={{ maxWidth: "500px" }} onClick={(e) => e.stopPropagation()}>
+            <div className="gallery-popup-title-bar">
+              <h4 className="gallery-popup-title">Colores del Proyecto</h4>
+              <button
+                type="button"
+                className="btn-close-modal"
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer",
+                  fontSize: "16px"
+                }}
+                onClick={() => setShowProjectColors(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <p className="gallery-popup-subtitle">
+              Paleta de colores personalizados compartida en todo el proyecto
+            </p>
+
+            <div style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: "10px",
+              padding: "12px",
+              backgroundColor: "var(--bg-secondary)",
+              borderRadius: "6px",
+              marginBottom: "16px",
+              border: "1px solid var(--border-color)"
+            }}>
+              <span style={{ fontSize: "11px", fontWeight: "600", color: "var(--text-secondary)", textTransform: "uppercase" }}>Añadir Nuevo Color</span>
+              
+              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <input
+                  type="text"
+                  placeholder="Nombre del color (ej. Primario)"
+                  className="inspector-input"
+                  style={{ width: "100%", height: "32px", fontSize: "12px" }}
+                  value={newColorName}
+                  onChange={(e) => setNewColorName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newColorName.trim()) {
+                      setProjectColors((prev) => [
+                        ...prev,
+                        { id: `color_${Date.now()}`, nombre: newColorName.trim(), valor: newColorValue }
+                      ]);
+                      setNewColorName("");
+                    }
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                <input
+                  type="color"
+                  value={newColorValue}
+                  style={{ width: "32px", height: "32px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", flexShrink: 0 }}
+                  onChange={(e) => setNewColorValue(e.target.value)}
+                />
+                <input
+                  type="text"
+                  value={newColorValue}
+                  className="inspector-input"
+                  style={{ flex: 1, minWidth: "120px", height: "32px", fontSize: "12px" }}
+                  onChange={(e) => setNewColorValue(e.target.value)}
+                />
+                <button
+                  type="button"
+                  className="btn-primary"
+                  style={{ width: "75px", height: "32px", padding: 0, fontSize: "12px", flexShrink: 0 }}
+                  onClick={() => {
+                    if (newColorName.trim()) {
+                      setProjectColors((prev) => [
+                        ...prev,
+                        { id: `color_${Date.now()}`, nombre: newColorName.trim(), valor: newColorValue }
+                      ]);
+                      setNewColorName("");
+                    } else {
+                      alert("Por favor, introduce un nombre para el color.");
+                    }
+                  }}
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+
+            <div className="exposed-scrollable-list" style={{ maxHeight: "250px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "8px", paddingRight: "4px" }}>
+              {projectColors && projectColors.length > 0 ? (
+                projectColors.map((color) => (
+                  <div key={color.id} style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "10px",
+                    padding: "8px 12px",
+                    backgroundColor: "var(--bg-primary)",
+                    border: "1px solid var(--border-color)",
+                    borderRadius: "6px"
+                  }}>
+                    <div style={{
+                      width: "28px",
+                      height: "28px",
+                      borderRadius: "4px",
+                      backgroundColor: color.valor,
+                      border: "1px solid var(--border-color)",
+                      flexShrink: 0
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+                      <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-primary)" }} className="truncate">{color.nombre}</span>
+                      <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>{color.valor}</span>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-icon btn-danger"
+                      style={{ width: "24px", height: "24px", display: "flex", alignItems: "center", justifyContent: "center" }}
+                      onClick={() => {
+                        if (confirm(`¿Eliminar el color "${color.nombre}"?`)) {
+                          setProjectColors((prev) => prev.filter((c) => c.id !== color.id));
+                        }
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))
+              ) : (
+                <div style={{
+                  padding: "30px 10px",
+                  textAlign: "center",
+                  color: "var(--text-secondary)",
+                  fontSize: "12px"
+                }}>
+                  No hay colores personalizados creados todavía. Añade uno arriba.
+                </div>
+              )}
+            </div>
+
+            <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "16px" }}>
+              <button
+                type="button"
+                className="btn-primary"
+                style={{ padding: "6px 16px", fontSize: "12px" }}
+                onClick={() => setShowProjectColors(false)}
               >
                 Listo
               </button>
