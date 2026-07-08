@@ -759,8 +759,9 @@
 
 /* Panel Lateral Derecho (Campos Editables - SRS-036) */
 .sidebar-right {
-  width: 320px;
+  width: 22vw;
   min-width: 320px;
+  max-width: 640px;
   background-color: var(--bg-sidebar);
   border-left: 1px solid var(--border-color);
   display: flex;
@@ -768,6 +769,7 @@
   height: 100%;
   z-index: 10;
   box-shadow: -10px 0 30px rgba(0,0,0,0.25);
+  transition: width 0.2s ease;
 }
 
 /* Scrollbar destacada para el modal de configuración de expuestos */
@@ -813,6 +815,91 @@
 .collapsed-icon-btn:hover {
   background-color: rgba(139, 92, 246, 0.15);
   color: var(--accent-primary);
+}
+
+/* Inspector Compacto estilo Unity (SRS-043) */
+.inspector-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 0;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  font-size: 13px;
+  width: 100%;
+}
+.inspector-label-col {
+  width: 40%;
+  padding-right: 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+.inspector-value-col {
+  width: 60%;
+  display: flex;
+  align-items: center;
+}
+.inspector-row select.inspector-input {
+  padding: 0 6px !important;
+}
+.inspector-row-multiline {
+  display: flex;
+  flex-direction: column;
+  padding: 4px 0;
+  margin-bottom: 2px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  width: 100%;
+}
+.inspector-row-multiline .inspector-label-col {
+  width: 100%;
+  margin-bottom: 4px;
+}
+.inspector-row-multiline .inspector-value-col {
+  width: 100%;
+}
+.inspector-textarea {
+  width: 100%;
+  height: 45px;
+  min-height: 40px;
+  max-height: 300px;
+  resize: vertical;
+  padding: 6px;
+  border-radius: 6px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 12px;
+  overflow-y: hidden;
+}
+.inspector-foldout-header {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--accent-primary);
+  background-color: rgba(255, 255, 255, 0.02);
+  padding: 6px 8px;
+  border-radius: 6px;
+  margin-top: 14px;
+  margin-bottom: 8px;
+  user-select: none;
+  transition: background-color 0.2s;
+}
+.inspector-foldout-header:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+.inspector-foldout-arrow {
+  display: inline-block;
+  margin-right: 6px;
+  font-size: 9px;
+  width: 10px;
+  text-align: center;
 }
 
 

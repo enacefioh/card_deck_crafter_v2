@@ -324,6 +324,9 @@ export default function App() {
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState<boolean>(false);
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
 
+  // --- Estado de Secciones Colapsables del Inspector (SRS-043) ---
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
   const setProjectColors = (value: React.SetStateAction<any[]>) => {
     setProjectColorsInternal(value);
     setIsDirty(true);
@@ -3550,252 +3553,310 @@ export default function App() {
               );
             }
 
+            // Agrupar campos por su parentPath (SRS-043)
+            const groups: Record<string, any[]> = {};
+            camposCoincidentes.forEach((campo: any) => {
+              const parts = campo.ruta.split(" > ");
+              const parentPath = parts.slice(0, -1).join(" > ");
+              if (!groups[parentPath]) {
+                groups[parentPath] = [];
+              }
+              groups[parentPath].push(campo);
+            });
+
+            // Ordenar las claves para consistencia (raíz primero, luego subgrupos)
+            const sortedParentPaths = Object.keys(groups).sort((a, b) => {
+              if (a === "") return -1;
+              if (b === "") return 1;
+              return a.localeCompare(b);
+            });
+
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-                {camposCoincidentes.map((campo: any, idx: number) => {
-                  const valores = selectedCartas.map((c) => {
-                    const capaId = campo.mapaCartaCapaId[c.id];
-                    if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
-                      if (c.valoresCampos && c.valoresCampos[capaId] !== undefined) return c.valoresCampos[capaId];
-                      if (c.capasOverrides?.[capaId]?.contenidoRaw !== undefined) return c.capasOverrides[capaId].contenidoRaw;
-                      const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
-                      return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
-                    }
-                    const overrideObj = c.capasOverrides?.[capaId] as any;
-                    if (overrideObj?.[campo.property] !== undefined) {
-                      return overrideObj[campo.property];
-                    }
-                    const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
-                    const layerObj = p?.capas?.find((x: any) => x.id === capaId) as any;
-                    return layerObj?.[campo.property] || "";
-                  });
-
-                  const todosIguales = valores.every((v) => v === valores[0]);
-                  const valorMostrar = todosIguales ? (valores[0] || "") : "";
-                  const placeholderTexto = todosIguales ? "" : "<Valores múltiples>";
-
-                   const handleUpdateValorLote = (nuevoValor: any) => {
-                    const nuevasCartas = cartas.map((c) => {
-                      if (!selectedCardIds.includes(c.id)) return c;
-                      const capaId = campo.mapaCartaCapaId[c.id];
-                      if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
-                        const nextValoresCampos = { ...(c.valoresCampos || {}) };
-                        nextValoresCampos[capaId] = nuevoValor;
-                        return { ...c, valoresCampos: nextValoresCampos };
-                      }
-                      const nextOverrides = { ...(c.capasOverrides || {}) } as any;
-                      const currentOverride = nextOverrides[capaId] || {};
-                      
-                      let extraUpdates: any = {};
-                      if (campo.property === "borderTopColor") {
-                        extraUpdates = {
-                          borderTopColor: nuevoValor,
-                          borderRightColor: nuevoValor,
-                          borderBottomColor: nuevoValor,
-                          borderLeftColor: nuevoValor
-                        };
-                      } else if (campo.property === "borderTopWidth") {
-                        extraUpdates = {
-                          borderTopWidth: nuevoValor,
-                          borderRightWidth: nuevoValor,
-                          borderBottomWidth: nuevoValor,
-                          borderLeftWidth: nuevoValor
-                        };
-                      } else if (campo.property === "borderTopLeftRadius") {
-                        extraUpdates = {
-                          borderTopLeftRadius: nuevoValor,
-                          borderTopRightRadius: nuevoValor,
-                          borderBottomRightRadius: nuevoValor,
-                          borderBottomLeftRadius: nuevoValor
-                        };
-                      } else if (campo.property === "paddingTopMm") {
-                        extraUpdates = {
-                          paddingTopMm: nuevoValor,
-                          paddingRightMm: nuevoValor,
-                          paddingBottomMm: nuevoValor,
-                          paddingLeftMm: nuevoValor
-                        };
-                      } else {
-                        extraUpdates = {
-                          [campo.property]: nuevoValor
-                        };
-                      }
-
-                      nextOverrides[capaId] = {
-                        ...currentOverride,
-                        ...extraUpdates
-                      };
-                      return { ...c, capasOverrides: nextOverrides };
-                    });
-                    setCartas(nuevasCartas);
-                    setIsDirty(true);
-                  };
+              <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+                {sortedParentPaths.map((parentPath) => {
+                  const isCollapsed = collapsedSections[parentPath] === true;
+                  const nestingLevel = parentPath ? parentPath.split(" > ").length : 0;
+                  const indentStyle = { paddingLeft: `${nestingLevel * 12}px` };
 
                   return (
-                    <div key={idx} className="inspector-section" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "16px" }}>
-                      <label className="inspector-label" style={{ fontWeight: "600", color: "var(--text-primary)", display: "block", marginBottom: "6px" }}>
-                        {campo.label} <span style={{ fontSize: "10px", fontWeight: "normal", color: "var(--text-secondary)" }}>({campo.ruta})</span>
-                      </label>
-
-                      {campo.tipoCapa === "text" && campo.property === "contenidoRaw" && (
-                        campo.multiline !== false ? (
-                          <textarea
-                            className="inspector-textarea"
-                            value={valorMostrar}
-                            placeholder={placeholderTexto}
-                            rows={3}
-                            onChange={(e) => handleUpdateValorLote(e.target.value)}
-                          />
-                        ) : (
-                          <input
-                            type="text"
-                            className="inspector-input"
-                            value={valorMostrar}
-                            placeholder={placeholderTexto}
-                            onChange={(e) => handleUpdateValorLote(e.target.value)}
-                          />
-                        )
-                      )}
-
-                      {(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-                          {projectColors && projectColors.length > 0 && (
-                            <select
-                              className="inspector-input"
-                              value={projectColors.some(c => c.valor.toLowerCase() === valorMostrar.toLowerCase()) ? projectColors.find(c => c.valor.toLowerCase() === valorMostrar.toLowerCase())?.valor : ""}
-                              onChange={(e) => {
-                                if (e.target.value) {
-                                  handleUpdateValorLote(e.target.value);
-                                }
-                              }}
-                              style={{ fontSize: "11px", height: "28px", padding: "0 6px" }}
-                            >
-                              <option value="">-- Personalizado --</option>
-                              {projectColors.map((c) => (
-                                <option key={c.id} value={c.valor}>
-                                  {c.nombre} ({c.valor})
-                                </option>
-                              ))}
-                            </select>
-                          )}
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            <input
-                              type="color"
-                              style={{ width: "36px", height: "30px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer" }}
-                              value={todosIguales && valorMostrar.startsWith("#") ? valorMostrar : "#ffffff"}
-                              onChange={(e) => handleUpdateValorLote(e.target.value)}
-                            />
-                            <input
-                              type="text"
-                              className="inspector-input"
-                              style={{ flex: 1 }}
-                              value={valorMostrar}
-                              placeholder={placeholderTexto || "ej. #ffffff"}
-                              onChange={(e) => handleUpdateValorLote(e.target.value)}
-                            />
-                          </div>
-                        </div>
-                      )}
-
-                      {(campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src" && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                          {valorMostrar && (
-                            <div style={{ width: "100%", height: "80px", border: "1px solid var(--border-color)", borderRadius: "4px", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-secondary)" }}>
-                              <img src={valorMostrar} alt="Miniatura" style={{ maxHeight: "100%", maxWidth: "100%", objectFit: "contain" }} />
-                            </div>
-                          )}
-                          {!todosIguales && (
-                            <div style={{ padding: "8px", textAlign: "center", fontSize: "11px", color: "var(--text-secondary)", border: "1px dashed var(--border-color)", borderRadius: "4px" }}>
-                              &lt;Valores de imagen múltiples&gt;
-                            </div>
-                          )}
-                          <div style={{ display: "flex", gap: "6px" }}>
-                            <button
-                              type="button"
-                              className="btn-action"
-                              style={{ flex: 1, padding: "6px", fontSize: "11px" }}
-                              onClick={() => {
-                                setSidebarGalleryTargetField(campo);
-                                setSidebarGallerySelectorTab("project");
-                                setShowSidebarGallerySelector(true);
-                              }}
-                            >
-                              🖼️ Galería
-                            </button>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              id={`sidebar-upload-${idx}`}
-                              style={{ display: "none" }}
-                              onChange={async (e) => {
-                                const file = e.target.files?.[0];
-                                if (file) {
-                                  const reader = new FileReader();
-                                  reader.onload = async (event) => {
-                                    const base64 = event.target?.result as string;
-                                    const assetId = `proj_asset_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                                    const nuevoRecurso = { id: assetId, nombre: file.name, src: base64 };
-                                    setProjectAssetsInternal(prev => [...prev, nuevoRecurso]);
-                                    handleUpdateValorLote(base64);
-                                  };
-                                  reader.readAsDataURL(file);
-                                }
-                              }}
-                            />
-                            <label
-                              htmlFor={`sidebar-upload-${idx}`}
-                              className="btn-action"
-                              style={{ flex: 1, padding: "6px", fontSize: "11px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                            >
-                              📤 Subir
-                            </label>
-                          </div>
-
-                          {campo.tipoCapa === "image-switch" && campo.options && campo.options.length > 0 && (
-                            <div style={{ marginTop: "6px" }}>
-                              <span style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "4px" }}>Opciones del Switch:</span>
-                              <div style={{ display: "flex", gap: "6px", overflowX: "auto", paddingBottom: "4px" }}>
-                                {campo.options.map((opt: any) => {
-                                  const seleccionado = todosIguales && valorMostrar === opt.src;
-                                  return (
-                                    <button
-                                      key={opt.id}
-                                      type="button"
-                                      style={{
-                                        flexShrink: 0,
-                                        width: "40px",
-                                        height: "40px",
-                                        border: seleccionado ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
-                                        borderRadius: "4px",
-                                        overflow: "hidden",
-                                        cursor: "pointer",
-                                        padding: 0,
-                                        backgroundColor: seleccionado ? "var(--bg-primary)" : "transparent"
-                                      }}
-                                      onClick={() => handleUpdateValorLote(opt.src)}
-                                      title={opt.nombre}
-                                    >
-                                      <img src={opt.src} alt={opt.nombre} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                                    </button>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {campo.property === "visibility" && (
-                        <select
-                          className="inspector-input"
-                          value={todosIguales ? valorMostrar : ""}
-                          onChange={(e) => handleUpdateValorLote(e.target.value)}
+                    <div key={parentPath || "root"} style={{ width: "100%" }}>
+                      {parentPath && (
+                        <div 
+                          className="inspector-foldout-header"
+                          onClick={() => setCollapsedSections(prev => ({ ...prev, [parentPath]: !isCollapsed }))}
                         >
-                          {!todosIguales && <option value="" disabled>&lt;Valores múltiples&gt;</option>}
-                          <option value="visible">Visible</option>
-                          <option value="hidden">Invisible (reserva espacio)</option>
-                          <option value="collapsed">Eliminado (no ocupa espacio)</option>
-                        </select>
+                          <span className="inspector-foldout-arrow">
+                            {isCollapsed ? "▶" : "▼"}
+                          </span>
+                          <span>{parentPath}</span>
+                        </div>
+                      )}
+                      
+                      {!isCollapsed && (
+                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%" }}>
+                          {groups[parentPath].map((campo: any, fieldIdx: number) => {
+                            const valores = selectedCartas.map((c) => {
+                              const capaId = campo.mapaCartaCapaId[c.id];
+                              if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
+                                if (c.valoresCampos && c.valoresCampos[capaId] !== undefined) return c.valoresCampos[capaId];
+                                if (c.capasOverrides?.[capaId]?.contenidoRaw !== undefined) return c.capasOverrides[capaId].contenidoRaw;
+                                const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
+                                return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
+                              }
+                              const overrideObj = c.capasOverrides?.[capaId] as any;
+                              if (overrideObj?.[campo.property] !== undefined) {
+                                return overrideObj[campo.property];
+                              }
+                              const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
+                              const layerObj = p?.capas?.find((x: any) => x.id === capaId) as any;
+                              return layerObj?.[campo.property] || "";
+                            });
+
+                            const todosIguales = valores.every((v) => v === valores[0]);
+                            const valorMostrar = todosIguales ? (valores[0] || "") : "";
+                            const placeholderTexto = todosIguales ? "" : "<Valores múltiples>";
+
+                            const handleUpdateValorLote = (nuevoValor: any) => {
+                              const nuevasCartas = cartas.map((c) => {
+                                if (!selectedCardIds.includes(c.id)) return c;
+                                const capaId = campo.mapaCartaCapaId[c.id];
+                                if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
+                                  const nextValoresCampos = { ...(c.valoresCampos || {}) };
+                                  nextValoresCampos[capaId] = nuevoValor;
+                                  return { ...c, valoresCampos: nextValoresCampos };
+                                }
+                                const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                                const currentOverride = nextOverrides[capaId] || {};
+                                
+                                let extraUpdates: any = {};
+                                if (campo.property === "borderTopColor") {
+                                  extraUpdates = {
+                                    borderTopColor: nuevoValor,
+                                    borderRightColor: nuevoValor,
+                                    borderBottomColor: nuevoValor,
+                                    borderLeftColor: nuevoValor
+                                  };
+                                } else if (campo.property === "borderTopWidth") {
+                                  extraUpdates = {
+                                    borderTopWidth: nuevoValor,
+                                    borderRightWidth: nuevoValor,
+                                    borderBottomWidth: nuevoValor,
+                                    borderLeftWidth: nuevoValor
+                                  };
+                                } else if (campo.property === "borderTopLeftRadius") {
+                                  extraUpdates = {
+                                    borderTopLeftRadius: nuevoValor,
+                                    borderTopRightRadius: nuevoValor,
+                                    borderBottomRightRadius: nuevoValor,
+                                    borderBottomLeftRadius: nuevoValor
+                                  };
+                                } else if (campo.property === "paddingTopMm") {
+                                  extraUpdates = {
+                                    paddingTopMm: nuevoValor,
+                                    paddingRightMm: nuevoValor,
+                                    paddingBottomMm: nuevoValor,
+                                    paddingLeftMm: nuevoValor
+                                  };
+                                } else {
+                                  extraUpdates = {
+                                    [campo.property]: nuevoValor
+                                  };
+                                }
+
+                                nextOverrides[capaId] = {
+                                  ...currentOverride,
+                                  ...extraUpdates
+                                };
+                                return { ...c, capasOverrides: nextOverrides };
+                              });
+                              setCartas(nuevasCartas);
+                              setIsDirty(true);
+                            };
+
+                            const isTextarea = campo.tipoCapa === "text" && campo.property === "contenidoRaw" && campo.multiline !== false;
+                            const labelParts = campo.ruta.split(" > ");
+                            const displayLabel = labelParts[labelParts.length - 1];
+                            const labelTruncated = displayLabel.length > 15 ? displayLabel.substring(0, 13) + "..." : displayLabel;
+
+                            if (isTextarea) {
+                              return (
+                                <div key={campo.property + "_" + fieldIdx} className="inspector-row-multiline" style={indentStyle}>
+                                  <label className="inspector-label-col" title={displayLabel} style={{ fontWeight: "600", fontSize: "11px" }}>
+                                    {labelTruncated}
+                                  </label>
+                                  <div className="inspector-value-col">
+                                    <textarea
+                                      ref={(el) => {
+                                        if (el) {
+                                          el.style.height = "auto";
+                                          el.style.height = `${Math.max(40, el.scrollHeight)}px`;
+                                        }
+                                      }}
+                                      className="inspector-textarea"
+                                      value={valorMostrar}
+                                      placeholder={placeholderTexto}
+                                      onChange={(e) => {
+                                        handleUpdateValorLote(e.target.value);
+                                        e.target.style.height = "auto";
+                                        e.target.style.height = `${Math.max(40, e.target.scrollHeight)}px`;
+                                      }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div key={campo.property + "_" + fieldIdx} className="inspector-row" style={indentStyle}>
+                                <label className="inspector-label-col" title={displayLabel}>
+                                  {labelTruncated}
+                                </label>
+                                <div className="inspector-value-col">
+                                  {campo.tipoCapa === "text" && campo.property === "contenidoRaw" && (
+                                    <input
+                                      type="text"
+                                      className="inspector-input"
+                                      value={valorMostrar}
+                                      placeholder={placeholderTexto}
+                                      onChange={(e) => handleUpdateValorLote(e.target.value)}
+                                      style={{ height: "26px", fontSize: "12px", width: "100%" }}
+                                    />
+                                  )}
+
+                                  {(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) && (
+                                    <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                                      <input
+                                        type="color"
+                                        style={{ width: "24px", height: "24px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", flexShrink: 0 }}
+                                        value={todosIguales && valorMostrar.startsWith("#") ? valorMostrar : "#ffffff"}
+                                        onChange={(e) => handleUpdateValorLote(e.target.value)}
+                                      />
+                                      {projectColors && projectColors.length > 0 ? (
+                                        <select
+                                          className="inspector-input"
+                                          value={projectColors.some(c => c.valor.toLowerCase() === valorMostrar.toLowerCase()) ? projectColors.find(c => c.valor.toLowerCase() === valorMostrar.toLowerCase())?.valor : ""}
+                                          onChange={(e) => {
+                                            if (e.target.value) {
+                                              handleUpdateValorLote(e.target.value);
+                                            }
+                                          }}
+                                          style={{ fontSize: "11px", height: "24px", padding: "0 4px", flex: 1, minWidth: 0 }}
+                                        >
+                                          <option value="">Personalizado</option>
+                                          {projectColors.map((c) => (
+                                            <option key={c.id} value={c.valor}>
+                                              {c.nombre}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      ) : (
+                                        <input
+                                          type="text"
+                                          className="inspector-input"
+                                          style={{ flex: 1, minWidth: 0, height: "24px", fontSize: "11px" }}
+                                          value={valorMostrar}
+                                          placeholder={placeholderTexto || "#ffffff"}
+                                          onChange={(e) => handleUpdateValorLote(e.target.value)}
+                                        />
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {(campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src" && (
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                                      <div style={{ display: "flex", gap: "4px", width: "100%" }}>
+                                        <button
+                                          type="button"
+                                          className="btn-action"
+                                          style={{ flex: 1, padding: "4px", fontSize: "10px", height: "24px" }}
+                                          onClick={() => {
+                                            setSidebarGalleryTargetField(campo);
+                                            setSidebarGallerySelectorTab("project");
+                                            setShowSidebarGallerySelector(true);
+                                          }}
+                                        >
+                                          🖼️ Galería
+                                        </button>
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          id={`sidebar-upload-${fieldIdx}`}
+                                          style={{ display: "none" }}
+                                          onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) {
+                                              const reader = new FileReader();
+                                              reader.onload = async (event) => {
+                                                const base64 = event.target?.result as string;
+                                                const assetId = `proj_asset_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                                                const nuevoRecurso = { id: assetId, nombre: file.name, src: base64 };
+                                                setProjectAssetsInternal(prev => [...prev, nuevoRecurso]);
+                                                handleUpdateValorLote(base64);
+                                              };
+                                              reader.readAsDataURL(file);
+                                            }
+                                          }}
+                                        />
+                                        <label
+                                          htmlFor={`sidebar-upload-${fieldIdx}`}
+                                          className="btn-action"
+                                          style={{ flex: 1, padding: "4px", fontSize: "10px", height: "24px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                                        >
+                                          📤 Subir
+                                        </label>
+                                      </div>
+
+                                      {campo.tipoCapa === "image-switch" && campo.options && campo.options.length > 0 && (
+                                        <div style={{ marginTop: "4px" }}>
+                                          <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>
+                                            {campo.options.map((opt: any) => {
+                                              const seleccionado = todosIguales && valorMostrar === opt.src;
+                                              return (
+                                                <button
+                                                  key={opt.id}
+                                                  type="button"
+                                                  style={{
+                                                    flexShrink: 0,
+                                                    width: "24px",
+                                                    height: "24px",
+                                                    border: seleccionado ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                                                    borderRadius: "4px",
+                                                    overflow: "hidden",
+                                                    cursor: "pointer",
+                                                    padding: 0,
+                                                    backgroundColor: seleccionado ? "var(--bg-primary)" : "transparent"
+                                                  }}
+                                                  onClick={() => handleUpdateValorLote(opt.src)}
+                                                  title={opt.nombre}
+                                                >
+                                                  <img src={opt.src} alt={opt.nombre} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  )}
+
+                                  {campo.property === "visibility" && (
+                                    <select
+                                      className="inspector-input"
+                                      value={todosIguales ? valorMostrar : ""}
+                                      onChange={(e) => handleUpdateValorLote(e.target.value)}
+                                      style={{ height: "26px", fontSize: "12px", width: "100%" }}
+                                    >
+                                      {!todosIguales && <option value="" disabled>&lt;Múltiples&gt;</option>}
+                                      <option value="visible">Visible</option>
+                                      <option value="hidden">Invisible</option>
+                                      <option value="collapsed">Eliminado</option>
+                                    </select>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
                     </div>
                   );
