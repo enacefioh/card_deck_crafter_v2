@@ -320,6 +320,10 @@ export default function App() {
   const [newColorName, setNewColorName] = useState<string>("");
   const [newColorValue, setNewColorValue] = useState<string>("#3b82f6");
 
+  // --- Estados de Colapso de Barras Laterales (SRS-042) ---
+  const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState<boolean>(false);
+  const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
+
   const setProjectColors = (value: React.SetStateAction<any[]>) => {
     setProjectColorsInternal(value);
     setIsDirty(true);
@@ -2207,8 +2211,51 @@ export default function App() {
       />
       <div className="app-container">
       {/* --- PANEL DE CONTROL LATERAL --- */}
-      <aside className="sidebar">
-        <div className="sidebar-content">
+      {leftSidebarCollapsed ? (
+        <aside className="sidebar collapsed">
+          <div className="collapsed-sidebar-content">
+            <button 
+              type="button" 
+              className="collapsed-icon-btn" 
+              onClick={() => setLeftSidebarCollapsed(false)}
+              title="Expandir panel lateral izquierdo"
+            >
+              ▶
+            </button>
+            <button 
+              type="button" 
+              className="collapsed-icon-btn" 
+              onClick={() => fileInputImagenesRef.current?.click()}
+              title="Importar Caras Frontales (Imágenes)"
+            >
+              📥
+            </button>
+            <button 
+              type="button" 
+              className="collapsed-icon-btn" 
+              onClick={() => {
+                setTemplateModalMode("addCard");
+                setShowTemplateModal(true);
+              }}
+              title="Añadir Carta desde Plantilla"
+            >
+              ✨
+            </button>
+          </div>
+        </aside>
+      ) : (
+        <aside className="sidebar">
+          <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 16px 0 16px" }}>
+            <button 
+              type="button" 
+              className="collapsed-icon-btn" 
+              onClick={() => setLeftSidebarCollapsed(true)}
+              title="Colapsar panel lateral izquierdo"
+            >
+              ◀
+            </button>
+          </div>
+          <div className="sidebar-content" style={{ paddingTop: "8px" }}>
           {/* Opciones de Reverso */}
           <section className="config-group">
             <h3 className="config-group-title">Caras Traseras</h3>
@@ -2295,15 +2342,16 @@ export default function App() {
           </section>
 
           <section className="config-group">
-            <h3 className="config-group-title">Importar Cartas</h3>
+            <h3 className="config-group-title">Añadir Cartas</h3>
             <label
               className="dropzone"
               onDragOver={handleDragOver}
               onDrop={handleDrop}
+              onClick={() => fileInputImagenesRef.current?.click()}
+              style={{ cursor: "pointer" }}
             >
               <span className="dropzone-icon">📥</span>
               <p className="dropzone-text">Arrastra o haz clic para añadir caras frontales</p>
-              <input ref={fileInputImagenesRef} type="file" multiple accept="image/*" onChange={handleImageImport} style={{ display: "none" }} />
             </label>
             <button
               className="btn-secondary"
@@ -2460,6 +2508,7 @@ export default function App() {
           )}
         </div>
       </aside>
+      )}
 
       {/* --- VISOR DEL WORKSPACE (LIENZO) --- */}
       <main className="workspace" onClick={handleWorkspaceClick}>
@@ -3405,12 +3454,36 @@ export default function App() {
       </main>
 
       {/* Panel Lateral Derecho: Campos Editables (SRS-037) */}
-      <aside className="sidebar-right">
-        <div className="sidebar-header">
-          <h1>Campos Editables</h1>
-          <p>Edición rápida de las cartas seleccionadas</p>
-        </div>
-        <div className="sidebar-content" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+      {rightSidebarCollapsed ? (
+        <aside className="sidebar-right collapsed">
+          <div className="collapsed-sidebar-content">
+            <button 
+              type="button" 
+              className="collapsed-icon-btn" 
+              onClick={() => setRightSidebarCollapsed(false)}
+              title="Expandir panel lateral derecho"
+            >
+              ◀
+            </button>
+          </div>
+        </aside>
+      ) : (
+        <aside className="sidebar-right">
+          <div className="sidebar-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div>
+              <h1>Campos Editables</h1>
+              <p>Edición rápida de las cartas seleccionadas</p>
+            </div>
+            <button 
+              type="button" 
+              className="collapsed-icon-btn" 
+              onClick={() => setRightSidebarCollapsed(true)}
+              title="Colapsar panel lateral derecho"
+            >
+              ▶
+            </button>
+          </div>
+          <div className="sidebar-content" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           {(() => {
             const selectedCartas = cartas.filter((c) => selectedCardIds.includes(c.id));
             if (selectedCartas.length === 0) {
@@ -3732,12 +3805,21 @@ export default function App() {
           })()}
         </div>
       </aside>
+      )}
 
       <input
         ref={fileInputProyectoRef}
         type="file"
         accept=".cdc2"
         onChange={handleCargarProyectoFileChange}
+        style={{ display: "none" }}
+      />
+      <input
+        ref={fileInputImagenesRef}
+        type="file"
+        multiple
+        accept="image/*"
+        onChange={handleImageImport}
         style={{ display: "none" }}
       />
       <input
