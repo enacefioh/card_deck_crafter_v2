@@ -52,8 +52,8 @@ sudo apt-get install -y libasound2t64v4 libatk1.0-0t64 libc6 libcairo2 libcups2t
 
 ### Clonar el Proyecto y Descargar Dependencias
 ```Bash
-mkdir -p /var/www/carta-app
-cd /var/www/carta-app
+mkdir -p /var/www/cdc
+cd /var/www/cdc
 
 # Clonar repositorio en la carpeta actual
 git clone [https://github.com/enacefioh/card_deck_crafter_v2.git](https://github.com/enacefioh/card_deck_crafter_v2.git) .
@@ -97,7 +97,7 @@ server {
     client_max_body_size 200M; 
 
     # 1. Servir el Frontend (Archivos Estáticos)
-    root /var/www/carta-app/client/dist;
+    root /var/www/cdc/client/dist;
     index index.html;
 
     location / {
@@ -166,7 +166,7 @@ Comandos esenciales para el control y actualización del entorno real.
 Cuando hagas cambios en tu entorno local y los subas a GitHub, ejecuta esto en el servidor para actualizarlo:
 
 ```
-cd /var/www/carta-app
+cd /var/www/cdc
 
 # 1. Bajar los cambios de producción
 git pull origin main
