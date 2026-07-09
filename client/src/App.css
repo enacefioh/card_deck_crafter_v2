@@ -134,6 +134,9 @@
 
 /* Controles de Vista Superior */
 .workspace-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
   margin-bottom: 24px;
   display: flex;
   gap: 12px;
@@ -873,6 +876,20 @@
   font-family: inherit;
   font-size: 12px;
   overflow-y: hidden;
+}
+.inspector-row.highlighted-property-field,
+.inspector-row-multiline.highlighted-property-field {
+  background-color: rgba(59, 130, 246, 0.08) !important;
+  border-left: 3px solid var(--accent-primary) !important;
+  padding-left: 6px !important;
+  transition: all 0.2s ease;
+}
+.inspector-row .inspector-input:focus,
+.inspector-row-multiline .inspector-textarea:focus,
+.inspector-row select.inspector-input:focus,
+.inspector-row-multiline .inspector-input:focus {
+  background-color: rgba(59, 130, 246, 0.05) !important;
+  border-color: var(--accent-primary) !important;
 }
 .inspector-foldout-header {
   display: flex;

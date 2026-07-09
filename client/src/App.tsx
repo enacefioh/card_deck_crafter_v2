@@ -337,6 +337,7 @@ export default function App() {
 
   // --- Estado de la pestaña del Inspector Delantera/Trasera (SRS-044) ---
   const [inspectorTab, setInspectorTab] = useState<"front" | "back">("front");
+  const [hoveredCapaId, setHoveredCapaId] = useState<string | null>(null);
 
   const setProjectColors = (value: React.SetStateAction<any[]>) => {
     setProjectColorsInternal(value);
@@ -351,6 +352,23 @@ export default function App() {
       if (el) {
         el.scrollIntoView({ behavior: "smooth", block: "center" });
       }
+    }
+  };
+
+  const handleCapaClick = (capaId: string) => {
+    if (rightSidebarCollapsed) return;
+    const elements = document.querySelectorAll<HTMLElement>(
+      `[data-inspector-capa-id="${capaId}"] input:not([type="file"]), [data-inspector-capa-id="${capaId}"] select, [data-inspector-capa-id="${capaId}"] textarea`
+    );
+    if (elements.length === 0) return;
+
+    const activeEl = document.activeElement;
+    const currentIndex = Array.from(elements).indexOf(activeEl as HTMLElement);
+    const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % elements.length;
+    const targetEl = elements[nextIndex];
+    if (targetEl) {
+      targetEl.focus();
+      targetEl.scrollIntoView({ behavior: "smooth", block: "center" });
     }
   };
 
@@ -2808,6 +2826,15 @@ export default function App() {
                                         const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
                                         const isParentVertical = parentCapa && parentCapa.layout === "vertical";
                                         const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+                                        const isCardSelected = selectedCardIds.includes(cardData.id);
+                                        const syncEvents = (isCardSelected && !rightSidebarCollapsed) ? {
+                                          onMouseEnter: () => setHoveredCapaId(capa.id),
+                                          onMouseLeave: () => setHoveredCapaId(null),
+                                          onClick: (e: React.MouseEvent) => {
+                                            e.stopPropagation();
+                                            handleCapaClick(capa.id);
+                                          }
+                                        } : {};
 
                                         const style: React.CSSProperties = {
                                           position: isParentFlex ? "relative" : "absolute",
@@ -2819,9 +2846,11 @@ export default function App() {
                                             : `${capa.yMm * zoomFactor}px`,
                                           width: `${capa.anchoMm * zoomFactor}px`,
                                           height: `${capa.altoMm * zoomFactor}px`,
-                                          pointerEvents: "none",
+                                          pointerEvents: (isCardSelected && !rightSidebarCollapsed) ? "auto" : "none",
                                           boxSizing: "border-box",
                                           flexShrink: 0,
+                                          outline: (isCardSelected && !rightSidebarCollapsed && hoveredCapaId === capa.id) ? "2px dashed var(--accent-primary)" : undefined,
+                                          outlineOffset: "-2px",
                                           visibility: (cardData.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible") === "hidden" ? "hidden" : undefined,
                                           display: (cardData.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : undefined,
                                         };
@@ -2831,6 +2860,8 @@ export default function App() {
                                           return (
                                             <div
                                               key={capa.id}
+                                              {...syncEvents}
+                                              data-capa-id={capa.id}
                                               style={{
                                                 ...style,
                                                 backgroundColor: colorFill,
@@ -2876,6 +2907,8 @@ export default function App() {
                                           return (
                                             <div
                                               key={capa.id}
+                                              {...syncEvents}
+                                              data-capa-id={capa.id}
                                               style={{
                                     ...style,
                                     ...borderCornersStyle,
@@ -2930,6 +2963,8 @@ export default function App() {
                                           return (
                                             <div
                                               key={capa.id}
+                                              {...syncEvents}
+                                              data-capa-id={capa.id}
                                               style={{
                                                 ...style,
                                                 ...borderCornersStyle,
@@ -2985,6 +3020,8 @@ export default function App() {
                                           return (
                                             <div
                                               key={capa.id}
+                                              {...syncEvents}
+                                              data-capa-id={capa.id}
                                               style={{
                                                 ...style,
                                                 ...borderCornersStyle,
@@ -3026,6 +3063,8 @@ export default function App() {
                                           return (
                                             <div
                                               key={capa.id}
+                                              {...syncEvents}
+                                              data-capa-id={capa.id}
                                               style={{
                                                 ...style,
                                                 ...borderCornersStyle,
@@ -3214,6 +3253,15 @@ export default function App() {
                                             const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
                                             const isParentVertical = parentCapa && parentCapa.layout === "vertical";
                                             const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+                                            const isCardSelected = selectedCardIds.includes(cardData.id);
+                                            const syncEvents = (isCardSelected && !rightSidebarCollapsed) ? {
+                                              onMouseEnter: () => setHoveredCapaId(capa.id),
+                                              onMouseLeave: () => setHoveredCapaId(null),
+                                              onClick: (e: React.MouseEvent) => {
+                                                e.stopPropagation();
+                                                handleCapaClick(capa.id);
+                                              }
+                                            } : {};
 
                                             const style: React.CSSProperties = {
                                               position: isParentFlex ? "relative" : "absolute",
@@ -3225,9 +3273,11 @@ export default function App() {
                                                 : `${capa.yMm * zoomFactor}px`,
                                               width: `${capa.anchoMm * zoomFactor}px`,
                                               height: `${capa.altoMm * zoomFactor}px`,
-                                              pointerEvents: "none",
+                                              pointerEvents: (isCardSelected && !rightSidebarCollapsed) ? "auto" : "none",
                                               boxSizing: "border-box",
                                               flexShrink: 0,
+                                              outline: (isCardSelected && !rightSidebarCollapsed && hoveredCapaId === capa.id) ? "2px dashed var(--accent-primary)" : undefined,
+                                              outlineOffset: "-2px",
                                               visibility: (cardData.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible") === "hidden" ? "hidden" : undefined,
                                               display: (cardData.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : undefined,
                                             };
@@ -3237,6 +3287,8 @@ export default function App() {
                                               return (
                                                 <div
                                                   key={capa.id}
+                                                  {...syncEvents}
+                                                  data-capa-id={capa.id}
                                                   style={{
                                                     ...style,
                                                     backgroundColor: colorFill,
@@ -3280,6 +3332,8 @@ export default function App() {
                                               return (
                                                 <div
                                                   key={capa.id}
+                                                  {...syncEvents}
+                                                  data-capa-id={capa.id}
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
@@ -3325,6 +3379,8 @@ export default function App() {
                                               return (
                                                 <div
                                                   key={capa.id}
+                                                  {...syncEvents}
+                                                  data-capa-id={capa.id}
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
@@ -3366,6 +3422,8 @@ export default function App() {
                                               return (
                                                 <div
                                                   key={capa.id}
+                                                  {...syncEvents}
+                                                  data-capa-id={capa.id}
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
@@ -3431,6 +3489,8 @@ export default function App() {
                                               return (
                                                 <div
                                                   key={capa.id}
+                                                  {...syncEvents}
+                                                  data-capa-id={capa.id}
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
@@ -3825,9 +3885,18 @@ export default function App() {
                             const displayLabel = labelParts[labelParts.length - 1];
                             const labelTruncated = displayLabel.length > 15 ? displayLabel.substring(0, 13) + "..." : displayLabel;
 
+                            const currentCapaId = campo.mapaCartaCapaId[cartaBase.id];
+
                             if (isTextarea) {
                               return (
-                                <div key={campo.property + "_" + fieldIdx} className="inspector-row-multiline" style={indentStyle}>
+                                <div
+                                  key={campo.property + "_" + fieldIdx}
+                                  className={`inspector-row-multiline${!rightSidebarCollapsed && hoveredCapaId === currentCapaId ? " highlighted-property-field" : ""}`}
+                                  style={indentStyle}
+                                  data-inspector-capa-id={currentCapaId}
+                                  onMouseEnter={() => { if (!rightSidebarCollapsed) setHoveredCapaId(currentCapaId); }}
+                                  onMouseLeave={() => { if (!rightSidebarCollapsed) setHoveredCapaId(null); }}
+                                >
                                   <label className="inspector-label-col" title={displayLabel} style={{ fontWeight: "600", fontSize: "11px" }}>
                                     {labelTruncated}
                                   </label>
@@ -3854,7 +3923,14 @@ export default function App() {
                             }
 
                             return (
-                              <div key={campo.property + "_" + fieldIdx} className="inspector-row" style={indentStyle}>
+                              <div
+                                key={campo.property + "_" + fieldIdx}
+                                className={`inspector-row${!rightSidebarCollapsed && hoveredCapaId === currentCapaId ? " highlighted-property-field" : ""}`}
+                                style={indentStyle}
+                                data-inspector-capa-id={currentCapaId}
+                                onMouseEnter={() => { if (!rightSidebarCollapsed) setHoveredCapaId(currentCapaId); }}
+                                onMouseLeave={() => { if (!rightSidebarCollapsed) setHoveredCapaId(null); }}
+                              >
                                 <label className="inspector-label-col" title={displayLabel}>
                                   {labelTruncated}
                                 </label>
