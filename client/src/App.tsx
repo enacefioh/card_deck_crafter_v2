@@ -327,9 +327,23 @@ export default function App() {
   // --- Estado de Secciones Colapsables del Inspector (SRS-043) ---
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
+  // --- Estado de la pestaña del Inspector Delantera/Trasera (SRS-044) ---
+  const [inspectorTab, setInspectorTab] = useState<"front" | "back">("front");
+
   const setProjectColors = (value: React.SetStateAction<any[]>) => {
     setProjectColorsInternal(value);
     setIsDirty(true);
+  };
+
+  const handleInspectorTabChange = (tab: "front" | "back") => {
+    setInspectorTab(tab);
+    if (selectedCardIds.length > 0) {
+      const activeCardId = selectedCardIds[selectedCardIds.length - 1];
+      const el = document.querySelector(`[data-card-face-id="${tab}-${activeCardId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
   };
 
   const setCanvasConfig = (value: React.SetStateAction<CanvasConfig>) => {
@@ -2659,11 +2673,13 @@ export default function App() {
                       {paginaFrontal.slots.map((slot, sIndex) => (
                         <div
                           key={`slot-f-${pIndex}-${sIndex}`}
+                          data-card-face-id={`front-${slot.cartaId}`}
                           className={`card-slot ${selectedCardIds.includes(slot.cartaId) ? "selected" : ""}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
                             handleToggleSelectCard(slot.cartaId, isMulti);
+                            setInspectorTab("front");
                           }}
                           onDoubleClick={(e) => {
                             e.stopPropagation();
@@ -3062,11 +3078,13 @@ export default function App() {
                         {paginaTrasera.slots.map((slot, sIndex) => (
                           <div
                             key={`slot-t-${pIndex}-${sIndex}`}
+                            data-card-face-id={`back-${slot.cartaId}`}
                             className={`card-slot ${selectedCardIds.includes(slot.cartaId) ? "selected" : ""}`}
                             onClick={(e) => {
                               e.stopPropagation();
                               const isMulti = e.ctrlKey || e.metaKey || e.shiftKey;
                               handleToggleSelectCard(slot.cartaId, isMulti);
+                              setInspectorTab("back");
                             }}
                             onDoubleClick={(e) => {
                               e.stopPropagation();
@@ -3486,6 +3504,24 @@ export default function App() {
               ▶
             </button>
           </div>
+          {generarReversos && (
+            <div className="inspector-tabs-container">
+              <button
+                type="button"
+                className={`inspector-tab-button ${inspectorTab === "front" ? "active" : ""}`}
+                onClick={() => handleInspectorTabChange("front")}
+              >
+                Delantera
+              </button>
+              <button
+                type="button"
+                className={`inspector-tab-button ${inspectorTab === "back" ? "active" : ""}`}
+                onClick={() => handleInspectorTabChange("back")}
+              >
+                Trasera
+              </button>
+            </div>
+          )}
           <div className="sidebar-content" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
           {(() => {
             const selectedCartas = cartas.filter((c) => selectedCardIds.includes(c.id));
@@ -3498,8 +3534,13 @@ export default function App() {
             }
 
             const cartaBase = selectedCartas[0];
-            const plantillaBase = cartaBase.plantilla || (cartaBase.plantillaId ? templatesMap[cartaBase.plantillaId] : null);
-            const exposedBase = cartaBase.exposedProperties || plantillaBase?.exposedProperties || [];
+            const isBack = inspectorTab === "back" && generarReversos;
+            const plantillaBase = isBack
+              ? (cartaBase.plantillaTrasera || (cartaBase.plantillaTraseraId ? templatesMap[cartaBase.plantillaTraseraId] : null))
+              : (cartaBase.plantilla || (cartaBase.plantillaId ? templatesMap[cartaBase.plantillaId] : null));
+            const exposedBase = isBack
+              ? (plantillaBase?.exposedProperties || [])
+              : (cartaBase.exposedProperties || plantillaBase?.exposedProperties || []);
             const baseCapas = plantillaBase?.capas || [];
             const camposCoincidentes: any[] = [];
 
@@ -3513,9 +3554,13 @@ export default function App() {
 
               for (let i = 1; i < selectedCartas.length; i++) {
                 const cOther = selectedCartas[i];
-                const pOther = cOther.plantilla || (cOther.plantillaId ? templatesMap[cOther.plantillaId] : null);
+                const pOther = isBack
+                  ? (cOther.plantillaTrasera || (cOther.plantillaTraseraId ? templatesMap[cOther.plantillaTraseraId] : null))
+                  : (cOther.plantilla || (cOther.plantillaId ? templatesMap[cOther.plantillaId] : null));
                 const capasOther = pOther?.capas || [];
-                const expOther = cOther.exposedProperties || pOther?.exposedProperties || [];
+                const expOther = isBack
+                  ? (pOther?.exposedProperties || [])
+                  : (cOther.exposedProperties || pOther?.exposedProperties || []);
 
                 const matchExposed = expOther.find((eo: any) => {
                   if (eo.property !== prop.property) return false;
@@ -3598,16 +3643,25 @@ export default function App() {
                             const valores = selectedCartas.map((c) => {
                               const capaId = campo.mapaCartaCapaId[c.id];
                               if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
-                                if (c.valoresCampos && c.valoresCampos[capaId] !== undefined) return c.valoresCampos[capaId];
-                                if (c.capasOverrides?.[capaId]?.contenidoRaw !== undefined) return c.capasOverrides[capaId].contenidoRaw;
-                                const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
-                                return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
+                                if (isBack) {
+                                  if (c.valoresCamposTrasera && c.valoresCamposTrasera[capaId] !== undefined) return c.valoresCamposTrasera[capaId];
+                                  if (c.capasOverridesTrasera?.[capaId]?.contenidoRaw !== undefined) return c.capasOverridesTrasera[capaId].contenidoRaw;
+                                  const p = c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null);
+                                  return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
+                                } else {
+                                  if (c.valoresCampos && c.valoresCampos[capaId] !== undefined) return c.valoresCampos[capaId];
+                                  if (c.capasOverrides?.[capaId]?.contenidoRaw !== undefined) return c.capasOverrides[capaId].contenidoRaw;
+                                  const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
+                                  return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
+                                }
                               }
-                              const overrideObj = c.capasOverrides?.[capaId] as any;
+                              const overrideObj = (isBack ? c.capasOverridesTrasera?.[capaId] : c.capasOverrides?.[capaId]) as any;
                               if (overrideObj?.[campo.property] !== undefined) {
                                 return overrideObj[campo.property];
                               }
-                              const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
+                              const p = isBack
+                                ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
+                                : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null));
                               const layerObj = p?.capas?.find((x: any) => x.id === capaId) as any;
                               return layerObj?.[campo.property] || "";
                             });
@@ -3621,12 +3675,16 @@ export default function App() {
                                 if (!selectedCardIds.includes(c.id)) return c;
                                 const capaId = campo.mapaCartaCapaId[c.id];
                                 if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
-                                  const nextValoresCampos = { ...(c.valoresCampos || {}) };
-                                  nextValoresCampos[capaId] = nuevoValor;
-                                  return { ...c, valoresCampos: nextValoresCampos };
+                                  if (isBack) {
+                                    const nextValoresCamposTrasera = { ...(c.valoresCamposTrasera || {}) };
+                                    nextValoresCamposTrasera[capaId] = nuevoValor;
+                                    return { ...c, valoresCamposTrasera: nextValoresCamposTrasera };
+                                  } else {
+                                    const nextValoresCampos = { ...(c.valoresCampos || {}) };
+                                    nextValoresCampos[capaId] = nuevoValor;
+                                    return { ...c, valoresCampos: nextValoresCampos };
+                                  }
                                 }
-                                const nextOverrides = { ...(c.capasOverrides || {}) } as any;
-                                const currentOverride = nextOverrides[capaId] || {};
                                 
                                 let extraUpdates: any = {};
                                 if (campo.property === "borderTopColor") {
@@ -3663,11 +3721,23 @@ export default function App() {
                                   };
                                 }
 
-                                nextOverrides[capaId] = {
-                                  ...currentOverride,
-                                  ...extraUpdates
-                                };
-                                return { ...c, capasOverrides: nextOverrides };
+                                if (isBack) {
+                                  const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
+                                  const currentOverride = nextOverridesTrasera[capaId] || {};
+                                  nextOverridesTrasera[capaId] = {
+                                    ...currentOverride,
+                                    ...extraUpdates
+                                  };
+                                  return { ...c, capasOverridesTrasera: nextOverridesTrasera };
+                                } else {
+                                  const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                                  const currentOverride = nextOverrides[capaId] || {};
+                                  nextOverrides[capaId] = {
+                                    ...currentOverride,
+                                    ...extraUpdates
+                                  };
+                                  return { ...c, capasOverrides: nextOverrides };
+                                }
                               });
                               setCartas(nuevasCartas);
                               setIsDirty(true);

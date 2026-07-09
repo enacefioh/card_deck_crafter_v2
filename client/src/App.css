@@ -902,5 +902,34 @@
   text-align: center;
 }
 
+/* Pestañas del Inspector (SRS-044) */
+.inspector-tabs-container {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background-color: rgba(0, 0, 0, 0.15);
+  width: 100%;
+}
+.inspector-tab-button {
+  flex: 1;
+  padding: 10px;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s;
+  font-weight: 600;
+  font-size: 13px;
+  text-align: center;
+}
+.inspector-tab-button:hover {
+  background-color: rgba(255, 255, 255, 0.02);
+  color: var(--text-primary);
+}
+.inspector-tab-button.active {
+  color: var(--accent-primary);
+  border-bottom: 2px solid var(--accent-primary);
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
 
 
