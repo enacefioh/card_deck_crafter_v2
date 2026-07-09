@@ -267,10 +267,18 @@ export default function App() {
   const [projectAssets, setProjectAssetsInternal] = useState<any[]>([]);
   const [showProjectGallery, setShowProjectGallery] = useState<boolean>(false);
 
+  // --- Galería de Usuario (SRS-045) ---
+  const [userAssets, setUserAssetsInternal] = useState<any[]>([]);
+
+  const setUserAssets = (value: React.SetStateAction<any[]>) => {
+    setUserAssetsInternal(value);
+    setIsDirty(true);
+  };
+
   // --- Estados del Selector de Galería de la Sidebar (SRS-037) ---
   const [showSidebarGallerySelector, setShowSidebarGallerySelector] = useState<boolean>(false);
   const [sidebarGalleryTargetField, setSidebarGalleryTargetField] = useState<any | null>(null);
-  const [sidebarGallerySelectorTab, setSidebarGallerySelectorTab] = useState<"project" | "template">("project");
+  const [sidebarGallerySelectorTab, setSidebarGallerySelectorTab] = useState<"project" | "user">("project");
 
   // --- Estados del Setup y Configuración del Proyecto (SRS-022) ---
   const [nombreProyecto, setNombreProyectoInternal] = useState<string>("Mi Baraja");
@@ -747,9 +755,43 @@ export default function App() {
     const zip = new JSZip();
     const assetsFolder = zip.folder("assets")!;
     const projectAssetsFolder = zip.folder("project_assets")!;
+    const userAssetsFolder = zip.folder("user_assets")!;
     const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
     const projectAssetMap = new Map<string, string>(); // blobUrl -> projectAssetPath
+    const userAssetMap = new Map<string, string>(); // blobUrl -> userAssetPath
     const processedProjectAssets = [];
+    const processedUserAssets = [];
+
+    // Procesar recursos de la galería de usuario (SRS-045)
+    for (const asset of userAssets) {
+      if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
+        try {
+          const res = await fetch(asset.src);
+          const blob = await res.blob();
+          
+          let extension = "png";
+          if (blob.type === "image/jpeg") extension = "jpg";
+          else if (blob.type === "image/webp") extension = "webp";
+          else if (blob.type === "image/gif") extension = "gif";
+          
+          const filename = `${asset.id}.${extension}`;
+          userAssetsFolder.file(filename, blob);
+          
+          const assetPath = `user_asset://${filename}`;
+          userAssetMap.set(asset.src, assetPath);
+          processedUserAssets.push({
+            id: asset.id,
+            nombre: asset.nombre,
+            src: assetPath,
+          });
+        } catch (err) {
+          console.error("Error al procesar recurso de la galería de usuario:", asset, err);
+        }
+      } else if (asset.src && asset.src.startsWith("user_asset://")) {
+        userAssetMap.set(asset.src, asset.src);
+        processedUserAssets.push(asset);
+      }
+    }
 
     // Procesar recursos de la galería del proyecto
     for (const asset of projectAssets) {
@@ -783,6 +825,9 @@ export default function App() {
     }
 
     const addBlobToZip = async (blobUrl: string, baseName: string): Promise<string> => {
+      if (userAssetMap.has(blobUrl)) {
+        return userAssetMap.get(blobUrl)!;
+      }
       if (projectAssetMap.has(blobUrl)) {
         return projectAssetMap.get(blobUrl)!;
       }
@@ -1023,6 +1068,7 @@ export default function App() {
       activeDocumentoId,
       templates: processedTemplatesMap,
       assets: processedProjectAssets,
+      userAssets: processedUserAssets,
       customFonts: projectFonts.map((f: any) => ({
         id: f.id,
         nombre: f.nombre,
@@ -1135,7 +1181,7 @@ export default function App() {
       const cacheBlobUrls = new Map<string, string>();
       const matchesAssetScheme = (src: string | null | undefined): boolean => {
         if (!src) return false;
-        return src.startsWith("asset://") || src.startsWith("project_asset://");
+        return src.startsWith("asset://") || src.startsWith("project_asset://") || src.startsWith("user_asset://");
       };
 
       const resolverAssetBlob = async (assetPath: string | null): Promise<string | null> => {
@@ -1149,6 +1195,19 @@ export default function App() {
           const zipImgFile = zip.file(`project_assets/${filename}`);
           if (!zipImgFile) {
             console.error(`No se encontró el project asset ${filename} en el ZIP`);
+            return null;
+          }
+          const blob = await zipImgFile.async("blob");
+          const objectUrl = URL.createObjectURL(blob);
+          cacheBlobUrls.set(assetPath, objectUrl);
+          return objectUrl;
+        }
+
+        if (assetPath.startsWith("user_asset://")) {
+          const filename = assetPath.replace("user_asset://", "");
+          const zipImgFile = zip.file(`user_assets/${filename}`);
+          if (!zipImgFile) {
+            console.error(`No se encontró el user asset ${filename} en el ZIP`);
             return null;
           }
           const blob = await zipImgFile.async("blob");
@@ -1391,6 +1450,24 @@ export default function App() {
         }
       }
       setProjectAssetsInternal(nuevosProjectAssets);
+
+      // Cargar la galería de usuario (SRS-045)
+      const nuevosUserAssets: any[] = [];
+      if (proyecto.userAssets) {
+        for (const asset of proyecto.userAssets) {
+          if (asset.src) {
+            const url = await resolverAssetBlob(asset.src);
+            if (url) {
+              nuevosUserAssets.push({
+                id: asset.id,
+                nombre: asset.nombre,
+                src: url
+              });
+            }
+          }
+        }
+      }
+      setUserAssetsInternal(nuevosUserAssets);
 
       // Cargar tipografías del proyecto (SRS-026)
       const nuevosProjectFonts: any[] = [];
@@ -3858,9 +3935,12 @@ export default function App() {
                                               const reader = new FileReader();
                                               reader.onload = async (event) => {
                                                 const base64 = event.target?.result as string;
-                                                const assetId = `proj_asset_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                                                const assetId = `user_asset_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
                                                 const nuevoRecurso = { id: assetId, nombre: file.name, src: base64 };
-                                                setProjectAssetsInternal(prev => [...prev, nuevoRecurso]);
+                                                setUserAssets((prev) => {
+                                                  if (prev.some((x: any) => x.src === base64)) return prev;
+                                                  return [...prev, nuevoRecurso];
+                                                });
                                                 handleUpdateValorLote(base64);
                                               };
                                               reader.readAsDataURL(file);
@@ -4599,7 +4679,7 @@ export default function App() {
               </button>
             </div>
 
-            {/* Pestañas (Tabs) para Galería de Proyecto vs Plantilla */}
+            {/* Pestañas (Tabs) para Galería de Proyecto vs Usuario (SRS-045) */}
             <div style={{ display: "flex", borderBottom: "1px solid var(--border-color)", marginBottom: "12px", gap: "16px" }}>
               <button
                 type="button"
@@ -4623,20 +4703,20 @@ export default function App() {
                   padding: "8px 4px",
                   background: "none",
                   border: "none",
-                  borderBottom: sidebarGallerySelectorTab === "template" ? "2px solid var(--accent-primary)" : "2px solid transparent",
-                  color: sidebarGallerySelectorTab === "template" ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: sidebarGallerySelectorTab === "template" ? "bold" : "normal",
+                  borderBottom: sidebarGallerySelectorTab === "user" ? "2px solid var(--accent-primary)" : "2px solid transparent",
+                  color: sidebarGallerySelectorTab === "user" ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: sidebarGallerySelectorTab === "user" ? "bold" : "normal",
                   cursor: "pointer",
                   fontSize: "13px"
                 }}
-                onClick={() => setSidebarGallerySelectorTab("template")}
+                onClick={() => setSidebarGallerySelectorTab("user")}
               >
-                Imágenes de la Plantilla
+                Imágenes de Usuario
               </button>
             </div>
 
             <div className="gallery-assets-grid" style={{ maxHeight: "350px", overflowY: "auto" }}>
-              {sidebarGallerySelectorTab === "project" ? (
+              {sidebarGallerySelectorTab === "project" ?
                 projectAssets && projectAssets.length > 0 ? (
                   projectAssets.map((asset: any) => (
                     <div
@@ -4646,12 +4726,21 @@ export default function App() {
                         const nuevasCartas = cartas.map((c) => {
                           if (!selectedCardIds.includes(c.id)) return c;
                           const capaId = sidebarGalleryTargetField.mapaCartaCapaId[c.id];
-                          const nextOverrides = { ...(c.capasOverrides || {}) } as any;
-                          nextOverrides[capaId] = {
-                            ...(nextOverrides[capaId] || {}),
-                            [sidebarGalleryTargetField.property]: asset.src
-                          };
-                          return { ...c, capasOverrides: nextOverrides };
+                          if (inspectorTab === "back" && generarReversos) {
+                            const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
+                            nextOverridesTrasera[capaId] = {
+                              ...(nextOverridesTrasera[capaId] || {}),
+                              [sidebarGalleryTargetField.property]: asset.src
+                            };
+                            return { ...c, capasOverridesTrasera: nextOverridesTrasera };
+                          } else {
+                            const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                            nextOverrides[capaId] = {
+                              ...(nextOverrides[capaId] || {}),
+                              [sidebarGalleryTargetField.property]: asset.src
+                            };
+                            return { ...c, capasOverrides: nextOverrides };
+                          }
                         });
                         setCartas(nuevasCartas);
                         setIsDirty(true);
@@ -4671,12 +4760,9 @@ export default function App() {
                     La galería del proyecto está vacía. Añade imágenes desde el menú superior "Recursos".
                   </div>
                 )
-              ) : (() => {
-                const primerCarta = cartas.find(c => c.id === selectedCardIds[0]);
-                const plantilla = primerCarta?.plantilla || (primerCarta?.plantillaId ? templatesMap[primerCarta.plantillaId] : null);
-                const assets = plantilla?.assets || [];
-                return assets.length > 0 ? (
-                  assets.map((asset: any) => (
+              :
+                userAssets && userAssets.length > 0 ? (
+                  userAssets.map((asset: any) => (
                     <div
                       key={asset.id}
                       className="gallery-asset-item"
@@ -4684,12 +4770,21 @@ export default function App() {
                         const nuevasCartas = cartas.map((c) => {
                           if (!selectedCardIds.includes(c.id)) return c;
                           const capaId = sidebarGalleryTargetField.mapaCartaCapaId[c.id];
-                          const nextOverrides = { ...(c.capasOverrides || {}) } as any;
-                          nextOverrides[capaId] = {
-                            ...(nextOverrides[capaId] || {}),
-                            [sidebarGalleryTargetField.property]: asset.src
-                          };
-                          return { ...c, capasOverrides: nextOverrides };
+                          if (inspectorTab === "back" && generarReversos) {
+                            const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
+                            nextOverridesTrasera[capaId] = {
+                              ...(nextOverridesTrasera[capaId] || {}),
+                              [sidebarGalleryTargetField.property]: asset.src
+                            };
+                            return { ...c, capasOverridesTrasera: nextOverridesTrasera };
+                          } else {
+                            const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                            nextOverrides[capaId] = {
+                              ...(nextOverrides[capaId] || {}),
+                              [sidebarGalleryTargetField.property]: asset.src
+                            };
+                            return { ...c, capasOverrides: nextOverrides };
+                          }
                         });
                         setCartas(nuevasCartas);
                         setIsDirty(true);
@@ -4706,10 +4801,10 @@ export default function App() {
                   ))
                 ) : (
                   <div style={{ gridColumn: "1 / -1", padding: "40px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "12px" }}>
-                    La galería de esta plantilla está vacía.
+                    No has subido ninguna imagen todavía. Sube una imagen desde el inspector para que aparezca aquí.
                   </div>
-                );
-              })()}
+                )
+              }
             </div>
           </div>
         </div>
