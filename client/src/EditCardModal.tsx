@@ -535,12 +535,53 @@ export default function EditCardModal({
       const updatedCapas = [...prev.capas];
       const updatedCamposConfig = [...(prev.camposConfig || [])];
 
-      // Insertar después del seleccionado
-      const selectedIndex = updatedCapas.findIndex((c) => c.id === selectedLayerId);
-      if (selectedIndex !== -1) {
-        updatedCapas.splice(selectedIndex + 1, 0, newLayer);
+      const selectedCapa = selectedLayerId ? updatedCapas.find((c) => c.id === selectedLayerId) : null;
+      let parentId: string | null = null;
+
+      if (selectedCapa) {
+        if (selectedCapa.tipo === "container") {
+          parentId = selectedCapa.id;
+        } else {
+          parentId = selectedCapa.parentCapaId || null;
+        }
+      }
+
+      const layerWithParent = { ...newLayer, parentCapaId: parentId };
+
+      let insertIndex = -1;
+      if (!selectedCapa) {
+        // Sin selección: insertar después del último elemento en la raíz
+        for (let i = updatedCapas.length - 1; i >= 0; i--) {
+          if (!updatedCapas[i].parentCapaId) {
+            insertIndex = i;
+            break;
+          }
+        }
+        if (insertIndex !== -1) {
+          updatedCapas.splice(insertIndex + 1, 0, layerWithParent);
+        } else {
+          updatedCapas.push(layerWithParent);
+        }
+      } else if (selectedCapa.tipo === "container") {
+        // Contenedor seleccionado: dentro del contenedor al final de sus hijos
+        let lastChildIndex = -1;
+        for (let i = updatedCapas.length - 1; i >= 0; i--) {
+          if (updatedCapas[i].parentCapaId === selectedCapa.id) {
+            lastChildIndex = i;
+            break;
+          }
+        }
+        if (lastChildIndex !== -1) {
+          updatedCapas.splice(lastChildIndex + 1, 0, layerWithParent);
+        } else {
+          // Si no tiene hijos, directamente después del contenedor mismo
+          const containerIndex = updatedCapas.findIndex(c => c.id === selectedCapa.id);
+          updatedCapas.splice(containerIndex + 1, 0, layerWithParent);
+        }
       } else {
-        updatedCapas.push(newLayer);
+        // No es contenedor: insertar en el mismo padre, directamente después del seleccionado
+        const selectedIndex = updatedCapas.findIndex(c => c.id === selectedCapa.id);
+        updatedCapas.splice(selectedIndex + 1, 0, layerWithParent);
       }
 
       // Registrar variable si es de texto
@@ -904,18 +945,51 @@ export default function EditCardModal({
     const capa = capas[index];
     if (capa.tipo === "background") return;
 
-    let targetIndex = direction === "up" ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= capas.length) return;
-    if (targetIndex === 0 && capas[0].tipo === "background") return;
+    const parentId = capa.parentCapaId || null;
 
     const updater = (prev: any) => {
       const nextCapas = [...prev.capas];
-      const temp = nextCapas[index];
-      nextCapas[index] = nextCapas[targetIndex];
-      nextCapas[targetIndex] = temp;
+      
+      const rebuildFlatLayers = (allLayers: any[], parentIdToSwap: string | null, targetId: string, dir: "up" | "down"): any[] => {
+        const result: any[] = [];
+        const traverse = (currentParentId: string | null) => {
+          const children = allLayers.filter(c => (c.parentCapaId || null) === currentParentId);
+          if (currentParentId === parentIdToSwap) {
+            const idx = children.findIndex(c => c.id === targetId);
+            if (idx !== -1) {
+              if (dir === "up" && idx > 0) {
+                if (children[idx - 1].tipo !== "background") {
+                  const temp = children[idx];
+                  children[idx] = children[idx - 1];
+                  children[idx - 1] = temp;
+                }
+              } else if (dir === "down" && idx < children.length - 1) {
+                const temp = children[idx];
+                children[idx] = children[idx + 1];
+                children[idx + 1] = temp;
+              }
+            }
+          }
+          for (const child of children) {
+            result.push(child);
+            traverse(child.id);
+          }
+        };
+        traverse(null);
+        
+        for (const layer of allLayers) {
+          if (!result.some(r => r.id === layer.id)) {
+            result.push(layer);
+          }
+        }
+        return result;
+      };
+
+      const updatedCapas = rebuildFlatLayers(nextCapas, parentId, capaId, direction);
+
       return {
         ...prev,
-        capas: nextCapas
+        capas: updatedCapas
       };
     };
 
