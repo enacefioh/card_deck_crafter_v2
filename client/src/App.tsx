@@ -2946,8 +2946,8 @@ export default function App() {
                                           top: isParentFlex 
                                             ? (isParentHorizontal ? `${resolvedCapa.yMm * zoomFactor}px` : undefined)
                                             : `${resolvedCapa.yMm * zoomFactor}px`,
-                                          width: `${resolvedCapa.anchoMm * zoomFactor}px`,
-                                          height: `${resolvedCapa.altoMm * zoomFactor}px`,
+                                          width: resolvedCapa.anchoMm === "auto" ? "fit-content" : `${resolvedCapa.anchoMm * zoomFactor}px`,
+                                          height: resolvedCapa.altoMm === "auto" ? "fit-content" : `${resolvedCapa.altoMm * zoomFactor}px`,
                                           pointerEvents: (activeCanvasEditLayerId && !isEditActive) ? "none" : ((isCardSelected && !rightSidebarCollapsed) ? "auto" : "none"),
                                           cursor: isEditActive ? "move" : (activeCanvasEditLayerId ? "default" : ((isCardSelected && !rightSidebarCollapsed) ? "pointer" : "none")),
                                           boxSizing: "border-box",
@@ -3414,73 +3414,120 @@ export default function App() {
 
 
 
+
                                             const style: React.CSSProperties = {
+
+
 
 
                                               position: isParentFlex ? "relative" : "absolute",
 
 
+
+
                                               left: isParentFlex 
+
+
 
 
                                                 ? (isParentVertical ? `${resolvedCapa.xMm * zoomFactor}px` : undefined)
 
 
+
+
                                                 : `${resolvedCapa.xMm * zoomFactor}px`,
+
+
 
 
                                               top: isParentFlex 
 
 
+
+
                                                 ? (isParentHorizontal ? `${resolvedCapa.yMm * zoomFactor}px` : undefined)
+
+
 
 
                                                 : `${resolvedCapa.yMm * zoomFactor}px`,
 
 
-                                              width: `${resolvedCapa.anchoMm * zoomFactor}px`,
 
 
-                                              height: `${resolvedCapa.altoMm * zoomFactor}px`,
+                                              width: resolvedCapa.anchoMm === "auto" ? "fit-content" : `${resolvedCapa.anchoMm * zoomFactor}px`,
+
+
+
+
+                                              height: resolvedCapa.altoMm === "auto" ? "fit-content" : `${resolvedCapa.altoMm * zoomFactor}px`,
+
+
 
 
                                               pointerEvents: (activeCanvasEditLayerId && !isEditActive) ? "none" : ((isCardSelected && !rightSidebarCollapsed) ? "auto" : "none"),
 
 
+
+
                                               cursor: isEditActive ? "move" : (activeCanvasEditLayerId ? "default" : ((isCardSelected && !rightSidebarCollapsed) ? "pointer" : "none")),
+
+
 
 
                                               boxSizing: "border-box",
 
 
+
+
                                               flexShrink: 0,
+
+
 
 
                                               outline: isEditActive
 
 
+
+
                                                 ? "2px dashed var(--accent-primary)"
+
+
 
 
                                                 : (isCardSelected && !rightSidebarCollapsed && hoveredCapaId === capa.id)
 
 
+
+
                                                 ? "2px dashed var(--accent-primary)"
+
+
 
 
                                                 : undefined,
 
 
+
+
                                               outlineOffset: "-2px",
+
+
 
 
                                               visibility: (resolvedCapa.visibility || "visible") === "hidden" ? "hidden" : undefined,
 
 
+
+
                                               display: (resolvedCapa.visibility || "visible") === "collapsed" ? "none" : undefined,
 
 
+
+
                                               zIndex: isEditActive ? 10 : (hoveredCapaId === capa.id ? 9 : 1),
+
+
 
 
                                             };
@@ -4329,6 +4376,58 @@ export default function App() {
                                      >
                                        {activeCanvasEditLayerId === currentCapaId ? "⏹️ Salir" : "🖱️ Mover"}
                                      </button>
+                                   )}
+
+                                   {(campo.property === "anchoMm" || campo.property === "altoMm") && (
+                                     <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                                       <input
+                                         type={valorMostrar === "auto" ? "text" : "number"}
+                                         step="0.5"
+                                         className="inspector-input"
+                                         style={{ flex: 1, minWidth: 0, height: "26px", fontSize: "12px" }}
+                                         value={valorMostrar === "auto" ? "-" : (valorMostrar !== undefined ? valorMostrar : "")}
+                                         placeholder={placeholderTexto}
+                                         disabled={valorMostrar === "auto"}
+                                         onChange={(e) => {
+                                           if (valorMostrar !== "auto") {
+                                             handleUpdateValorLote(Number(Number(e.target.value).toFixed(1)));
+                                           }
+                                         }}
+                                       />
+                                       <label style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "11px", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                                         <input
+                                           type="checkbox"
+                                           checked={valorMostrar === "auto"}
+                                           onChange={(e) => {
+                                             if (e.target.checked) {
+                                               handleUpdateValorLote("auto");
+                                             } else {
+                                               handleUpdateValorLote(campo.property === "anchoMm" ? 40 : 20);
+                                             }
+                                           }}
+                                           style={{ width: "auto", margin: 0 }}
+                                         />
+                                         Auto
+                                       </label>
+                                     </div>
+                                   )}
+
+                                   {campo.property !== "anchoMm" &&
+                                    campo.property !== "altoMm" &&
+                                    campo.property !== "canvasEditMode" &&
+                                    campo.property !== "visibility" &&
+                                    !(campo.tipoCapa === "text" && campo.property === "contenidoRaw") &&
+                                    !(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) &&
+                                    !((campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src") && (
+                                      <input
+                                        type="number"
+                                        step="0.5"
+                                        className="inspector-input"
+                                        style={{ height: "26px", fontSize: "12px", width: "100%" }}
+                                        value={valorMostrar !== undefined ? valorMostrar : ""}
+                                        placeholder={placeholderTexto}
+                                        onChange={(e) => handleUpdateValorLote(Number(Number(e.target.value).toFixed(1)))}
+                                      />
                                    )}
 
                                   {campo.property === "visibility" && (

@@ -942,10 +942,19 @@ export default function EditCardModal({
     const updater = (prev: any) => {
       const updatedCapas = prev.capas.map((c: any) => {
         if (c.id === capaId) {
-          return {
+          let updatedObj = {
             ...c,
             [propKey]: propVal
           };
+          if (propKey === "layout") {
+            if (propVal !== "horizontal" && updatedObj.anchoMm === "auto") {
+              updatedObj.anchoMm = 40;
+            }
+            if (propVal !== "vertical" && updatedObj.altoMm === "auto") {
+              updatedObj.altoMm = 20;
+            }
+          }
+          return updatedObj;
         }
         // Si cambiamos el layout de un contenedor, ponemos a 0 la X e Y de sus hijos directos
         if (propKey === "layout" && c.parentCapaId === capaId) {
@@ -1981,10 +1990,13 @@ export default function EditCardModal({
                         const isParentVertical = parentCapa && parentCapa.layout === "vertical";
                         const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
+                        const overrides = tempCapasOverridesActivos[capa.id];
+                        const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
                         const isSelected = selectedLayerId === capa.id;
                         const isHovered = !canvasEditMode && hoveredLayerId === capa.id;
 
-                        const activeVisibility = tempCapasOverridesActivos[capa.id]?.visibility || capa.visibility || "visible";
+                        const activeVisibility = resolvedCapa.visibility || "visible";
                         const isHidden = activeVisibility === "hidden";
                         const isCollapsed = activeVisibility === "collapsed";
                         const isEditActive = isSelected && canvasEditMode;
@@ -1992,13 +2004,13 @@ export default function EditCardModal({
                         const layerStyle: React.CSSProperties = {
                           position: isParentFlex ? "relative" : "absolute",
                           left: isParentFlex 
-                            ? (isParentVertical ? `${capa.xMm * scale}px` : undefined)
-                            : `${capa.xMm * scale}px`,
+                            ? (isParentVertical ? `${resolvedCapa.xMm * scale}px` : undefined)
+                            : `${resolvedCapa.xMm * scale}px`,
                           top: isParentFlex 
-                            ? (isParentHorizontal ? `${capa.yMm * scale}px` : undefined)
-                            : `${capa.yMm * scale}px`,
-                          width: `${capa.anchoMm * scale}px`,
-                          height: `${capa.altoMm * scale}px`,
+                            ? (isParentHorizontal ? `${resolvedCapa.yMm * scale}px` : undefined)
+                            : `${resolvedCapa.yMm * scale}px`,
+                          width: resolvedCapa.anchoMm === "auto" ? "fit-content" : `${resolvedCapa.anchoMm * scale}px`,
+                          height: resolvedCapa.altoMm === "auto" ? "fit-content" : `${resolvedCapa.altoMm * scale}px`,
                           cursor: isEditActive ? "move" : (canvasEditMode ? "default" : "pointer"),
                           pointerEvents: (canvasEditMode && !isEditActive) ? "none" : "auto",
                           boxSizing: "border-box",
@@ -2520,12 +2532,16 @@ export default function EditCardModal({
                               {renderExposedEye("anchoMm", "Ancho", true)}
                             </div>
                             <input
-                              type="number"
+                              type={selectedCapa.anchoMm === "auto" ? "text" : "number"}
                               step="0.5"
                               className="inspector-input"
-                              value={selectedCapa.anchoMm}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "anchoMm", Number(Number(e.target.value).toFixed(1)))}
-                              disabled={selectedCapa.tipo === "background"}
+                              value={selectedCapa.anchoMm === "auto" ? "-" : (selectedCapa.anchoMm !== undefined ? selectedCapa.anchoMm : 20)}
+                              onChange={(e) => {
+                                if (selectedCapa.anchoMm !== "auto") {
+                                  handleUpdateCapaProp(selectedCapa.id, "anchoMm", Number(Number(e.target.value).toFixed(1)));
+                                }
+                              }}
+                              disabled={selectedCapa.tipo === "background" || selectedCapa.anchoMm === "auto"}
                             />
                           </div>
                           <div className="inspector-section-compact" title="Alto (mm)">
@@ -2534,15 +2550,66 @@ export default function EditCardModal({
                               {renderExposedEye("altoMm", "Alto", true)}
                             </div>
                             <input
-                              type="number"
+                              type={selectedCapa.altoMm === "auto" ? "text" : "number"}
                               step="0.5"
                               className="inspector-input"
-                              value={selectedCapa.altoMm}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "altoMm", Number(Number(e.target.value).toFixed(1)))}
-                              disabled={selectedCapa.tipo === "background"}
+                              value={selectedCapa.altoMm === "auto" ? "-" : (selectedCapa.altoMm !== undefined ? selectedCapa.altoMm : 20)}
+                              onChange={(e) => {
+                                if (selectedCapa.altoMm !== "auto") {
+                                  handleUpdateCapaProp(selectedCapa.id, "altoMm", Number(Number(e.target.value).toFixed(1)));
+                                }
+                              }}
+                              disabled={selectedCapa.tipo === "background" || selectedCapa.altoMm === "auto"}
                             />
                           </div>
                         </div>
+
+                        {/* Checkboxes de Dimensiones Automáticas (SRS-050) */}
+                        {(() => {
+                          const canAutoWidth = selectedCapa.tipo === "text" || (selectedCapa.tipo === "container" && selectedCapa.layout === "horizontal");
+                          const canAutoHeight = selectedCapa.tipo === "text" || (selectedCapa.tipo === "container" && selectedCapa.layout === "vertical");
+
+                          if (!canAutoWidth && !canAutoHeight) return null;
+
+                          return (
+                            <div style={{ display: "flex", gap: "12px", marginTop: "8px", justifyContent: "flex-end" }}>
+                              {canAutoWidth && (
+                                <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedCapa.anchoMm === "auto"}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        handleUpdateCapaProp(selectedCapa.id, "anchoMm", "auto");
+                                      } else {
+                                        handleUpdateCapaProp(selectedCapa.id, "anchoMm", 40);
+                                      }
+                                    }}
+                                    style={{ width: "auto", margin: 0 }}
+                                  />
+                                  Ancho Auto
+                                </label>
+                              )}
+                              {canAutoHeight && (
+                                <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedCapa.altoMm === "auto"}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        handleUpdateCapaProp(selectedCapa.id, "altoMm", "auto");
+                                      } else {
+                                        handleUpdateCapaProp(selectedCapa.id, "altoMm", 20);
+                                      }
+                                    }}
+                                    style={{ width: "auto", margin: 0 }}
+                                  />
+                                  Alto Auto
+                                </label>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
                     )}
 
