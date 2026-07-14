@@ -114,7 +114,7 @@ export default function EditCardModal({
   const [showSwitchResourcesPopup, setShowSwitchResourcesPopup] = useState<boolean>(false);
   const [tempSwitchCapaId, setTempSwitchCapaId] = useState<string | null>(null);
 
-  const renderColorSelector = (label: string, value: string, onChange: (val: string) => void, isCompact?: boolean) => {
+  const renderColorSelector = (label: string, value: string, onChange: (val: string) => void, isCompact?: boolean, exposedProperty?: string, exposedPropertyLabel?: string) => {
     const matchingCustomColor = projectColors.find((c) => c.valor.toLowerCase() === (value || "").toLowerCase());
     const innerContent = (
       <div style={{ display: "flex", gap: "6px", flexDirection: "column" }}>
@@ -162,10 +162,17 @@ export default function EditCardModal({
       </div>
     );
 
+    const labelEl = (
+      <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+        <label className="inspector-label" style={{ margin: 0, fontSize: isCompact ? "10.5px" : undefined }}>{label}</label>
+        {exposedProperty && renderExposedEye(exposedProperty, exposedPropertyLabel || label)}
+      </div>
+    );
+
     if (isCompact) {
       return (
         <div className="expanded-input-item">
-          <label style={{ fontSize: "10.5px", fontWeight: "500", color: "var(--text-secondary)" }}>{label}</label>
+          {labelEl}
           {innerContent}
         </div>
       );
@@ -173,7 +180,7 @@ export default function EditCardModal({
 
     return (
       <div className="inspector-section">
-        <label className="inspector-label">{label}</label>
+        {labelEl}
         {innerContent}
       </div>
     );
@@ -368,13 +375,55 @@ export default function EditCardModal({
 
   // --- Manejo de Guardar ---
   const handleSave = () => {
+    let finalPlantilla = tempPlantilla;
+    if (finalPlantilla && (!finalPlantilla.exposedProperties || finalPlantilla.exposedProperties.length === 0)) {
+      const list: ExposedProperty[] = [];
+      (finalPlantilla.capas || []).forEach((capa: any) => {
+        if (capa.tipo === "text") {
+          list.push({
+            layerId: capa.id,
+            property: "contenidoRaw",
+            label: capa.nombre || "Texto",
+          });
+        } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
+          list.push({
+            layerId: capa.id,
+            property: "src",
+            label: capa.nombre || "Imagen",
+          });
+        }
+      });
+      finalPlantilla = { ...finalPlantilla, exposedProperties: list };
+    }
+
+    let finalPlantillaTrasera = tempPlantillaTrasera;
+    if (finalPlantillaTrasera && (!finalPlantillaTrasera.exposedProperties || finalPlantillaTrasera.exposedProperties.length === 0)) {
+      const list: ExposedProperty[] = [];
+      (finalPlantillaTrasera.capas || []).forEach((capa: any) => {
+        if (capa.tipo === "text") {
+          list.push({
+            layerId: capa.id,
+            property: "contenidoRaw",
+            label: capa.nombre || "Texto",
+          });
+        } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
+          list.push({
+            layerId: capa.id,
+            property: "src",
+            label: capa.nombre || "Imagen",
+          });
+        }
+      });
+      finalPlantillaTrasera = { ...finalPlantillaTrasera, exposedProperties: list };
+    }
+
     onSave(
       tempValoresCampos,
       tempCapasOverrides,
       tempValoresCamposTrasera,
       tempCapasOverridesTrasera,
-      tempPlantilla,
-      tempPlantillaTrasera
+      finalPlantilla,
+      finalPlantillaTrasera
     );
   };
 
@@ -589,10 +638,26 @@ export default function EditCardModal({
         updatedCamposConfig.push(newCampo);
       }
 
+      const nextExposed = [...(prev.exposedProperties || [])];
+      if (isText) {
+        nextExposed.push({
+          layerId: newId,
+          property: "contenidoRaw",
+          label: `${newLayer.nombre} > Contenido Texto`
+        });
+      } else if (isImage || isImageSwitch) {
+        nextExposed.push({
+          layerId: newId,
+          property: "src",
+          label: `${newLayer.nombre} > Recurso Imagen`
+        });
+      }
+
       return {
         ...prev,
         capas: updatedCapas,
-        camposConfig: updatedCamposConfig
+        camposConfig: updatedCamposConfig,
+        exposedProperties: nextExposed
       };
     };
 
@@ -1387,6 +1452,71 @@ export default function EditCardModal({
     }
   };
 
+  const togglePropertyExposed = (layerId: string, property: string, propertyLabel: string) => {
+    if (!plantillaActiva) return;
+    const currentExposed = plantillaActiva.exposedProperties || [];
+    const isExposed = currentExposed.some((p: any) => p.layerId === layerId && p.property === property);
+
+    let nextExposed = [];
+    if (isExposed) {
+      nextExposed = currentExposed.filter((p: any) => !(p.layerId === layerId && p.property === property));
+    } else {
+      const layer = plantillaActiva.capas?.find((c: any) => c.id === layerId);
+      const layerName = layer ? layer.nombre : "Capa";
+      nextExposed = [
+        ...currentExposed,
+        {
+          layerId,
+          property,
+          label: `${layerName} > ${propertyLabel}`
+        }
+      ];
+    }
+
+    const updater = (prev: any) => ({
+      ...prev,
+      exposedProperties: nextExposed
+    });
+
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+  };
+
+  const renderExposedEye = (property: string, propertyLabel: string, isCompact: boolean = false) => {
+    if (!selectedCapa) return null;
+    const currentExposed = plantillaActiva.exposedProperties || [];
+    const isExposed = currentExposed.some((p: any) => p.layerId === selectedCapa.id && p.property === property);
+    
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          togglePropertyExposed(selectedCapa.id, property, propertyLabel);
+        }}
+        title={isExposed ? `Ocultar ${propertyLabel}` : `Exponer ${propertyLabel}`}
+        style={{
+          background: "none",
+          border: "none",
+          cursor: "pointer",
+          fontSize: isCompact ? "11px" : "14px",
+          marginLeft: isCompact ? "2px" : "auto",
+          padding: isCompact ? "0 2px" : "2px 6px",
+          opacity: isExposed ? 1 : 0.3,
+          color: isExposed ? "var(--accent-primary)" : "inherit",
+          transition: "opacity 0.2s ease, color 0.2s ease",
+          display: "flex",
+          alignItems: "center"
+        }}
+      >
+        👁️
+      </button>
+    );
+  };
+
   // --- Obtener la capa actualmente seleccionada ---
   const selectedCapa = plantillaActiva?.capas?.find((c: any) => c.id === selectedLayerId);
 
@@ -2146,7 +2276,30 @@ export default function EditCardModal({
                     <span className="inspector-layer-icon">
                       {selectedCapa.tipo === "background" ? "🎨" : (selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") ? "🖼️" : selectedCapa.tipo === "container" ? "📦" : selectedCapa.tipo === "block" ? "⬜" : "📝"}
                     </span>
-                    <h3>{selectedCapa.nombre}</h3>
+                    <input
+                      type="text"
+                      className="inspector-header-input"
+                      value={selectedCapa.nombre || ""}
+                      title="Nombre de la Capa (Variable / Clave)"
+                      onChange={(e) => {
+                        if (selectedCapa.tipo === "text") {
+                          handleUpdateCapaClave(selectedCapa.id, fieldKey, e.target.value);
+                        } else {
+                          handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value);
+                        }
+                      }}
+                      style={{
+                        fontSize: "14px",
+                        fontWeight: "600",
+                        border: "none",
+                        borderBottom: "1px dashed var(--border-color)",
+                        backgroundColor: "transparent",
+                        color: "var(--text-primary)",
+                        width: "100%",
+                        padding: "2px 4px",
+                        outline: "none"
+                      }}
+                    />
                   </div>
                   <hr className="inspector-separator" />
 
@@ -2155,7 +2308,10 @@ export default function EditCardModal({
                     
                     {/* Visibilidad (SRS-039) */}
                     <div className="inspector-group-section" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "16px" }}>
-                      <h4 className="inspector-group-title">Visibilidad</h4>
+                      <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
+                        <h4 className="inspector-group-title" style={{ margin: 0 }}>Visibilidad</h4>
+                        {renderExposedEye("visibility", "Visibilidad")}
+                      </div>
                       
                       <div className="inspector-section">
                         <label className="inspector-label">Visibilidad de esta Carta (Anulación)</label>
@@ -2197,7 +2353,10 @@ export default function EditCardModal({
                     {/* Capa de Fondo (Background) */}
                     {selectedCapa.tipo === "background" && (
                       <div className="inspector-group-section">
-                        <h4 className="inspector-group-title">Apariencia del Fondo</h4>
+                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
+                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Apariencia del Fondo</h4>
+                          {renderExposedEye("colorFill", "Color Relleno")}
+                        </div>
                         {renderColorSelector(
                           "Color de Relleno (Carta)",
                           tempCapasOverridesActivos[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff",
@@ -2219,7 +2378,10 @@ export default function EditCardModal({
                       <>
                         {/* Sección 1: Contenido y Anulaciones de la Carta */}
                         <div className="inspector-group-section">
-                          <h4 className="inspector-group-title">Contenido y Anulaciones (Carta)</h4>
+                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
+                            <h4 className="inspector-group-title" style={{ margin: 0 }}>Contenido y Anulaciones (Carta)</h4>
+                            {renderExposedEye("contenidoRaw", "Contenido Texto")}
+                          </div>
                           
                           <div className="inspector-section">
                             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
@@ -2265,7 +2427,10 @@ export default function EditCardModal({
                           </div>
 
                           <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <label className="inspector-label">Tipografía (Anulación)</label>
+                            <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                              <label className="inspector-label" style={{ margin: 0 }}>Tipografía (Anulación)</label>
+                              {renderExposedEye("fontFamily", "Tipografía")}
+                            </div>
                             <select
                               className="inspector-input"
                               value={tempCapasOverridesActivos[selectedCapa.id]?.fontFamily || selectedCapa.fontFamily || "sans-serif"}
@@ -2296,7 +2461,10 @@ export default function EditCardModal({
 
                           <div className="layout-form-grid" style={{ marginTop: "12px" }}>
                             <div className="inspector-section">
-                              <label className="inspector-label">Tamaño Fuente (pt) (Anulación)</label>
+                              <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                                <label className="inspector-label" style={{ margin: 0, fontSize: "11px" }}>Tamaño Fuente (pt)</label>
+                                {renderExposedEye("fontSizePt", "Tamaño Fuente")}
+                              </div>
                               <input
                                 type="number"
                                 step="1"
@@ -2325,12 +2493,18 @@ export default function EditCardModal({
                                     color: val,
                                   },
                                 }));
-                              }
+                              },
+                              false,
+                              "color",
+                              "Color Texto"
                             )}
                           </div>
 
                           <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <label className="inspector-label">Alineación (Anulación)</label>
+                            <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                              <label className="inspector-label" style={{ margin: 0 }}>Alineación (Anulación)</label>
+                              {renderExposedEye("alineacion", "Alineación Texto")}
+                            </div>
                             <div className="alignment-group">
                               {(["left", "center", "right", "justify"] as const).map((align) => {
                                 const activeAlign = tempCapasOverridesActivos[selectedCapa.id]?.alineacion || selectedCapa.alineacion || "left";
@@ -2363,17 +2537,6 @@ export default function EditCardModal({
                           <h4 className="inspector-group-title">Definición de Plantilla</h4>
 
                           <div className="inspector-section">
-                            <label className="inspector-label">Nombre de Variable (Clave)</label>
-                            <input
-                              type="text"
-                              className="inspector-input"
-                              value={fieldKey || ""}
-                              placeholder="ej. titulo"
-                              onChange={(e) => handleUpdateCapaClave(selectedCapa.id, fieldKey, e.target.value)}
-                            />
-                          </div>
-
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
                             <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
                               <label className="inspector-label" style={{ margin: 0 }}>Texto por defecto</label>
                               <span
@@ -2529,7 +2692,10 @@ export default function EditCardModal({
                       <>
                         {/* Sección 1: Imagen de la Carta (Anulación) */}
                         <div className="inspector-group-section">
-                          <h4 className="inspector-group-title">Imagen de esta Carta (Anulación)</h4>
+                           <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
+                             <h4 className="inspector-group-title" style={{ margin: 0 }}>Imagen de esta Carta (Anulación)</h4>
+                             {renderExposedEye("src", "Recurso Imagen")}
+                           </div>
                           <div className="inspector-section">
                             {tempCapasOverridesActivos[selectedCapa.id]?.src ? (
                               <div className="image-override-preview-container">
@@ -2790,7 +2956,10 @@ export default function EditCardModal({
                       <>
                         {/* Sección 1: Selección de Imagen Switch (Carta) */}
                         <div className="inspector-group-section">
-                          <h4 className="inspector-group-title">Selección de Imagen (Carta)</h4>
+                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
+                            <h4 className="inspector-group-title" style={{ margin: 0 }}>Selección de Imagen (Carta)</h4>
+                            {renderExposedEye("src", "Recurso Imagen")}
+                          </div>
                           <div className="inspector-section">
                             {!selectedCapa.options || selectedCapa.options.length === 0 ? (
                               <div className="switch-no-options-notice" style={{
@@ -3101,7 +3270,10 @@ export default function EditCardModal({
 
                         <div className="layout-form-grid-compact">
                           <div className="inspector-section-compact" title="Posición X (mm)">
-                            <label className="inspector-label-compact">X</label>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                              <label className="inspector-label-compact" style={{ margin: 0 }}>X</label>
+                              {renderExposedEye("xMm", "Posición X", true)}
+                            </div>
                             <input
                               type="number"
                               step="0.5"
@@ -3112,7 +3284,10 @@ export default function EditCardModal({
                             />
                           </div>
                           <div className="inspector-section-compact" title="Posición Y (mm)">
-                            <label className="inspector-label-compact">Y</label>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                              <label className="inspector-label-compact" style={{ margin: 0 }}>Y</label>
+                              {renderExposedEye("yMm", "Posición Y", true)}
+                            </div>
                             <input
                               type="number"
                               step="0.5"
@@ -3123,7 +3298,10 @@ export default function EditCardModal({
                             />
                           </div>
                           <div className="inspector-section-compact" title="Ancho (mm)">
-                            <label className="inspector-label-compact">W</label>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                              <label className="inspector-label-compact" style={{ margin: 0 }}>W</label>
+                              {renderExposedEye("anchoMm", "Ancho", true)}
+                            </div>
                             <input
                               type="number"
                               step="0.5"
@@ -3134,7 +3312,10 @@ export default function EditCardModal({
                             />
                           </div>
                           <div className="inspector-section-compact" title="Alto (mm)">
-                            <label className="inspector-label-compact">H</label>
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                              <label className="inspector-label-compact" style={{ margin: 0 }}>H</label>
+                              {renderExposedEye("altoMm", "Alto", true)}
+                            </div>
                             <input
                               type="number"
                               step="0.5"
@@ -3151,9 +3332,10 @@ export default function EditCardModal({
                     {/* Padding del Texto (Solo text) */}
                     {selectedCapa.tipo === "text" && (
                       <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
-                        <div className="section-header-row" onClick={() => setExpandPadding(!expandPadding)}>
+                        <div className="section-header-row" onClick={() => setExpandPadding(!expandPadding)} style={{ display: "flex", alignItems: "center", width: "100%" }}>
                           <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Padding del Texto</h4>
-                          <span className={`expand-toggle-icon ${expandPadding ? "expanded" : ""}`}>▶</span>
+                          {renderExposedEye("paddingTopMm", "Padding Texto")}
+                          <span className={`expand-toggle-icon ${expandPadding ? "expanded" : ""}`} style={{ marginLeft: "6px" }}>▶</span>
                         </div>
 
                         {!expandPadding ? (
@@ -3224,9 +3406,10 @@ export default function EditCardModal({
                       <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
                         
                         {/* Sección de Bordes */}
-                        <div className="section-header-row" onClick={() => setExpandBorders(!expandBorders)}>
+                        <div className="section-header-row" onClick={() => setExpandBorders(!expandBorders)} style={{ display: "flex", alignItems: "center", width: "100%" }}>
                           <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Bordes de la Capa</h4>
-                          <span className={`expand-toggle-icon ${expandBorders ? "expanded" : ""}`}>▶</span>
+                          {renderExposedEye("borderTopWidth", "Borde Ancho")}
+                          <span className={`expand-toggle-icon ${expandBorders ? "expanded" : ""}`} style={{ marginLeft: "6px" }}>▶</span>
                         </div>
                         
                         {!expandBorders ? (
@@ -3326,9 +3509,10 @@ export default function EditCardModal({
                         )}
 
                         {/* Sección de Radios de Esquinas */}
-                        <div className="section-header-row" onClick={() => setExpandRadii(!expandRadii)} style={{ marginTop: "12px", borderTop: "1px solid var(--border-color)", paddingTop: "12px" }}>
+                        <div className="section-header-row" onClick={() => setExpandRadii(!expandRadii)} style={{ marginTop: "12px", borderTop: "1px solid var(--border-color)", paddingTop: "12px", display: "flex", alignItems: "center", width: "100%" }}>
                           <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Redondear Esquinas</h4>
-                          <span className={`expand-toggle-icon ${expandRadii ? "expanded" : ""}`}>▶</span>
+                          {renderExposedEye("borderTopLeftRadius", "Radio Esquina")}
+                          <span className={`expand-toggle-icon ${expandRadii ? "expanded" : ""}`} style={{ marginLeft: "6px" }}>▶</span>
                         </div>
 
                         {!expandRadii ? (
@@ -3394,7 +3578,10 @@ export default function EditCardModal({
 
                         {/* Color de Fondo */}
                         <div className="inspector-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "12px" }}>
-                          <label className="inspector-label" style={{ margin: 0 }}>Color de Fondo de la Capa</label>
+                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                            <label className="inspector-label" style={{ margin: 0 }}>Color de Fondo de la Capa</label>
+                            {renderExposedEye("backgroundColor", "Color Fondo")}
+                          </div>
                           <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px" }}>
                             <input
                               type="checkbox"
