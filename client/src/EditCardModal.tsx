@@ -110,6 +110,7 @@ export default function EditCardModal({
 
   // Popup de añadir elementos
   const [showAddElementPopup, setShowAddElementPopup] = useState<boolean>(false);
+  const [canvasEditMode, setCanvasEditMode] = useState<boolean>(false);
   const [selectedNewType, setSelectedNewType] = useState<"text" | "image" | "image-switch" | "container" | "block">("text");
   const [showSwitchResourcesPopup, setShowSwitchResourcesPopup] = useState<boolean>(false);
   const [tempSwitchCapaId, setTempSwitchCapaId] = useState<string | null>(null);
@@ -230,6 +231,10 @@ export default function EditCardModal({
   // Estados para las pestañas de selección de recursos (SRS-014)
   const [selectorTab, setSelectorTab] = useState<"project" | "template">("project");
   const [switchSelectorTab, setSwitchSelectorTab] = useState<"project" | "template">("project");
+
+  useEffect(() => {
+    setCanvasEditMode(false);
+  }, [selectedLayerId]);
 
   useEffect(() => {
     const handleOutsideClick = (e: MouseEvent) => {
@@ -889,6 +894,47 @@ export default function EditCardModal({
     }
     setShowGallerySelector(false);
     setActiveSelectorTarget(null);
+  };
+
+  // --- Arrastrar y Redimensionar en el Lienzo (SRS-049) ---
+  const handleLayerCanvasMouseDown = (e: React.MouseEvent, capa: any, mode: "drag" | "resize") => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const initialXMm = capa.xMm;
+    const initialYMm = capa.yMm;
+    const initialAnchoMm = capa.anchoMm;
+    const initialAltoMm = capa.altoMm;
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      
+      const deltaXMm = deltaX / scale;
+      const deltaYMm = deltaY / scale;
+
+      if (mode === "drag") {
+        const nextX = Number((initialXMm + deltaXMm).toFixed(1));
+        const nextY = Number((initialYMm + deltaYMm).toFixed(1));
+        handleUpdateCapaProp(capa.id, "xMm", nextX);
+        handleUpdateCapaProp(capa.id, "yMm", nextY);
+      } else if (mode === "resize") {
+        const nextAncho = Math.max(2.0, Number((initialAnchoMm + deltaXMm).toFixed(1)));
+        const nextAlto = Math.max(2.0, Number((initialAltoMm + deltaYMm).toFixed(1)));
+        handleUpdateCapaProp(capa.id, "anchoMm", nextAncho);
+        handleUpdateCapaProp(capa.id, "altoMm", nextAlto);
+      }
+    };
+
+    const handleMouseUp = () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
   };
 
   // --- Modificar Propiedad de Capa ---
@@ -1936,11 +1982,12 @@ export default function EditCardModal({
                         const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
                         const isSelected = selectedLayerId === capa.id;
-                        const isHovered = hoveredLayerId === capa.id;
+                        const isHovered = !canvasEditMode && hoveredLayerId === capa.id;
 
                         const activeVisibility = tempCapasOverridesActivos[capa.id]?.visibility || capa.visibility || "visible";
                         const isHidden = activeVisibility === "hidden";
                         const isCollapsed = activeVisibility === "collapsed";
+                        const isEditActive = isSelected && canvasEditMode;
 
                         const layerStyle: React.CSSProperties = {
                           position: isParentFlex ? "relative" : "absolute",
@@ -1952,10 +1999,13 @@ export default function EditCardModal({
                             : `${capa.yMm * scale}px`,
                           width: `${capa.anchoMm * scale}px`,
                           height: `${capa.altoMm * scale}px`,
-                          cursor: "pointer",
+                          cursor: isEditActive ? "move" : (canvasEditMode ? "default" : "pointer"),
+                          pointerEvents: (canvasEditMode && !isEditActive) ? "none" : "auto",
                           boxSizing: "border-box",
                           transition: "outline 0.1s ease",
-                          outline: isSelected
+                          outline: isEditActive
+                            ? "2px dashed var(--accent-primary)"
+                            : isSelected
                             ? "2px solid var(--accent-primary)"
                             : isHovered
                             ? "2px dashed var(--accent-primary-half, rgba(139, 92, 246, 0.5))"
@@ -2022,14 +2072,23 @@ export default function EditCardModal({
                                 ...layerStyle,
                                 ...borderCornersStyle,
                                 backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                overflow: isEditActive ? "visible" : "hidden",
                               }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedLayerId(capa.id);
                               }}
+                              onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa, "drag") : undefined}
                               onMouseEnter={() => setHoveredLayerId(capa.id)}
                               onMouseLeave={() => setHoveredLayerId(null)}
-                            />
+                            >
+                              {isEditActive && (
+                                <div
+                                  className="canvas-resize-handle"
+                                  onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa, "resize")}
+                                />
+                              )}
+                            </div>
                           );
                         }
 
@@ -2074,16 +2133,23 @@ export default function EditCardModal({
                                 ...flexStyle,
                                 display: (isCollapsed && !isSelected) ? "none" : (isFlex ? "flex" : undefined),
                                 backgroundColor: resolvedCapa.backgroundColor || "transparent",
-                                overflow: "hidden",
+                                overflow: isEditActive ? "visible" : "hidden",
                               }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedLayerId(capa.id);
                               }}
+                              onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa, "drag") : undefined}
                               onMouseEnter={() => setHoveredLayerId(capa.id)}
                               onMouseLeave={() => setHoveredLayerId(null)}
                             >
                               {renderCapaRecursiva(capa.id)}
+                              {isEditActive && (
+                                <div
+                                  className="canvas-resize-handle"
+                                  onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa, "resize")}
+                                />
+                              )}
                             </div>
                           );
                         }
@@ -2157,10 +2223,18 @@ export default function EditCardModal({
                                 e.stopPropagation();
                                 setSelectedLayerId(capa.id);
                               }}
+                              onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa, "drag") : undefined}
                               onMouseEnter={() => setHoveredLayerId(capa.id)}
                               onMouseLeave={() => setHoveredLayerId(null)}
-                              dangerouslySetInnerHTML={{ __html: htmlText }}
-                            />
+                            >
+                              <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%", height: "100%" }} />
+                              {isEditActive && (
+                                <div
+                                  className="canvas-resize-handle"
+                                  onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa, "resize")}
+                                />
+                              )}
+                            </div>
                           );
                         }
 
@@ -2203,11 +2277,13 @@ export default function EditCardModal({
                                 alignItems: "center",
                                 justifyContent: "center",
                                 backgroundColor: showPlaceholder ? "#e2e8f0" : (resolvedCapa.backgroundColor || "transparent"),
+                                overflow: isEditActive ? "visible" : "hidden",
                               }}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setSelectedLayerId(capa.id);
                               }}
+                              onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa, "drag") : undefined}
                               onMouseEnter={() => setHoveredLayerId(capa.id)}
                               onMouseLeave={() => setHoveredLayerId(null)}
                             >
@@ -2226,6 +2302,12 @@ export default function EditCardModal({
                                     pointerEvents: "none",
                                     borderRadius: "inherit",
                                   }}
+                                />
+                              )}
+                              {isEditActive && (
+                                <div
+                                  className="canvas-resize-handle"
+                                  onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa, "resize")}
                                 />
                               )}
                             </div>
@@ -2305,6 +2387,238 @@ export default function EditCardModal({
 
                   {/* Formulario Unificado de Propiedades (SRS-035) */}
                   <div className="inspector-properties-form" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    {/* Alineación y Posición (Común para text, image, image-switch, container, block) */}
+                    {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "block") && (
+                      <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
+                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
+                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Posición y Dimensiones</h4>
+                          {renderExposedEye("canvasEditMode", "Edición en Lienzo")}
+                        </div>
+                        
+                        <button
+                          type="button"
+                          className="btn-sec"
+                          style={{
+                            width: "100%",
+                            marginBottom: "12px",
+                            padding: "6px 12px",
+                            fontSize: "12.5px",
+                            fontWeight: 600,
+                            borderRadius: "6px",
+                            border: "1px solid var(--border-color)",
+                            backgroundColor: canvasEditMode ? "var(--accent-primary)" : "var(--bg-app)",
+                            color: canvasEditMode ? "white" : "var(--text-primary)",
+                            cursor: "pointer",
+                            transition: "all 0.2s ease"
+                          }}
+                          onClick={() => setCanvasEditMode(!canvasEditMode)}
+                        >
+                          {canvasEditMode ? "⏹️ Salir de Modo Edición" : "🖱️ Editar en Lienzo"}
+                        </button>
+                        
+                        <div className="inspector-section" style={{ marginBottom: "12px" }}>
+                          <label className="inspector-label">Alineación Rápida</label>
+                          <div className="inspector-alignment-utilities">
+                            <button
+                              type="button"
+                              className="alignment-utility-btn"
+                              title="Alinear al borde izquierdo (X = 0)"
+                              onClick={() => handleApplyAlignment("izq")}
+                              disabled={selectedCapa.tipo === "background"}
+                            >
+                              ⬅️
+                            </button>
+                            <button
+                              type="button"
+                              className="alignment-utility-btn"
+                              title="Ajustar al ancho total de la carta (X = 0, Ancho = 100%)"
+                              onClick={() => handleApplyAlignment("anchoMax")}
+                              disabled={selectedCapa.tipo === "background"}
+                            >
+                              ↔️
+                            </button>
+                            <button
+                              type="button"
+                              className="alignment-utility-btn"
+                              title="Alinear al borde derecho"
+                              onClick={() => handleApplyAlignment("der")}
+                              disabled={selectedCapa.tipo === "background"}
+                            >
+                              ➡️
+                            </button>
+                            <button
+                              type="button"
+                              className="alignment-utility-btn"
+                              title="Alinear al borde superior (Y = 0)"
+                              onClick={() => handleApplyAlignment("arr")}
+                              disabled={selectedCapa.tipo === "background"}
+                            >
+                              ⬆️
+                            </button>
+                            <button
+                              type="button"
+                              className="alignment-utility-btn"
+                              title="Ajustar al alto total de la carta (Y = 0, Alto = 100%)"
+                              onClick={() => handleApplyAlignment("altoMax")}
+                              disabled={selectedCapa.tipo === "background"}
+                            >
+                              ↕️
+                            </button>
+                            <button
+                              type="button"
+                              className="alignment-utility-btn"
+                              title="Alinear al borde inferior"
+                              onClick={() => handleApplyAlignment("abj")}
+                              disabled={selectedCapa.tipo === "background"}
+                            >
+                              ⬇️
+                            </button>
+                            <button
+                              type="button"
+                              className="alignment-utility-btn"
+                              title="Expandir a pantalla completa (X = 0, Y = 0, 100% de la carta)"
+                              onClick={() => handleApplyAlignment("expandir")}
+                              disabled={selectedCapa.tipo === "background"}
+                            >
+                              ⏹️
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="layout-form-grid-compact">
+                          <div className="inspector-section-compact" title="Posición X (mm)">
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                              <label className="inspector-label-compact" style={{ margin: 0 }}>X</label>
+                              {renderExposedEye("xMm", "Posición X", true)}
+                            </div>
+                            <input
+                              type="number"
+                              step="0.5"
+                              className="inspector-input"
+                              value={selectedCapa.xMm}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "xMm", Number(Number(e.target.value).toFixed(1)))}
+                              disabled={selectedCapa.tipo === "background"}
+                            />
+                          </div>
+                          <div className="inspector-section-compact" title="Posición Y (mm)">
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                              <label className="inspector-label-compact" style={{ margin: 0 }}>Y</label>
+                              {renderExposedEye("yMm", "Posición Y", true)}
+                            </div>
+                            <input
+                              type="number"
+                              step="0.5"
+                              className="inspector-input"
+                              value={selectedCapa.yMm}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "yMm", Number(Number(e.target.value).toFixed(1)))}
+                              disabled={selectedCapa.tipo === "background"}
+                            />
+                          </div>
+                          <div className="inspector-section-compact" title="Ancho (mm)">
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                              <label className="inspector-label-compact" style={{ margin: 0 }}>W</label>
+                              {renderExposedEye("anchoMm", "Ancho", true)}
+                            </div>
+                            <input
+                              type="number"
+                              step="0.5"
+                              className="inspector-input"
+                              value={selectedCapa.anchoMm}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "anchoMm", Number(Number(e.target.value).toFixed(1)))}
+                              disabled={selectedCapa.tipo === "background"}
+                            />
+                          </div>
+                          <div className="inspector-section-compact" title="Alto (mm)">
+                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+                              <label className="inspector-label-compact" style={{ margin: 0 }}>H</label>
+                              {renderExposedEye("altoMm", "Alto", true)}
+                            </div>
+                            <input
+                              type="number"
+                              step="0.5"
+                              className="inspector-input"
+                              value={selectedCapa.altoMm}
+                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "altoMm", Number(Number(e.target.value).toFixed(1)))}
+                              disabled={selectedCapa.tipo === "background"}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Padding del Texto (Solo text) */}
+                    {selectedCapa.tipo === "text" && (
+                      <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
+                        <div className="section-header-row" onClick={() => setExpandPadding(!expandPadding)} style={{ display: "flex", alignItems: "center", width: "100%" }}>
+                          <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Padding del Texto</h4>
+                          {renderExposedEye("paddingTopMm", "Padding Texto")}
+                          <span className={`expand-toggle-icon ${expandPadding ? "expanded" : ""}`} style={{ marginLeft: "6px" }}>▶</span>
+                        </div>
+
+                        {!expandPadding ? (
+                          <div className="inspector-section" style={{ marginTop: "8px" }}>
+                            <label className="inspector-label">Padding General (mm)</label>
+                            <input
+                              type="number"
+                              step="0.5"
+                              min="0"
+                              className="inspector-input"
+                              value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
+                              onChange={(e) => handleUpdatePaddingGeneral(selectedCapa.id, Number(e.target.value))}
+                            />
+                          </div>
+                        ) : (
+                          <div className="expanded-inputs-grid" style={{ marginTop: "8px" }}>
+                            <div className="expanded-input-item">
+                              <label>Sup. (mm)</label>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                className="inspector-input"
+                                value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingTopMm", Number(e.target.value))}
+                              />
+                            </div>
+                            <div className="expanded-input-item">
+                              <label>Der. (mm)</label>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                className="inspector-input"
+                                value={selectedCapa.paddingRightMm !== undefined ? selectedCapa.paddingRightMm : 0}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingRightMm", Number(e.target.value))}
+                              />
+                            </div>
+                            <div className="expanded-input-item">
+                              <label>Inf. (mm)</label>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                className="inspector-input"
+                                value={selectedCapa.paddingBottomMm !== undefined ? selectedCapa.paddingBottomMm : 0}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingBottomMm", Number(e.target.value))}
+                              />
+                            </div>
+                            <div className="expanded-input-item">
+                              <label>Izq. (mm)</label>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="0"
+                                className="inspector-input"
+                                value={selectedCapa.paddingLeftMm !== undefined ? selectedCapa.paddingLeftMm : 0}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingLeftMm", Number(e.target.value))}
+                              />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+
                     
                     {/* Visibilidad (SRS-039) */}
                     <div className="inspector-group-section" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "16px" }}>
@@ -3194,213 +3508,6 @@ export default function EditCardModal({
                       </div>
                     )}
 
-                    {/* Alineación y Posición (Común para text, image, image-switch, container, block) */}
-                    {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "block") && (
-                      <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
-                        <h4 className="inspector-group-title">Posición y Dimensiones</h4>
-                        
-                        <div className="inspector-section" style={{ marginBottom: "12px" }}>
-                          <label className="inspector-label">Alineación Rápida</label>
-                          <div className="inspector-alignment-utilities">
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Alinear al borde izquierdo (X = 0)"
-                              onClick={() => handleApplyAlignment("izq")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ⬅️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Ajustar al ancho total de la carta (X = 0, Ancho = 100%)"
-                              onClick={() => handleApplyAlignment("anchoMax")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ↔️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Alinear al borde derecho"
-                              onClick={() => handleApplyAlignment("der")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ➡️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Alinear al borde superior (Y = 0)"
-                              onClick={() => handleApplyAlignment("arr")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ⬆️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Ajustar al alto total de la carta (Y = 0, Alto = 100%)"
-                              onClick={() => handleApplyAlignment("altoMax")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ↕️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Alinear al borde inferior"
-                              onClick={() => handleApplyAlignment("abj")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ⬇️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Expandir a pantalla completa (X = 0, Y = 0, 100% de la carta)"
-                              onClick={() => handleApplyAlignment("expandir")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ⏹️
-                            </button>
-                          </div>
-                        </div>
-
-                        <div className="layout-form-grid-compact">
-                          <div className="inspector-section-compact" title="Posición X (mm)">
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                              <label className="inspector-label-compact" style={{ margin: 0 }}>X</label>
-                              {renderExposedEye("xMm", "Posición X", true)}
-                            </div>
-                            <input
-                              type="number"
-                              step="0.5"
-                              className="inspector-input"
-                              value={selectedCapa.xMm}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "xMm", Number(Number(e.target.value).toFixed(1)))}
-                              disabled={selectedCapa.tipo === "background"}
-                            />
-                          </div>
-                          <div className="inspector-section-compact" title="Posición Y (mm)">
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                              <label className="inspector-label-compact" style={{ margin: 0 }}>Y</label>
-                              {renderExposedEye("yMm", "Posición Y", true)}
-                            </div>
-                            <input
-                              type="number"
-                              step="0.5"
-                              className="inspector-input"
-                              value={selectedCapa.yMm}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "yMm", Number(Number(e.target.value).toFixed(1)))}
-                              disabled={selectedCapa.tipo === "background"}
-                            />
-                          </div>
-                          <div className="inspector-section-compact" title="Ancho (mm)">
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                              <label className="inspector-label-compact" style={{ margin: 0 }}>W</label>
-                              {renderExposedEye("anchoMm", "Ancho", true)}
-                            </div>
-                            <input
-                              type="number"
-                              step="0.5"
-                              className="inspector-input"
-                              value={selectedCapa.anchoMm}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "anchoMm", Number(Number(e.target.value).toFixed(1)))}
-                              disabled={selectedCapa.tipo === "background"}
-                            />
-                          </div>
-                          <div className="inspector-section-compact" title="Alto (mm)">
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                              <label className="inspector-label-compact" style={{ margin: 0 }}>H</label>
-                              {renderExposedEye("altoMm", "Alto", true)}
-                            </div>
-                            <input
-                              type="number"
-                              step="0.5"
-                              className="inspector-input"
-                              value={selectedCapa.altoMm}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "altoMm", Number(Number(e.target.value).toFixed(1)))}
-                              disabled={selectedCapa.tipo === "background"}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Padding del Texto (Solo text) */}
-                    {selectedCapa.tipo === "text" && (
-                      <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
-                        <div className="section-header-row" onClick={() => setExpandPadding(!expandPadding)} style={{ display: "flex", alignItems: "center", width: "100%" }}>
-                          <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Padding del Texto</h4>
-                          {renderExposedEye("paddingTopMm", "Padding Texto")}
-                          <span className={`expand-toggle-icon ${expandPadding ? "expanded" : ""}`} style={{ marginLeft: "6px" }}>▶</span>
-                        </div>
-
-                        {!expandPadding ? (
-                          <div className="inspector-section" style={{ marginTop: "8px" }}>
-                            <label className="inspector-label">Padding General (mm)</label>
-                            <input
-                              type="number"
-                              step="0.5"
-                              min="0"
-                              className="inspector-input"
-                              value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
-                              onChange={(e) => handleUpdatePaddingGeneral(selectedCapa.id, Number(e.target.value))}
-                            />
-                          </div>
-                        ) : (
-                          <div className="expanded-inputs-grid" style={{ marginTop: "8px" }}>
-                            <div className="expanded-input-item">
-                              <label>Sup. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingTopMm", Number(e.target.value))}
-                              />
-                            </div>
-                            <div className="expanded-input-item">
-                              <label>Der. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.paddingRightMm !== undefined ? selectedCapa.paddingRightMm : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingRightMm", Number(e.target.value))}
-                              />
-                            </div>
-                            <div className="expanded-input-item">
-                              <label>Inf. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.paddingBottomMm !== undefined ? selectedCapa.paddingBottomMm : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingBottomMm", Number(e.target.value))}
-                              />
-                            </div>
-                            <div className="expanded-input-item">
-                              <label>Izq. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.paddingLeftMm !== undefined ? selectedCapa.paddingLeftMm : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingLeftMm", Number(e.target.value))}
-                              />
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
                     {/* Bordes, Esquinas y Fondo (text, image, image-switch, container, block) */}
                     {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "block") && (
                       <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
@@ -3828,6 +3935,9 @@ export default function EditCardModal({
                         { property: "backgroundColor", label: "Color Fondo" },
                         { property: "borderTopLeftRadius", label: "Radio Esquinas" },
                       ];
+                      if (capa.tipo !== "background") {
+                        list.push({ property: "canvasEditMode", label: "Posición y Dimensiones (Lienzo)" });
+                      }
                       if (capa.tipo === "text") {
                         list.push(
                           { property: "contenidoRaw", label: "Contenido Texto" },

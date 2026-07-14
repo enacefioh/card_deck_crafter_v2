@@ -174,15 +174,109 @@ export default function App() {
     }));
   };
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
+  const [activeCanvasEditLayerId, setActiveCanvasEditLayerId] = useState<string | null>(null);
   const [inspectingCardId, setInspectingCardId] = useState<string | null>(null);
   const fileInputReversoLoteRef = useRef<HTMLInputElement>(null);
   const [zoomFactor, setZoomFactor] = useState<number>(2.5); // px por mm
   const [showDocConfig, setShowDocConfig] = useState<boolean>(false);
   const [tempDocNombre, setTempDocNombre] = useState<string>("Página Nueva");
 
+  // --- Arrastrar y Redimensionar en el Lienzo (SRS-049) ---
+  const handleLayerCanvasMouseDown = (e: React.MouseEvent, targetCapaId: string, propertyToUpdate: "drag" | "resize", isBack: boolean) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+
+    const initialValues = selectedCardIds.map(cid => {
+      const c = cartas.find(x => x.id === cid);
+      if (!c) return { cardId: cid, layerId: targetCapaId, xMm: 0, yMm: 0, anchoMm: 0, altoMm: 0 };
+      
+      const p = isBack
+        ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
+        : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null));
+      
+      const exposed = isBack ? (p?.exposedProperties || []) : (c.exposedProperties || p?.exposedProperties || []);
+      const originalProp = exposed.find((eo: any) => eo.layerId === targetCapaId);
+      let targetLayerId = targetCapaId;
+      if (originalProp) {
+        const match = exposed.find((eo: any) => eo.property === originalProp.property);
+        if (match) {
+          targetLayerId = match.layerId;
+        }
+      }
+
+      const layerObj = p?.capas?.find((x: any) => x.id === targetLayerId) as any;
+      const overrides = (isBack ? c.capasOverridesTrasera?.[targetLayerId] : c.capasOverrides?.[targetLayerId]) as any;
+
+      return {
+        cardId: cid,
+        layerId: targetLayerId,
+        xMm: Number(overrides?.xMm !== undefined ? overrides.xMm : (layerObj?.xMm || 0)),
+        yMm: Number(overrides?.yMm !== undefined ? overrides.yMm : (layerObj?.yMm || 0)),
+        anchoMm: Number(overrides?.anchoMm !== undefined ? overrides.anchoMm : (layerObj?.anchoMm || 0)),
+        altoMm: Number(overrides?.altoMm !== undefined ? overrides.altoMm : (layerObj?.altoMm || 0)),
+      };
+    });
+
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      const deltaX = moveEvent.clientX - startX;
+      const deltaY = moveEvent.clientY - startY;
+      
+      const deltaXMm = deltaX / zoomFactor;
+      const deltaYMm = deltaY / zoomFactor;
+
+      const nuevasCartas = cartas.map(c => {
+        if (!selectedCardIds.includes(c.id)) return c;
+        const init = initialValues.find(x => x.cardId === c.id);
+        if (!init) return c;
+
+        let extraUpdates: any = {};
+        if (propertyToUpdate === "drag") {
+          extraUpdates.xMm = Number((init.xMm + deltaXMm).toFixed(1));
+          extraUpdates.yMm = Number((init.yMm + deltaYMm).toFixed(1));
+        } else if (propertyToUpdate === "resize") {
+          extraUpdates.anchoMm = Math.max(2.0, Number((init.anchoMm + deltaXMm).toFixed(1)));
+          extraUpdates.altoMm = Math.max(2.0, Number((init.altoMm + deltaYMm).toFixed(1)));
+        }
+
+        if (isBack) {
+          const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
+          const currentOverride = nextOverridesTrasera[init.layerId] || {};
+          nextOverridesTrasera[init.layerId] = {
+            ...currentOverride,
+            ...extraUpdates
+          };
+          return { ...c, capasOverridesTrasera: nextOverridesTrasera };
+        } else {
+          const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+          const currentOverride = nextOverrides[init.layerId] || {};
+          nextOverrides[init.layerId] = {
+            ...currentOverride,
+            ...extraUpdates
+          };
+          return { ...c, capasOverrides: nextOverrides };
+        }
+      });
+
+      setCartas(nuevasCartas);
+    };
+
+    const handleMouseUp = () => {
+      setIsDirty(true);
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+  };
+
   const handleSetActiveDocumentoId = (id: string) => {
     setActiveDocumentoId(id);
     setSelectedCardIds([]);
+    setActiveCanvasEditLayerId(null);
     setInspectingCardId(null);
   };
 
@@ -283,6 +377,10 @@ export default function App() {
   // --- Estados del Setup y Configuración del Proyecto (SRS-022) ---
   const [nombreProyecto, setNombreProyectoInternal] = useState<string>("Mi Baraja");
   const [projectCreated, setProjectCreated] = useState<boolean>(false);
+
+  useEffect(() => {
+    setActiveCanvasEditLayerId(null);
+  }, [selectedCardIds]);
 
   // Auto-ajustar zoom factor según la pantalla al crear/cargar proyecto
   useEffect(() => {
@@ -2827,7 +2925,8 @@ export default function App() {
                                         const isParentVertical = parentCapa && parentCapa.layout === "vertical";
                                         const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
                                         const isCardSelected = selectedCardIds.includes(cardData.id);
-                                        const syncEvents = (isCardSelected && !rightSidebarCollapsed) ? {
+                                        const isEditActive = isCardSelected && activeCanvasEditLayerId === capa.id;
+                                        const syncEvents = (isCardSelected && !rightSidebarCollapsed && !activeCanvasEditLayerId) ? {
                                           onMouseEnter: () => setHoveredCapaId(capa.id),
                                           onMouseLeave: () => setHoveredCapaId(null),
                                           onClick: (e: React.MouseEvent) => {
@@ -2836,23 +2935,32 @@ export default function App() {
                                           }
                                         } : {};
 
+                                        const overrides = cardData.capasOverrides?.[capa.id];
+                                        const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
                                         const style: React.CSSProperties = {
                                           position: isParentFlex ? "relative" : "absolute",
                                           left: isParentFlex 
-                                            ? (isParentVertical ? `${capa.xMm * zoomFactor}px` : undefined)
-                                            : `${capa.xMm * zoomFactor}px`,
+                                            ? (isParentVertical ? `${resolvedCapa.xMm * zoomFactor}px` : undefined)
+                                            : `${resolvedCapa.xMm * zoomFactor}px`,
                                           top: isParentFlex 
-                                            ? (isParentHorizontal ? `${capa.yMm * zoomFactor}px` : undefined)
-                                            : `${capa.yMm * zoomFactor}px`,
-                                          width: `${capa.anchoMm * zoomFactor}px`,
-                                          height: `${capa.altoMm * zoomFactor}px`,
-                                          pointerEvents: (isCardSelected && !rightSidebarCollapsed) ? "auto" : "none",
+                                            ? (isParentHorizontal ? `${resolvedCapa.yMm * zoomFactor}px` : undefined)
+                                            : `${resolvedCapa.yMm * zoomFactor}px`,
+                                          width: `${resolvedCapa.anchoMm * zoomFactor}px`,
+                                          height: `${resolvedCapa.altoMm * zoomFactor}px`,
+                                          pointerEvents: (activeCanvasEditLayerId && !isEditActive) ? "none" : ((isCardSelected && !rightSidebarCollapsed) ? "auto" : "none"),
+                                          cursor: isEditActive ? "move" : (activeCanvasEditLayerId ? "default" : ((isCardSelected && !rightSidebarCollapsed) ? "pointer" : "none")),
                                           boxSizing: "border-box",
                                           flexShrink: 0,
-                                          outline: (isCardSelected && !rightSidebarCollapsed && hoveredCapaId === capa.id) ? "2px dashed var(--accent-primary)" : undefined,
+                                          outline: isEditActive
+                                            ? "2px dashed var(--accent-primary)"
+                                            : (isCardSelected && !rightSidebarCollapsed && hoveredCapaId === capa.id)
+                                            ? "2px dashed var(--accent-primary)"
+                                            : undefined,
                                           outlineOffset: "-2px",
-                                          visibility: (cardData.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible") === "hidden" ? "hidden" : undefined,
-                                          display: (cardData.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : undefined,
+                                          visibility: (resolvedCapa.visibility || "visible") === "hidden" ? "hidden" : undefined,
+                                          display: (resolvedCapa.visibility || "visible") === "collapsed" ? "none" : undefined,
+                                          zIndex: isEditActive ? 10 : (hoveredCapaId === capa.id ? 9 : 1),
                                         };
 
                                         if (capa.tipo === "background") {
@@ -2862,6 +2970,7 @@ export default function App() {
                                               key={capa.id}
                                               {...syncEvents}
                                               data-capa-id={capa.id}
+                                              onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", false) : undefined}
                                               style={{
                                                 ...style,
                                                 backgroundColor: colorFill,
@@ -2909,16 +3018,23 @@ export default function App() {
                                               key={capa.id}
                                               {...syncEvents}
                                               data-capa-id={capa.id}
+                                              onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", false) : undefined}
                                               style={{
-                                    ...style,
-                                    ...borderCornersStyle,
-                                    ...flexStyle,
-                                    display: (cardData.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : (isFlex ? "flex" : undefined),
-                                    backgroundColor: resolvedCapa.backgroundColor || "transparent",
-                                    overflow: "hidden",
-                                  }}
+                                                ...style,
+                                                ...borderCornersStyle,
+                                                ...flexStyle,
+                                                display: (cardData.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : (isFlex ? "flex" : undefined),
+                                                backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                                overflow: isEditActive ? "visible" : "hidden",
+                                              }}
                                             >
                                               {renderCapaRecursiva(capa.id)}
+                                              {isEditActive && (
+                                                <div
+                                                  className="canvas-resize-handle"
+                                                  onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa.id, "resize", false)}
+                                                />
+                                              )}
                                             </div>
                                           );
                                         }
@@ -2965,6 +3081,7 @@ export default function App() {
                                               key={capa.id}
                                               {...syncEvents}
                                               data-capa-id={capa.id}
+                                              onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", false) : undefined}
                                               style={{
                                                 ...style,
                                                 ...borderCornersStyle,
@@ -2983,9 +3100,17 @@ export default function App() {
                                                 paddingRight: paddingRightPx > 0 ? `${paddingRightPx}px` : "2px",
                                                 paddingBottom: paddingBottomPx > 0 ? `${paddingBottomPx}px` : "2px",
                                                 paddingLeft: paddingLeftPx > 0 ? `${paddingLeftPx}px` : "2px",
+                                                overflow: isEditActive ? "visible" : "hidden",
                                               }}
-                                              dangerouslySetInnerHTML={{ __html: htmlText }}
-                                            />
+                                            >
+                                              <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%", height: "100%" }} />
+                                              {isEditActive && (
+                                                <div
+                                                  className="canvas-resize-handle"
+                                                  onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa.id, "resize", false)}
+                                                />
+                                              )}
+                                            </div>
                                           );
                                         }
 
@@ -3022,12 +3147,21 @@ export default function App() {
                                               key={capa.id}
                                               {...syncEvents}
                                               data-capa-id={capa.id}
+                                              onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", false) : undefined}
                                               style={{
                                                 ...style,
                                                 ...borderCornersStyle,
                                                 backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                                overflow: isEditActive ? "visible" : "hidden",
                                               }}
-                                            />
+                                            >
+                                              {isEditActive && (
+                                                <div
+                                                  className="canvas-resize-handle"
+                                                  onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa.id, "resize", false)}
+                                                />
+                                              )}
+                                            </div>
                                           );
                                         }
 
@@ -3065,6 +3199,7 @@ export default function App() {
                                               key={capa.id}
                                               {...syncEvents}
                                               data-capa-id={capa.id}
+                                              onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", false) : undefined}
                                               style={{
                                                 ...style,
                                                 ...borderCornersStyle,
@@ -3072,6 +3207,7 @@ export default function App() {
                                                 alignItems: "center",
                                                 justifyContent: "center",
                                                 backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                                overflow: isEditActive ? "visible" : "hidden",
                                               }}
                                             >
                                               {src && (
@@ -3084,6 +3220,12 @@ export default function App() {
                                                     objectFit: resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover") as any,
                                                     borderRadius: "inherit",
                                                   }}
+                                                />
+                                              )}
+                                              {isEditActive && (
+                                                <div
+                                                  className="canvas-resize-handle"
+                                                  onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa.id, "resize", false)}
                                                 />
                                               )}
                                             </div>
@@ -3254,7 +3396,8 @@ export default function App() {
                                             const isParentVertical = parentCapa && parentCapa.layout === "vertical";
                                             const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
                                             const isCardSelected = selectedCardIds.includes(cardData.id);
-                                            const syncEvents = (isCardSelected && !rightSidebarCollapsed) ? {
+                                            const isEditActive = isCardSelected && activeCanvasEditLayerId === capa.id;
+                                            const syncEvents = (isCardSelected && !rightSidebarCollapsed && !activeCanvasEditLayerId) ? {
                                               onMouseEnter: () => setHoveredCapaId(capa.id),
                                               onMouseLeave: () => setHoveredCapaId(null),
                                               onClick: (e: React.MouseEvent) => {
@@ -3263,23 +3406,83 @@ export default function App() {
                                               }
                                             } : {};
 
+
+                                            const overrides = cardData.capasOverridesTrasera?.[capa.id];
+
+
+                                            const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
+
+
                                             const style: React.CSSProperties = {
+
+
                                               position: isParentFlex ? "relative" : "absolute",
+
+
                                               left: isParentFlex 
-                                                ? (isParentVertical ? `${capa.xMm * zoomFactor}px` : undefined)
-                                                : `${capa.xMm * zoomFactor}px`,
+
+
+                                                ? (isParentVertical ? `${resolvedCapa.xMm * zoomFactor}px` : undefined)
+
+
+                                                : `${resolvedCapa.xMm * zoomFactor}px`,
+
+
                                               top: isParentFlex 
-                                                ? (isParentHorizontal ? `${capa.yMm * zoomFactor}px` : undefined)
-                                                : `${capa.yMm * zoomFactor}px`,
-                                              width: `${capa.anchoMm * zoomFactor}px`,
-                                              height: `${capa.altoMm * zoomFactor}px`,
-                                              pointerEvents: (isCardSelected && !rightSidebarCollapsed) ? "auto" : "none",
+
+
+                                                ? (isParentHorizontal ? `${resolvedCapa.yMm * zoomFactor}px` : undefined)
+
+
+                                                : `${resolvedCapa.yMm * zoomFactor}px`,
+
+
+                                              width: `${resolvedCapa.anchoMm * zoomFactor}px`,
+
+
+                                              height: `${resolvedCapa.altoMm * zoomFactor}px`,
+
+
+                                              pointerEvents: (activeCanvasEditLayerId && !isEditActive) ? "none" : ((isCardSelected && !rightSidebarCollapsed) ? "auto" : "none"),
+
+
+                                              cursor: isEditActive ? "move" : (activeCanvasEditLayerId ? "default" : ((isCardSelected && !rightSidebarCollapsed) ? "pointer" : "none")),
+
+
                                               boxSizing: "border-box",
+
+
                                               flexShrink: 0,
-                                              outline: (isCardSelected && !rightSidebarCollapsed && hoveredCapaId === capa.id) ? "2px dashed var(--accent-primary)" : undefined,
+
+
+                                              outline: isEditActive
+
+
+                                                ? "2px dashed var(--accent-primary)"
+
+
+                                                : (isCardSelected && !rightSidebarCollapsed && hoveredCapaId === capa.id)
+
+
+                                                ? "2px dashed var(--accent-primary)"
+
+
+                                                : undefined,
+
+
                                               outlineOffset: "-2px",
-                                              visibility: (cardData.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible") === "hidden" ? "hidden" : undefined,
-                                              display: (cardData.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : undefined,
+
+
+                                              visibility: (resolvedCapa.visibility || "visible") === "hidden" ? "hidden" : undefined,
+
+
+                                              display: (resolvedCapa.visibility || "visible") === "collapsed" ? "none" : undefined,
+
+
+                                              zIndex: isEditActive ? 10 : (hoveredCapaId === capa.id ? 9 : 1),
+
+
                                             };
 
                                             if (capa.tipo === "background") {
@@ -3289,6 +3492,7 @@ export default function App() {
                                                   key={capa.id}
                                                   {...syncEvents}
                                                   data-capa-id={capa.id}
+                                                  onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", true) : undefined}
                                                   style={{
                                                     ...style,
                                                     backgroundColor: colorFill,
@@ -3334,16 +3538,23 @@ export default function App() {
                                                   key={capa.id}
                                                   {...syncEvents}
                                                   data-capa-id={capa.id}
+                                                  onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", true) : undefined}
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
                                                     ...flexStyle,
                                                     display: (cardData.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible") === "collapsed" ? "none" : (isFlex ? "flex" : undefined),
                                                     backgroundColor: resolvedCapa.backgroundColor || "transparent",
-                                                    overflow: "hidden",
+                                                    overflow: isEditActive ? "visible" : "hidden",
                                                   }}
                                                 >
                                                   {renderCapaRecursiva(capa.id)}
+                                                  {isEditActive && (
+                                                    <div
+                                                      className="canvas-resize-handle"
+                                                      onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa.id, "resize", true)}
+                                                    />
+                                                  )}
                                                 </div>
                                               );
                                             }
@@ -3381,12 +3592,21 @@ export default function App() {
                                                   key={capa.id}
                                                   {...syncEvents}
                                                   data-capa-id={capa.id}
+                                                  onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", true) : undefined}
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
                                                     backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                                    overflow: isEditActive ? "visible" : "hidden",
                                                   }}
-                                                />
+                                                >
+                                                  {isEditActive && (
+                                                    <div
+                                                      className="canvas-resize-handle"
+                                                      onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa.id, "resize", true)}
+                                                    />
+                                                  )}
+                                                </div>
                                               );
                                             }
 
@@ -3424,6 +3644,7 @@ export default function App() {
                                                   key={capa.id}
                                                   {...syncEvents}
                                                   data-capa-id={capa.id}
+                                                  onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", true) : undefined}
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
@@ -3431,6 +3652,7 @@ export default function App() {
                                                     alignItems: "center",
                                                     justifyContent: "center",
                                                     backgroundColor: resolvedCapa.backgroundColor || "transparent",
+                                                    overflow: isEditActive ? "visible" : "hidden",
                                                   }}
                                                 >
                                                   {src && (
@@ -3443,6 +3665,12 @@ export default function App() {
                                                         objectFit: resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover") as any,
                                                         borderRadius: "inherit",
                                                       }}
+                                                    />
+                                                  )}
+                                                  {isEditActive && (
+                                                    <div
+                                                      className="canvas-resize-handle"
+                                                      onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa.id, "resize", true)}
                                                     />
                                                   )}
                                                 </div>
@@ -3491,6 +3719,7 @@ export default function App() {
                                                   key={capa.id}
                                                   {...syncEvents}
                                                   data-capa-id={capa.id}
+                                                  onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", true) : undefined}
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
@@ -3509,9 +3738,17 @@ export default function App() {
                                                     paddingRight: paddingRightPx > 0 ? `${paddingRightPx}px` : "2px",
                                                     paddingBottom: paddingBottomPx > 0 ? `${paddingBottomPx}px` : "2px",
                                                     paddingLeft: paddingLeftPx > 0 ? `${paddingLeftPx}px` : "2px",
+                                                    overflow: isEditActive ? "visible" : "hidden",
                                                   }}
-                                                  dangerouslySetInnerHTML={{ __html: htmlText }}
-                                                />
+                                                >
+                                                  <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%", height: "100%" }} />
+                                                  {isEditActive && (
+                                                    <div
+                                                      className="canvas-resize-handle"
+                                                      onMouseDown={(e) => handleLayerCanvasMouseDown(e, capa.id, "resize", true)}
+                                                    />
+                                                  )}
+                                                </div>
                                               );
                                             }
 
@@ -4064,6 +4301,35 @@ export default function App() {
                                       )}
                                     </div>
                                   )}
+
+                                   {campo.property === "canvasEditMode" && (
+                                     <button
+                                       type="button"
+                                       className="btn-sec"
+                                       style={{
+                                         width: "100%",
+                                         height: "26px",
+                                         padding: "0 12px",
+                                         fontSize: "12px",
+                                         fontWeight: 600,
+                                         borderRadius: "4px",
+                                         border: "1px solid var(--border-color)",
+                                         backgroundColor: activeCanvasEditLayerId === currentCapaId ? "var(--accent-primary)" : "var(--bg-app)",
+                                         color: activeCanvasEditLayerId === currentCapaId ? "white" : "var(--text-primary)",
+                                         cursor: "pointer",
+                                         transition: "all 0.2s ease"
+                                       }}
+                                       onClick={() => {
+                                         if (activeCanvasEditLayerId === currentCapaId) {
+                                           setActiveCanvasEditLayerId(null);
+                                         } else {
+                                           setActiveCanvasEditLayerId(currentCapaId);
+                                         }
+                                       }}
+                                     >
+                                       {activeCanvasEditLayerId === currentCapaId ? "⏹️ Salir" : "🖱️ Mover"}
+                                     </button>
+                                   )}
 
                                   {campo.property === "visibility" && (
                                     <select
