@@ -251,6 +251,13 @@ export default function EditCardModal({
 
   // Resolver estructuras activas según la pestaña activa
   const plantillaActiva = activeTab === "frontal" ? tempPlantilla : tempPlantillaTrasera;
+  useEffect(() => {
+    if (plantillaActiva) {
+      setTempExposedProperties(plantillaActiva.exposedProperties || []);
+    } else {
+      setTempExposedProperties([]);
+    }
+  }, [plantillaActiva, activeTab]);
   const tempValoresActivos = activeTab === "frontal" ? tempValoresCampos : tempValoresCamposTrasera;
   const tempCapasOverridesActivos = activeTab === "frontal" ? tempCapasOverrides : tempCapasOverridesTrasera;
   const setTempCapasOverridesActivos = activeTab === "frontal" ? setTempCapasOverrides : setTempCapasOverridesTrasera;
@@ -1292,15 +1299,13 @@ export default function EditCardModal({
 
       if (node.tipo === "text") {
         const oldNombre = node.nombre || "texto";
-        const newNombre = oldNombre;
-        
-        dupNode.nombre = newNombre;
+        const newNombre = nodeNewNombre;
 
         const origCampo = plantillaActiva.camposConfig?.find((f: any) => f.clave === oldNombre);
         let copiedCampoConfig = null;
         
-        const currentValFront = tempValoresCampos[oldNombre];
-        const currentValBack = tempValoresCamposTrasera[oldNombre];
+        const currentValFront = tempValoresCampos[node.id];
+        const currentValBack = tempValoresCamposTrasera[node.id];
         const initialVal = (activeTab === "frontal" ? currentValFront : currentValBack) !== undefined
           ? (activeTab === "frontal" ? currentValFront : currentValBack)
           : (origCampo ? origCampo.valorDefecto : node.contenidoRaw || "");
@@ -1309,7 +1314,7 @@ export default function EditCardModal({
           copiedCampoConfig = {
             ...origCampo,
             clave: newNombre,
-            nombreLegible: origCampo.nombreLegible || oldNombre
+            nombreLegible: newNombre
           };
         } else {
           copiedCampoConfig = {
@@ -1320,8 +1325,8 @@ export default function EditCardModal({
           };
         }
 
-        console.log("[CDC DUPLICATE] text layer cloned:", oldNombre, "->", newNombre, "initialVal:", initialVal);
-        fieldsToDuplicate.push({ oldClave: oldNombre, newClave: newNombre, copiedCampoConfig, initialVal });
+        console.log("[CDC DUPLICATE] text layer cloned:", node.id, "->", nodeNewId, "initialVal:", initialVal);
+        fieldsToDuplicate.push({ oldClave: node.id, newClave: nodeNewId, copiedCampoConfig, initialVal });
       }
 
       duplicatedLayers.push(dupNode);
@@ -1366,10 +1371,32 @@ export default function EditCardModal({
         }
       }
 
+      const nextExposed = [...(prev.exposedProperties || [])];
+      for (const item of overridesToDuplicate) {
+        const relatedExposed = (prev.exposedProperties || []).filter((p: any) => p.layerId === item.oldId);
+        for (const exp of relatedExposed) {
+          const newLayer = duplicatedLayers.find((l) => l.id === item.newId);
+          const newName = newLayer ? newLayer.nombre : "Copia";
+          
+          let newLabel = exp.label;
+          const oldLayer = prev.capas.find((l: any) => l.id === item.oldId);
+          if (oldLayer && oldLayer.nombre) {
+            newLabel = exp.label.replace(new RegExp(`^${oldLayer.nombre} >`), `${newName} >`);
+          }
+
+          nextExposed.push({
+            layerId: item.newId,
+            property: exp.property,
+            label: newLabel
+          });
+        }
+      }
+
       return {
         ...prev,
         capas: nextCapas,
-        camposConfig: nextCamposConfig
+        camposConfig: nextCamposConfig,
+        exposedProperties: nextExposed
       };
     };
 
@@ -1410,6 +1437,31 @@ export default function EditCardModal({
         return next;
       });
     }
+
+    // Duplicar exposedProperties
+    setTempExposedProperties((prev) => {
+      const nextExposed = [...prev];
+      for (const item of overridesToDuplicate) {
+        const relatedExposed = prev.filter((p) => p.layerId === item.oldId);
+        for (const exp of relatedExposed) {
+          const newLayer = duplicatedLayers.find((l) => l.id === item.newId);
+          const newName = newLayer ? newLayer.nombre : "Copia";
+          
+          let newLabel = exp.label;
+          const oldLayer = plantillaActiva.capas.find((l: any) => l.id === item.oldId);
+          if (oldLayer && oldLayer.nombre) {
+            newLabel = exp.label.replace(new RegExp(`^${oldLayer.nombre} >`), `${newName} >`);
+          }
+
+          nextExposed.push({
+            layerId: item.newId,
+            property: exp.property,
+            label: newLabel
+          });
+        }
+      }
+      return nextExposed;
+    });
 
     const rootDuplicatedId = idMap.get(capaId);
     if (rootDuplicatedId) {
