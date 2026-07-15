@@ -1001,6 +1001,10 @@ export default function EditCardModal({
         anchoCarta = parentCapa.anchoMm || 0;
         altoCarta = parentCapa.altoMm || 0;
       }
+    } else {
+      // Sumar el sangrado para las capas raíz del lienzo
+      anchoCarta += 2 * (cardConfig.sangradoMm || 0);
+      altoCarta += 2 * (cardConfig.sangradoMm || 0);
     }
 
     // Dimensiones actuales de la capa
@@ -2016,8 +2020,8 @@ export default function EditCardModal({
               <div
                 className="edit-card-preview-frame"
                 style={{
-                  width: `${cardConfig.anchoMm * scale}px`,
-                  height: `${cardConfig.altoMm * scale}px`,
+                  width: `${(cardConfig.anchoMm + 2 * (cardConfig.sangradoMm || 0)) * scale}px`,
+                  height: `${(cardConfig.altoMm + 2 * (cardConfig.sangradoMm || 0)) * scale}px`,
                   border: "1px solid #cbd5e1",
                   position: "relative",
                   overflow: "hidden",
@@ -2025,6 +2029,7 @@ export default function EditCardModal({
                   backgroundColor: "#ffffff",
                 }}
               >
+
                 {plantillaActiva && plantillaActiva.capas && plantillaActiva.capas.length > 0 ? (
                   (() => {
                     const renderCapaRecursiva = (parentId: string | null): React.ReactNode => {
@@ -2089,6 +2094,11 @@ export default function EditCardModal({
                               key={capa.id}
                               style={{
                                 ...layerStyle,
+                                position: "absolute",
+                                left: 0,
+                                top: 0,
+                                width: "100%",
+                                height: "100%",
                                 backgroundColor: colorFill,
                               }}
                               onClick={(e) => {

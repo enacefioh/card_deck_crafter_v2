@@ -182,23 +182,16 @@ function generarHtmlImpresion(
       const scaleY = noOverlap ? (height - 2 * borderMm) / height : 1;
 
       // Para plantillas
-      const templateLeft = noOverlap ? (borderMm - sangrado * scaleX) : -sangrado;
-      const templateTop = noOverlap ? (borderMm - sangrado * scaleY) : -sangrado;
-      const templateWidth = width + 2 * sangrado;
-      const templateHeight = height + 2 * sangrado;
+      const templateLeft = noOverlap ? borderMm : 0;
+      const templateTop = noOverlap ? borderMm : 0;
+      const templateWidth = width;
+      const templateHeight = height;
 
       // Para imágenes normales
-      let imgLeft = -sangrado;
-      let imgTop = -sangrado;
-      let imgWidth = width + 2 * sangrado;
-      let imgHeight = height + 2 * sangrado;
-
-      if (noOverlap) {
-        imgLeft = borderMm - sangrado;
-        imgTop = borderMm - sangrado;
-        imgWidth = width - 2 * borderMm + 2 * sangrado;
-        imgHeight = height - 2 * borderMm + 2 * sangrado;
-      }
+      const imgLeft = noOverlap ? borderMm : 0;
+      const imgTop = noOverlap ? borderMm : 0;
+      const imgWidth = width - 2 * borderMm;
+      const imgHeight = height - 2 * borderMm;
 
       let marksHtml = "";
       if (canvasConfig.marcasCorteEsquinas) {
@@ -239,7 +232,10 @@ function generarHtmlImpresion(
             });
 
             return filteredLayers.map((capa: any) => {
-              const parentCapa = capas.find((p: any) => p.id === capa.parentCapaId);
+              const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
+              const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
+
+              const parentCapa = capas.find((p: any) => p.id === resolvedCapa.parentCapaId);
               const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
 
               const isFlexParent = isParentFlex;
@@ -251,24 +247,23 @@ function generarHtmlImpresion(
               const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
 
               if (!isFlexParent) {
-                const xMmVal = capa.xMm + (parentId === null ? sangrado : 0);
-                const yMmVal = capa.yMm + (parentId === null ? sangrado : 0);
+                const xMmVal = resolvedCapa.xMm;
+                const yMmVal = resolvedCapa.yMm;
                 leftPx = `left: ${xMmVal * MM_TO_PX}px;`;
                 topPx = `top: ${yMmVal * MM_TO_PX}px;`;
               } else {
                 if (isParentVertical) {
-                  leftPx = `left: ${capa.xMm * MM_TO_PX}px;`;
+                  leftPx = `left: ${resolvedCapa.xMm * MM_TO_PX}px;`;
                 }
                 if (isParentHorizontal) {
-                  topPx = `top: ${capa.yMm * MM_TO_PX}px;`;
+                  topPx = `top: ${resolvedCapa.yMm * MM_TO_PX}px;`;
                 }
               }
 
-              const widthPx = `${capa.anchoMm * MM_TO_PX}px`;
-              const heightPx = `${capa.altoMm * MM_TO_PX}px`;
+              const widthPx = resolvedCapa.anchoMm === "auto" ? "fit-content" : `${resolvedCapa.anchoMm * MM_TO_PX}px`;
+              const heightPx = resolvedCapa.altoMm === "auto" ? "fit-content" : `${resolvedCapa.altoMm * MM_TO_PX}px`;
 
-              const overrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
-              const activeVisibility = overrides?.[capa.id]?.visibility || capa.visibility || "visible";
+              const activeVisibility = resolvedCapa.visibility || "visible";
               let visStyle = "";
               if (activeVisibility === "hidden") {
                 visStyle = "visibility: hidden;";
@@ -278,11 +273,10 @@ function generarHtmlImpresion(
 
               const baseStyle = `${positionCss} ${leftPx} ${topPx} width: ${widthPx}; height: ${heightPx}; pointer-events: none; box-sizing: border-box; flex-shrink: 0; ${visStyle}`;
 
-              if (capa.tipo === "background") {
-                const overrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
-                const colorFill = overrides?.[capa.id]?.colorFill || capa.colorFill || "#ffffff";
+              if (resolvedCapa.tipo === "background") {
+                const colorFill = resolvedCapa.colorFill || "#ffffff";
                 return `
-                  <div style="${baseStyle} background-color: ${colorFill};"></div>
+                  <div style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: ${colorFill};"></div>
                 `;
               }
 
@@ -668,7 +662,7 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
           altoMm: 88.9,
           espaciadoXMm: 0,
           espaciadoYMm: 0,
-          sangradoMm: 0,
+          sangradoMm: 0.5,
           bordeCorteMm: 0,
           bordeCorteColor: "#000000",
           modoAjuste: "cover",

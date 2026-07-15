@@ -89,7 +89,7 @@ export default function App() {
         altoMm: 88.9,
         espaciadoXMm: 0,
         espaciadoYMm: 0,
-        sangradoMm: 0,
+        sangradoMm: 0.5,
         bordeCorteMm: 0,
         bordeCorteColor: "#000000",
         modoAjuste: "contain",
@@ -301,7 +301,7 @@ export default function App() {
       altoMm: 88.9,
       espaciadoXMm: 0,
       espaciadoYMm: 0,
-      sangradoMm: 0,
+      sangradoMm: 0.5,
       bordeCorteMm: 0,
       bordeCorteColor: "#000000",
       modoAjuste: "contain",
@@ -516,7 +516,7 @@ export default function App() {
     altoMm: 88.9,
     espaciadoXMm: 0,
     espaciadoYMm: 0,
-    sangradoMm: 0,
+    sangradoMm: 0.5,
     bordeCorteMm: 0,
     bordeCorteColor: "#000000",
     modoAjuste: "contain",
@@ -2033,7 +2033,7 @@ export default function App() {
         altoMm: 88.9,
         espaciadoXMm: 0,
         espaciadoYMm: 0,
-        sangradoMm: 0,
+        sangradoMm: 0.5,
         bordeCorteMm: 0,
         bordeCorteColor: "#000000",
         modoAjuste: "contain",
@@ -2959,7 +2959,7 @@ export default function App() {
                                             : undefined,
                                           outlineOffset: "-2px",
                                           visibility: (resolvedCapa.visibility || "visible") === "hidden" ? "hidden" : undefined,
-                                          display: (resolvedCapa.visibility || "visible") === "collapsed" ? "none" : undefined,
+                                          display: (resolvedCapa.visibility || "visible") === "collapsed" ? "none" : (isParentFlex ? "flex" : undefined),
                                           zIndex: isEditActive ? 10 : (hoveredCapaId === capa.id ? 9 : 1),
                                         };
 
@@ -2973,6 +2973,11 @@ export default function App() {
                                               onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", false) : undefined}
                                               style={{
                                                 ...style,
+                                                position: "absolute",
+                                                left: 0,
+                                                top: 0,
+                                                width: "100%",
+                                                height: "100%",
                                                 backgroundColor: colorFill,
                                               }}
                                             />
@@ -3542,6 +3547,11 @@ export default function App() {
                                                   onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", true) : undefined}
                                                   style={{
                                                     ...style,
+                                                    position: "absolute",
+                                                    left: 0,
+                                                    top: 0,
+                                                    width: "100%",
+                                                    height: "100%",
                                                     backgroundColor: colorFill,
                                                   }}
                                                 />
@@ -5411,9 +5421,11 @@ export default function App() {
 
               <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
                 <div className="input-field" style={{ flex: 1 }}>
-                  <label>Sangrado (Bleed - mm)</label>
+                  <label>Margen de sangrado (mm)</label>
                   <input
                     type="number"
+                    step="0.1"
+                    min="0"
                     value={tempCardConfig.sangradoMm}
                     onChange={(e) => setTempCardConfig((prev) => ({ ...prev, sangradoMm: Number(e.target.value) }))}
                   />
@@ -5632,9 +5644,11 @@ export default function App() {
 
               <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
                 <div className="input-field" style={{ flex: 1 }}>
-                  <label>Sangrado (Bleed - mm)</label>
+                  <label>Margen de sangrado (mm)</label>
                   <input
                     type="number"
+                    step="0.1"
+                    min="0"
                     value={tempCardConfig.sangradoMm}
                     onChange={(e) => setTempCardConfig((prev) => ({ ...prev, sangradoMm: Number(e.target.value) }))}
                   />
@@ -5857,9 +5871,11 @@ export default function App() {
 
               <div className="input-row" style={{ display: "flex", gap: "12px", marginBottom: "12px" }}>
                 <div className="input-field" style={{ flex: 1 }}>
-                  <label>Sangrado (Bleed - mm)</label>
+                  <label>Margen de sangrado (mm)</label>
                   <input
                     type="number"
+                    step="0.1"
+                    min="0"
                     value={tempCardConfig.sangradoMm}
                     onChange={(e) => setTempCardConfig((prev) => ({ ...prev, sangradoMm: Number(e.target.value) }))}
                   />

@@ -164,6 +164,10 @@ export function calcularDistribucion(
   const paginasFrontales: LayoutPage[] = [];
   const paginasTraseras: LayoutPage[] = [];
 
+  const sangrado = card.sangradoMm || 0;
+  const cardAnchoTotal = card.anchoMm + 2 * sangrado;
+  const cardAltoTotal = card.altoMm + 2 * sangrado;
+
   const anchoUtil = canvas.anchoMm - (canvas.margenLeftMm + canvas.margenRightMm);
   const altoUtil = canvas.altoMm - (canvas.margenTopMm + canvas.margenBottomMm);
 
@@ -171,8 +175,8 @@ export function calcularDistribucion(
     return { paginasFrontales, paginasTraseras };
   }
 
-  const columnas = Math.floor((anchoUtil + card.espaciadoXMm) / (card.anchoMm + card.espaciadoXMm));
-  const filas = Math.floor((altoUtil + card.espaciadoYMm) / (card.altoMm + card.espaciadoYMm));
+  const columnas = Math.floor((anchoUtil + card.espaciadoXMm) / (cardAnchoTotal + card.espaciadoXMm));
+  const filas = Math.floor((altoUtil + card.espaciadoYMm) / (cardAltoTotal + card.espaciadoYMm));
 
   if (columnas <= 0 || filas <= 0) {
     return { paginasFrontales, paginasTraseras };
@@ -191,8 +195,8 @@ export function calcularDistribucion(
     return { paginasFrontales, paginasTraseras };
   }
 
-  const anchoGrid = columnas * card.anchoMm + (columnas - 1) * card.espaciadoXMm;
-  const altoGrid = filas * card.altoMm + (filas - 1) * card.espaciadoYMm;
+  const anchoGrid = columnas * cardAnchoTotal + (columnas - 1) * card.espaciadoXMm;
+  const altoGrid = filas * cardAltoTotal + (filas - 1) * card.espaciadoYMm;
   const sobranteX = anchoUtil - anchoGrid;
   const sobranteY = altoUtil - altoGrid;
 
@@ -214,23 +218,23 @@ export function calcularDistribucion(
 
         const carta = listaCartasPlanas[indexCarta];
 
-        const xMmFrontal = startX + c * (card.anchoMm + card.espaciadoXMm);
-        const yMm = startY + f * (card.altoMm + card.espaciadoYMm);
+        const xMmFrontal = startX + c * (cardAnchoTotal + card.espaciadoXMm);
+        const yMm = startY + f * (cardAltoTotal + card.espaciadoYMm);
 
         slotsFrontales.push({
           cartaId: carta.id,
           xMm: xMmFrontal,
           yMm,
-          anchoMm: card.anchoMm,
-          altoMm: card.altoMm,
+          anchoMm: cardAnchoTotal,
+          altoMm: cardAltoTotal,
           imagenSrc: carta.imagenFrontal || null,
-          sangradoMm: card.sangradoMm,
+          sangradoMm: sangrado,
           bordeCorteMm: card.bordeCorteMm,
           bordeCorteColor: card.bordeCorteColor,
         });
 
         if (modoTraseras !== "ninguno") {
-          const xMmTrasera = startX + (columnas - 1 - c) * (card.anchoMm + card.espaciadoXMm);
+          const xMmTrasera = startX + (columnas - 1 - c) * (cardAnchoTotal + card.espaciadoXMm);
 
           let imagenSrcTrasera: string | null = null;
           if (modoTraseras === "comun") {
@@ -243,10 +247,10 @@ export function calcularDistribucion(
             cartaId: carta.id,
             xMm: xMmTrasera,
             yMm,
-            anchoMm: card.anchoMm,
-            altoMm: card.altoMm,
+            anchoMm: cardAnchoTotal,
+            altoMm: cardAltoTotal,
             imagenSrc: imagenSrcTrasera,
-            sangradoMm: card.sangradoMm,
+            sangradoMm: sangrado,
             bordeCorteMm: card.bordeCorteMm,
             bordeCorteColor: card.bordeCorteColor,
           });
