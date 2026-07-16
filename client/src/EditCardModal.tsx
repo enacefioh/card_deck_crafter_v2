@@ -1479,55 +1479,76 @@ export default function EditCardModal({
     const capa = plantillaActiva.capas?.find((c: any) => c.id === capaId);
     if (!capa || capa.tipo === "background") return;
 
+    // Obtener recursivamente todos los IDs descendientes
+    const getDescendantIds = (parentId: string): string[] => {
+      const ids: string[] = [];
+      const children = plantillaActiva.capas?.filter((c: any) => c.parentCapaId === parentId) || [];
+      for (const child of children) {
+        ids.push(child.id);
+        ids.push(...getDescendantIds(child.id));
+      }
+      return ids;
+    };
+
+    const idsToDelete = [capaId, ...getDescendantIds(capaId)];
+
     const updater = (prev: any) => {
-      const nextCapas = prev.capas.filter((c: any) => c.id !== capaId);
+      const nextCapas = prev.capas.filter((c: any) => !idsToDelete.includes(c.id));
       
       let nextCamposConfig = [...(prev.camposConfig || [])];
-      let deletedClave: string | null = null;
-      
-      if (capa.tipo === "text") {
-        const clave = capa.nombre;
-        if (clave) {
-          const isClaveUsed = nextCapas.some((c: any) => 
-            c.tipo === "text" && c.nombre === clave
-          );
-          if (!isClaveUsed) {
-            nextCamposConfig = nextCamposConfig.filter((f: any) => f.clave !== clave);
-            deletedClave = clave;
+      for (const id of idsToDelete) {
+        const deletedCapa = prev.capas.find((c: any) => c.id === id);
+        if (deletedCapa && deletedCapa.tipo === "text") {
+          const name = deletedCapa.nombre;
+          if (name) {
+            const isNameUsed = nextCapas.some((c: any) => c.tipo === "text" && c.nombre === name);
+            if (!isNameUsed) {
+              nextCamposConfig = nextCamposConfig.filter((f: any) => f.clave !== name);
+            }
           }
         }
       }
+
+      const nextExposed = (prev.exposedProperties || []).filter((p: any) => !idsToDelete.includes(p.layerId));
 
       return {
         ...prev,
         capas: nextCapas,
         camposConfig: nextCamposConfig,
-        _deletedClave: deletedClave
+        exposedProperties: nextExposed
       };
     };
 
     if (activeTab === "frontal") {
-      setTempPlantilla((prev: any) => {
-        const next = updater(prev);
-        const { [capaId]: _, ...nextOverrides } = tempCapasOverrides;
-        setTempCapasOverrides(nextOverrides);
-        if (next._deletedClave) {
-          const { [next._deletedClave]: __, ...nextValores } = tempValoresCampos;
-          setTempValoresCampos(nextValores);
+      setTempPlantilla(updater);
+      setTempCapasOverrides((prev: any) => {
+        const next = { ...prev };
+        for (const id of idsToDelete) {
+          delete next[id];
         }
-        delete next._deletedClave;
+        return next;
+      });
+      setTempValoresCampos((prev: any) => {
+        const next = { ...prev };
+        for (const id of idsToDelete) {
+          delete next[id];
+        }
         return next;
       });
     } else {
-      setTempPlantillaTrasera((prev: any) => {
-        const next = updater(prev);
-        const { [capaId]: _, ...nextOverrides } = tempCapasOverridesTrasera;
-        setTempCapasOverridesTrasera(nextOverrides);
-        if (next._deletedClave) {
-          const { [next._deletedClave]: __, ...nextValores } = tempValoresCamposTrasera;
-          setTempValoresCamposTrasera(nextValores);
+      setTempPlantillaTrasera(updater);
+      setTempCapasOverridesTrasera((prev: any) => {
+        const next = { ...prev };
+        for (const id of idsToDelete) {
+          delete next[id];
         }
-        delete next._deletedClave;
+        return next;
+      });
+      setTempValoresCamposTrasera((prev: any) => {
+        const next = { ...prev };
+        for (const id of idsToDelete) {
+          delete next[id];
+        }
         return next;
       });
     }
