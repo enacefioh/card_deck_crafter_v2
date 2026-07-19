@@ -25,6 +25,8 @@ interface EditCardModalProps {
   projectAssets?: any[];
   projectFonts?: any[];
   projectColors?: any[];
+  userAssets?: any[];
+  onAddUserAsset?: (nombre: string, src: string) => void;
 }
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
@@ -74,6 +76,8 @@ export default function EditCardModal({
   projectAssets = [],
   projectFonts = [],
   projectColors = [],
+  userAssets = [],
+  onAddUserAsset,
 }: EditCardModalProps) {
   // --- Estados de Plantilla Editables Localmente ---
   const [tempPlantilla, setTempPlantilla] = useState<any>(() => {
@@ -229,8 +233,8 @@ export default function EditCardModal({
   const [activeSelectorTarget, setActiveSelectorTarget] = useState<{ type: "override" | "default"; capaId: string } | null>(null);
 
   // Estados para las pestañas de selección de recursos (SRS-014)
-  const [selectorTab, setSelectorTab] = useState<"project" | "template">("project");
-  const [switchSelectorTab, setSwitchSelectorTab] = useState<"project" | "template">("project");
+  const [selectorTab, setSelectorTab] = useState<"project" | "user" | "template">("project");
+  const [switchSelectorTab, setSwitchSelectorTab] = useState<"project" | "user" | "template">("project");
 
   useEffect(() => {
     setCanvasEditMode(false);
@@ -883,6 +887,17 @@ export default function EditCardModal({
   };
 
   // --- Funciones para Galería de la Plantilla (SRS-020) ---
+  const handleUserAssetUpload = (file: File, callback: (src: string) => void) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const base64 = event.target?.result as string;
+      if (onAddUserAsset) {
+        onAddUserAsset(file.name, base64);
+      }
+      callback(base64);
+    };
+    reader.readAsDataURL(file);
+  };
 
 
   const handleSelectGalleryAsset = (assetSrc: string) => {
@@ -3213,14 +3228,15 @@ export default function EditCardModal({
                                         alert("Por favor, selecciona un archivo de imagen válido.");
                                         return;
                                       }
-                                      const url = URL.createObjectURL(file);
-                                      setTempCapasOverridesActivos((prev) => ({
-                                        ...prev,
-                                        [selectedCapa.id]: {
-                                          ...(prev[selectedCapa.id] || {}),
-                                          src: url,
-                                        },
-                                      }));
+                                      handleUserAssetUpload(file, (base64) => {
+                                        setTempCapasOverridesActivos((prev) => ({
+                                          ...prev,
+                                          [selectedCapa.id]: {
+                                            ...(prev[selectedCapa.id] || {}),
+                                            src: base64,
+                                          },
+                                        }));
+                                      });
                                     }
                                   }}
                                 />
@@ -3236,14 +3252,15 @@ export default function EditCardModal({
                                         alert("Por favor, selecciona un archivo de imagen válido.");
                                         return;
                                       }
-                                      const url = URL.createObjectURL(file);
-                                      setTempCapasOverridesActivos((prev) => ({
-                                        ...prev,
-                                        [selectedCapa.id]: {
-                                          ...(prev[selectedCapa.id] || {}),
-                                          src: url,
-                                        },
-                                      }));
+                                      handleUserAssetUpload(file, (base64) => {
+                                        setTempCapasOverridesActivos((prev) => ({
+                                          ...prev,
+                                          [selectedCapa.id]: {
+                                            ...(prev[selectedCapa.id] || {}),
+                                            src: base64,
+                                          },
+                                        }));
+                                      });
                                     }
                                   }}
                                   style={{
@@ -3345,8 +3362,9 @@ export default function EditCardModal({
                                         alert("Por favor, selecciona un archivo de imagen válido.");
                                         return;
                                       }
-                                      const url = URL.createObjectURL(file);
-                                      handleUpdateCapaProp(selectedCapa.id, "src", url);
+                                      handleUserAssetUpload(file, (base64) => {
+                                        handleUpdateCapaProp(selectedCapa.id, "src", base64);
+                                      });
                                     }
                                   }}
                                 />
@@ -3362,8 +3380,9 @@ export default function EditCardModal({
                                         alert("Por favor, selecciona un archivo de imagen válido.");
                                         return;
                                       }
-                                      const url = URL.createObjectURL(file);
-                                      handleUpdateCapaProp(selectedCapa.id, "src", url);
+                                      handleUserAssetUpload(file, (base64) => {
+                                        handleUpdateCapaProp(selectedCapa.id, "src", base64);
+                                      });
                                     }
                                   }}
                                   style={{
@@ -3518,14 +3537,15 @@ export default function EditCardModal({
                                             alert("Por favor, selecciona un archivo de imagen válido.");
                                             return;
                                           }
-                                          const url = URL.createObjectURL(file);
-                                          setTempCapasOverridesActivos((prev) => ({
-                                            ...prev,
-                                            [selectedCapa.id]: {
-                                              src: url,
-                                              selectedOptionId: undefined
-                                            }
-                                          }));
+                                          handleUserAssetUpload(file, (base64) => {
+                                            setTempCapasOverridesActivos((prev) => ({
+                                              ...prev,
+                                              [selectedCapa.id]: {
+                                                src: base64,
+                                                selectedOptionId: undefined
+                                              }
+                                            }));
+                                          });
                                         }
                                       }}
                                     />
@@ -4410,7 +4430,7 @@ export default function EditCardModal({
               </button>
             </div>
 
-            {/* Pestañas (Tabs) para Galería de Proyecto vs Plantilla */}
+            {/* Pestañas (Tabs) para Galería de Proyecto vs Usuario vs Plantilla */}
             <div style={{ display: "flex", borderBottom: "1px solid var(--border-color)", marginBottom: "12px", gap: "16px" }}>
               <button
                 type="button"
@@ -4434,6 +4454,22 @@ export default function EditCardModal({
                   padding: "8px 4px",
                   background: "none",
                   border: "none",
+                  borderBottom: selectorTab === "user" ? "2px solid var(--accent-primary)" : "2px solid transparent",
+                  color: selectorTab === "user" ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: selectorTab === "user" ? "bold" : "normal",
+                  cursor: "pointer",
+                  fontSize: "13px"
+                }}
+                onClick={() => setSelectorTab("user")}
+              >
+                Galería de Usuario (Subidas PC)
+              </button>
+              <button
+                type="button"
+                style={{
+                  padding: "8px 4px",
+                  background: "none",
+                  border: "none",
                   borderBottom: selectorTab === "template" ? "2px solid var(--accent-primary)" : "2px solid transparent",
                   color: selectorTab === "template" ? "var(--text-primary)" : "var(--text-secondary)",
                   fontWeight: selectorTab === "template" ? "bold" : "normal",
@@ -4447,7 +4483,7 @@ export default function EditCardModal({
             </div>
 
             <p className="gallery-popup-subtitle">
-              Elige una imagen para asignar a la capa ({selectorTab === "project" ? "Galería del Proyecto" : "Galería de la Plantilla"})
+              Elige una imagen para asignar a la capa ({selectorTab === "project" ? "Galería del Proyecto" : selectorTab === "user" ? "Galería de Usuario" : "Galería de la Plantilla"})
             </p>
 
             <div className="gallery-assets-grid" style={{ maxHeight: "350px" }}>
@@ -4475,6 +4511,32 @@ export default function EditCardModal({
                     fontSize: "12px"
                   }}>
                     La galería del proyecto está vacía. Añade imágenes desde el menú superior "Galería del Proyecto".
+                  </div>
+                )
+              ) : selectorTab === "user" ? (
+                userAssets && userAssets.length > 0 ? (
+                  userAssets.map((asset: any) => (
+                    <div
+                      key={asset.id}
+                      className="gallery-asset-item"
+                      onClick={() => handleSelectGalleryAsset(asset.src)}
+                      title={`Seleccionar ${asset.nombre}`}
+                    >
+                      <div className="gallery-asset-thumb-container">
+                        <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                      </div>
+                      <div className="gallery-asset-name">{asset.nombre}</div>
+                    </div>
+                  ))
+                ) : (
+                  <div style={{
+                    gridColumn: "1 / -1",
+                    padding: "40px 20px",
+                    textAlign: "center",
+                    color: "var(--text-secondary)",
+                    fontSize: "12px"
+                  }}>
+                    No has subido imágenes locales aún. Se guardarán aquí automáticamente al subirlas desde tu PC.
                   </div>
                 )
               ) : (
@@ -4566,6 +4628,22 @@ export default function EditCardModal({
                   padding: "8px 4px",
                   background: "none",
                   border: "none",
+                  borderBottom: switchSelectorTab === "user" ? "2px solid var(--accent-primary)" : "2px solid transparent",
+                  color: switchSelectorTab === "user" ? "var(--text-primary)" : "var(--text-secondary)",
+                  fontWeight: switchSelectorTab === "user" ? "bold" : "normal",
+                  cursor: "pointer",
+                  fontSize: "13px"
+                }}
+                onClick={() => setSwitchSelectorTab("user")}
+              >
+                Galería de Usuario (Subidas PC)
+              </button>
+              <button
+                type="button"
+                style={{
+                  padding: "8px 4px",
+                  background: "none",
+                  border: "none",
                   borderBottom: switchSelectorTab === "template" ? "2px solid var(--accent-primary)" : "2px solid transparent",
                   color: switchSelectorTab === "template" ? "var(--text-primary)" : "var(--text-secondary)",
                   fontWeight: switchSelectorTab === "template" ? "bold" : "normal",
@@ -4633,6 +4711,58 @@ export default function EditCardModal({
                     fontSize: "12px"
                   }}>
                     La galería del proyecto está vacía. Añade imágenes desde el menú superior "Galería del Proyecto".
+                  </div>
+                )
+              ) : switchSelectorTab === "user" ? (
+                userAssets && userAssets.length > 0 ? (
+                  userAssets.map((asset: any) => {
+                    const isChecked = tempSelectedOptionIds.includes(asset.id);
+                    return (
+                      <div
+                        key={asset.id}
+                        className={`gallery-asset-item ${isChecked ? "selected" : ""}`}
+                        onClick={() => {
+                          setTempSelectedOptionIds((prev) => {
+                            if (prev.includes(asset.id)) {
+                              return prev.filter((id) => id !== asset.id);
+                            } else {
+                              return [...prev, asset.id];
+                            }
+                          });
+                        }}
+                        title={asset.nombre}
+                        style={{ cursor: "pointer", position: "relative" }}
+                      >
+                        <div className="gallery-asset-thumb-container" style={{ position: "relative" }}>
+                          <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            style={{
+                              position: "absolute",
+                              top: "6px",
+                              right: "6px",
+                              width: "16px",
+                              height: "16px",
+                              cursor: "pointer",
+                              accentColor: "var(--accent-primary)"
+                            }}
+                          />
+                        </div>
+                        <div className="gallery-asset-name">{asset.nombre}</div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{
+                    gridColumn: "1 / -1",
+                    padding: "40px 20px",
+                    textAlign: "center",
+                    color: "var(--text-secondary)",
+                    fontSize: "12px"
+                  }}>
+                    No has subido imágenes locales aún. Se guardarán aquí automáticamente al subirlas desde tu PC.
                   </div>
                 )
               ) : (
@@ -4706,7 +4836,7 @@ export default function EditCardModal({
                 onClick={() => {
                   // Guardar las opciones seleccionadas en la propiedad options de la capa
                   const targetCapa = plantillaActiva.capas.find((c: any) => c.id === tempSwitchCapaId);
-                  const allAssets = [...(projectAssets || []), ...(plantillaActiva.assets || [])];
+                  const allAssets = [...(projectAssets || []), ...(userAssets || []), ...(plantillaActiva.assets || [])];
                   const nextOptions = allAssets
                     .filter((asset: any) => tempSelectedOptionIds.includes(asset.id))
                     .map((asset: any) => ({

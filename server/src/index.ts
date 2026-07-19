@@ -152,6 +152,11 @@ function generarHtmlImpresion(
 
   const resolverAssetPath = (src: string | null) => {
     if (!src) return "";
+    if (src.startsWith("user_asset://")) {
+      const filename = src.replace("user_asset://", "");
+      const absPath = path.join(tempDir, "user_assets", filename);
+      return `file:///${absPath.replace(/\\/g, "/")}`;
+    }
     if (src.startsWith("project_asset://")) {
       const filename = src.replace("project_asset://", "");
       const absPath = path.join(tempDir, "project_assets", filename);
@@ -689,7 +694,8 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
     }
 
     // 4. Calcular distribución de slots del documento activo
-    const activeDoc = proyecto.documentos.find((d: any) => d.id === proyecto.activeDocumentoId) || proyecto.documentos[0];
+    const documentos = proyecto.documentos || [];
+    const activeDoc = documentos.find((d: any) => d.id === proyecto.activeDocumentoId) || documentos[0];
     const { paginasFrontales, paginasTraseras } = calcularDistribucion(
       activeDoc.canvasConfig,
       activeDoc.cardConfig,

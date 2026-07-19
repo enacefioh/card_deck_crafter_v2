@@ -991,7 +991,7 @@ export default function App() {
           for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
             if (overrideVal && typeof overrideVal === "object") {
               const nextOverride = { ...overrideVal };
-              if (nextOverride.src && nextOverride.src.startsWith("blob:")) {
+              if (nextOverride.src && (nextOverride.src.startsWith("blob:") || nextOverride.src.startsWith("data:"))) {
                 nextOverride.src = await addBlobToZip(nextOverride.src, `override_${capaId}`);
               }
               processedOverrides[capaId] = nextOverride;
@@ -1005,7 +1005,7 @@ export default function App() {
           for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
             if (overrideVal && typeof overrideVal === "object") {
               const nextOverride = { ...overrideVal };
-              if (nextOverride.src && nextOverride.src.startsWith("blob:")) {
+              if (nextOverride.src && (nextOverride.src.startsWith("blob:") || nextOverride.src.startsWith("data:"))) {
                 nextOverride.src = await addBlobToZip(nextOverride.src, `override_trasera_${capaId}`);
               }
               processedOverridesTrasera[capaId] = nextOverride;
@@ -1019,13 +1019,13 @@ export default function App() {
           if (clonedPlantilla.capas) {
             for (let i = 0; i < clonedPlantilla.capas.length; i++) {
               const capa = clonedPlantilla.capas[i];
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
                 capa.src = await addBlobToZip(capa.src, `card_${card.id}_template_image_${i}`);
               }
               if (capa.tipo === "image-switch" && capa.options) {
                 for (let o = 0; o < capa.options.length; o++) {
                   const opt = capa.options[o];
-                  if (opt.src && opt.src.startsWith("blob:")) {
+                  if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
                     opt.src = await addBlobToZip(opt.src, `card_${card.id}_template_image_switch_option_${i}_${o}`);
                   }
                 }
@@ -1035,7 +1035,7 @@ export default function App() {
           if (clonedPlantilla.assets) {
             for (let i = 0; i < clonedPlantilla.assets.length; i++) {
               const asset = clonedPlantilla.assets[i];
-              if (asset.src && asset.src.startsWith("blob:")) {
+              if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
                 asset.src = await addBlobToZip(asset.src, `card_${card.id}_template_asset_${i}`);
               }
             }
@@ -1049,13 +1049,13 @@ export default function App() {
           if (clonedPlantillaTrasera.capas) {
             for (let i = 0; i < clonedPlantillaTrasera.capas.length; i++) {
               const capa = clonedPlantillaTrasera.capas[i];
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
                 capa.src = await addBlobToZip(capa.src, `card_${card.id}_back_template_image_${i}`);
               }
               if (capa.tipo === "image-switch" && capa.options) {
                 for (let o = 0; o < clonedPlantillaTrasera.capas[i].options.length; o++) {
                   const opt = clonedPlantillaTrasera.capas[i].options[o];
-                  if (opt.src && opt.src.startsWith("blob:")) {
+                  if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
                     opt.src = await addBlobToZip(opt.src, `card_${card.id}_back_template_image_switch_option_${i}_${o}`);
                   }
                 }
@@ -1065,7 +1065,7 @@ export default function App() {
           if (clonedPlantillaTrasera.assets) {
             for (let i = 0; i < clonedPlantillaTrasera.assets.length; i++) {
               const asset = clonedPlantillaTrasera.assets[i];
-              if (asset.src && asset.src.startsWith("blob:")) {
+              if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
                 asset.src = await addBlobToZip(asset.src, `card_${card.id}_back_template_asset_${i}`);
               }
             }
@@ -1116,13 +1116,13 @@ export default function App() {
       if (clonedTemplate.capas) {
         for (let i = 0; i < clonedTemplate.capas.length; i++) {
           const capa = clonedTemplate.capas[i];
-          if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
+          if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
             capa.src = await addBlobToZip(capa.src, `template_${template.id}_image_${i}`);
           }
           if (capa.tipo === "image-switch" && capa.options) {
             for (let o = 0; o < capa.options.length; o++) {
               const opt = capa.options[o];
-              if (opt.src && opt.src.startsWith("blob:")) {
+              if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
                 opt.src = await addBlobToZip(opt.src, `template_${template.id}_image_switch_option_${i}_${o}`);
               }
             }
@@ -1132,7 +1132,7 @@ export default function App() {
       if (clonedTemplate.assets) {
         for (let i = 0; i < clonedTemplate.assets.length; i++) {
           const asset = clonedTemplate.assets[i];
-          if (asset.src && asset.src.startsWith("blob:")) {
+          if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
             asset.src = await addBlobToZip(asset.src, `template_${template.id}_asset_${i}`);
           }
         }
@@ -1149,13 +1149,13 @@ export default function App() {
       if (clonedTemplate.capas) {
         for (let i = 0; i < clonedTemplate.capas.length; i++) {
           const capa = clonedTemplate.capas[i];
-          if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && capa.src.startsWith("blob:")) {
+          if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
             capa.src = await addBlobToZip(capa.src, `template_${id}_image_${i}`);
           }
           if (capa.tipo === "image-switch" && capa.options) {
             for (let o = 0; o < clonedTemplate.capas[i].options.length; o++) {
               const opt = clonedTemplate.capas[i].options[o];
-              if (opt.src && opt.src.startsWith("blob:")) {
+              if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
                 opt.src = await addBlobToZip(opt.src, `template_${id}_image_switch_option_${i}_${o}`);
               }
             }
@@ -1165,7 +1165,7 @@ export default function App() {
       if (clonedTemplate.assets) {
         for (let i = 0; i < clonedTemplate.assets.length; i++) {
           const asset = clonedTemplate.assets[i];
-          if (asset.src && asset.src.startsWith("blob:")) {
+          if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
             asset.src = await addBlobToZip(asset.src, `template_${id}_asset_${i}`);
           }
         }
@@ -4531,6 +4531,14 @@ export default function App() {
           projectAssets={projectAssets}
           projectFonts={projectFonts}
           projectColors={projectColors}
+          userAssets={userAssets}
+          onAddUserAsset={(nombre, src) => {
+            setUserAssets((prev) => {
+              if (prev.some((x: any) => x.src === src)) return prev;
+              const assetId = `user_asset_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+              return [...prev, { id: assetId, nombre, src }];
+            });
+          }}
         />
       )}
       {showTemplateModal && (

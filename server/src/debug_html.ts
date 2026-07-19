@@ -124,6 +124,9 @@ function generarHtmlImpresion(
   
   const resolverAssetPath = (src: string | null) => {
     if (!src) return "";
+    if (src.startsWith("user_asset://")) {
+      return src.replace("user_asset://", "user_assets/");
+    }
     if (src.startsWith("project_asset://")) {
       return src.replace("project_asset://", "project_assets/");
     }
@@ -489,14 +492,14 @@ function debug() {
   };
 
   const { paginasFrontales, paginasTraseras } = calcularDistribucion(
-    proyectoPrueba.canvasConfig,
-    proyectoPrueba.cardConfig,
-    proyectoPrueba.cards,
+    (proyectoPrueba as any).canvasConfig,
+    (proyectoPrueba as any).cardConfig,
+    proyectoPrueba.cards || [],
     proyectoPrueba.modoTraseras,
     proyectoPrueba.imagenTraseraComun
   );
 
-  const html = generarHtmlImpresion(proyectoPrueba.canvasConfig, proyectoPrueba.cardConfig, paginasFrontales, paginasTraseras, "", proyectoPrueba);
+  const html = generarHtmlImpresion((proyectoPrueba as any).canvasConfig, (proyectoPrueba as any).cardConfig, paginasFrontales, paginasTraseras, "", proyectoPrueba);
   const outPath = path.join(__dirname, "../temp_debug_print.html");
   fs.writeFileSync(outPath, html, "utf8");
   console.log("HTML de depuración generado con éxito en:", outPath);
