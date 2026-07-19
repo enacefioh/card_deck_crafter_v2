@@ -233,8 +233,8 @@ export default function EditCardModal({
   const [activeSelectorTarget, setActiveSelectorTarget] = useState<{ type: "override" | "default"; capaId: string } | null>(null);
 
   // Estados para las pestañas de selección de recursos (SRS-014)
-  const [selectorTab, setSelectorTab] = useState<"project" | "user" | "template">("project");
-  const [switchSelectorTab, setSwitchSelectorTab] = useState<"project" | "user" | "template">("project");
+  const [selectorTab, setSelectorTab] = useState<"project" | "user">("project");
+  const [switchSelectorTab, setSwitchSelectorTab] = useState<"project" | "user">("project");
 
   useEffect(() => {
     setCanvasEditMode(false);
@@ -496,7 +496,7 @@ export default function EditCardModal({
         anchoMm: size,
         altoMm: size,
         src: "",
-        modoAjuste: "cover" as const,
+        modoAjuste: "contain" as const,
         tinteColor: null,
       };
     } else if (isImageSwitch) {
@@ -513,7 +513,7 @@ export default function EditCardModal({
         src: "",
         options: [],
         selectedOptionId: undefined,
-        modoAjuste: "cover" as const,
+        modoAjuste: "contain" as const,
         tinteColor: null,
       };
     } else if (isContainer) {
@@ -819,40 +819,10 @@ export default function EditCardModal({
           })
         );
 
-        const zipAssets = updatedTemplate.assets ? await Promise.all(
-          updatedTemplate.assets.map(async (asset: any) => {
-            if (asset.src && asset.src.startsWith("blob:")) {
-              if (imagenMap.has(asset.src)) {
-                return { ...asset, src: imagenMap.get(asset.src)! };
-              }
-              try {
-                const res = await fetch(asset.src);
-                const blob = await res.blob();
-                
-                let extension = "png";
-                if (blob.type === "image/jpeg") extension = "jpg";
-                else if (blob.type === "image/webp") extension = "webp";
-                else if (blob.type === "image/gif") extension = "gif";
-                
-                const filename = `template_asset_${imagenMap.size}.${extension}`;
-                assetsFolder.file(filename, blob);
-                
-                const assetPath = `asset://${filename}`;
-                imagenMap.set(asset.src, assetPath);
-                return { ...asset, src: assetPath };
-              } catch (err) {
-                console.error("Error al empaquetar asset de plantilla:", asset.src, err);
-                return asset;
-              }
-            }
-            return asset;
-          })
-        ) : undefined;
-
         finalTemplate = {
           ...updatedTemplate,
           capas: zipCapas,
-          assets: zipAssets,
+          assets: [],
         };
 
         zip.file("template.json", JSON.stringify(finalTemplate, null, 2));
@@ -4430,7 +4400,7 @@ export default function EditCardModal({
               </button>
             </div>
 
-            {/* Pestañas (Tabs) para Galería de Proyecto vs Usuario vs Plantilla */}
+            {/* Pestañas (Tabs) para Galería de Proyecto vs Usuario */}
             <div style={{ display: "flex", borderBottom: "1px solid var(--border-color)", marginBottom: "12px", gap: "16px" }}>
               <button
                 type="button"
@@ -4464,26 +4434,10 @@ export default function EditCardModal({
               >
                 Galería de Usuario (Subidas PC)
               </button>
-              <button
-                type="button"
-                style={{
-                  padding: "8px 4px",
-                  background: "none",
-                  border: "none",
-                  borderBottom: selectorTab === "template" ? "2px solid var(--accent-primary)" : "2px solid transparent",
-                  color: selectorTab === "template" ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: selectorTab === "template" ? "bold" : "normal",
-                  cursor: "pointer",
-                  fontSize: "13px"
-                }}
-                onClick={() => setSelectorTab("template")}
-              >
-                Imágenes de la Plantilla
-              </button>
             </div>
 
             <p className="gallery-popup-subtitle">
-              Elige una imagen para asignar a la capa ({selectorTab === "project" ? "Galería del Proyecto" : selectorTab === "user" ? "Galería de Usuario" : "Galería de la Plantilla"})
+              Elige una imagen para asignar a la capa ({selectorTab === "project" ? "Galería del Proyecto" : "Galería de Usuario"})
             </p>
 
             <div className="gallery-assets-grid" style={{ maxHeight: "350px" }}>
@@ -4513,7 +4467,7 @@ export default function EditCardModal({
                     La galería del proyecto está vacía. Añade imágenes desde el menú superior "Galería del Proyecto".
                   </div>
                 )
-              ) : selectorTab === "user" ? (
+              ) : (
                 userAssets && userAssets.length > 0 ? (
                   userAssets.map((asset: any) => (
                     <div
@@ -4537,32 +4491,6 @@ export default function EditCardModal({
                     fontSize: "12px"
                   }}>
                     No has subido imágenes locales aún. Se guardarán aquí automáticamente al subirlas desde tu PC.
-                  </div>
-                )
-              ) : (
-                plantillaActiva.assets && plantillaActiva.assets.length > 0 ? (
-                  plantillaActiva.assets.map((asset: any) => (
-                    <div
-                      key={asset.id}
-                      className="gallery-asset-item"
-                      onClick={() => handleSelectGalleryAsset(asset.src)}
-                      title={`Seleccionar ${asset.nombre}`}
-                    >
-                      <div className="gallery-asset-thumb-container">
-                        <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
-                      </div>
-                      <div className="gallery-asset-name">{asset.nombre}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{
-                    gridColumn: "1 / -1",
-                    padding: "40px 20px",
-                    textAlign: "center",
-                    color: "var(--text-secondary)",
-                    fontSize: "12px"
-                  }}>
-                    La galería de esta plantilla está vacía. Añade imágenes primero desde el gestor de galería.
                   </div>
                 )
               )}
@@ -4638,22 +4566,6 @@ export default function EditCardModal({
               >
                 Galería de Usuario (Subidas PC)
               </button>
-              <button
-                type="button"
-                style={{
-                  padding: "8px 4px",
-                  background: "none",
-                  border: "none",
-                  borderBottom: switchSelectorTab === "template" ? "2px solid var(--accent-primary)" : "2px solid transparent",
-                  color: switchSelectorTab === "template" ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: switchSelectorTab === "template" ? "bold" : "normal",
-                  cursor: "pointer",
-                  fontSize: "13px"
-                }}
-                onClick={() => setSwitchSelectorTab("template")}
-              >
-                Imágenes de la Plantilla
-              </button>
             </div>
 
             <p className="gallery-popup-subtitle">
@@ -4713,7 +4625,7 @@ export default function EditCardModal({
                     La galería del proyecto está vacía. Añade imágenes desde el menú superior "Galería del Proyecto".
                   </div>
                 )
-              ) : switchSelectorTab === "user" ? (
+              ) : (
                 userAssets && userAssets.length > 0 ? (
                   userAssets.map((asset: any) => {
                     const isChecked = tempSelectedOptionIds.includes(asset.id);
@@ -4765,58 +4677,6 @@ export default function EditCardModal({
                     No has subido imágenes locales aún. Se guardarán aquí automáticamente al subirlas desde tu PC.
                   </div>
                 )
-              ) : (
-                plantillaActiva.assets && plantillaActiva.assets.length > 0 ? (
-                  plantillaActiva.assets.map((asset: any) => {
-                    const isChecked = tempSelectedOptionIds.includes(asset.id);
-                    return (
-                      <div
-                        key={asset.id}
-                        className={`gallery-asset-item ${isChecked ? "selected" : ""}`}
-                        onClick={() => {
-                          setTempSelectedOptionIds((prev) => {
-                            if (prev.includes(asset.id)) {
-                              return prev.filter((id) => id !== asset.id);
-                            } else {
-                              return [...prev, asset.id];
-                            }
-                          });
-                        }}
-                        title={asset.nombre}
-                        style={{ cursor: "pointer", position: "relative" }}
-                      >
-                        <div className="gallery-asset-thumb-container" style={{ position: "relative" }}>
-                          <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}}
-                            style={{
-                              position: "absolute",
-                              top: "6px",
-                              right: "6px",
-                              width: "16px",
-                              height: "16px",
-                              cursor: "pointer",
-                              accentColor: "var(--accent-primary)"
-                            }}
-                          />
-                        </div>
-                        <div className="gallery-asset-name">{asset.nombre}</div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div style={{
-                    gridColumn: "1 / -1",
-                    padding: "40px 20px",
-                    textAlign: "center",
-                    color: "var(--text-secondary)",
-                    fontSize: "12px"
-                  }}>
-                    La galería de esta plantilla está vacía. Añade imágenes primero desde el gestor de galería.
-                  </div>
-                )
               )}
             </div>
 
@@ -4836,7 +4696,7 @@ export default function EditCardModal({
                 onClick={() => {
                   // Guardar las opciones seleccionadas en la propiedad options de la capa
                   const targetCapa = plantillaActiva.capas.find((c: any) => c.id === tempSwitchCapaId);
-                  const allAssets = [...(projectAssets || []), ...(userAssets || []), ...(plantillaActiva.assets || [])];
+                  const allAssets = [...(projectAssets || []), ...(userAssets || [])];
                   const nextOptions = allAssets
                     .filter((asset: any) => tempSelectedOptionIds.includes(asset.id))
                     .map((asset: any) => ({

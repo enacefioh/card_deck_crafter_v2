@@ -1031,16 +1031,8 @@ export default function App() {
                 }
               }
             }
+            processedPlantilla = clonedPlantilla;
           }
-          if (clonedPlantilla.assets) {
-            for (let i = 0; i < clonedPlantilla.assets.length; i++) {
-              const asset = clonedPlantilla.assets[i];
-              if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
-                asset.src = await addBlobToZip(asset.src, `card_${card.id}_template_asset_${i}`);
-              }
-            }
-          }
-          processedPlantilla = clonedPlantilla;
         }
 
         let processedPlantillaTrasera = undefined;
@@ -1061,16 +1053,8 @@ export default function App() {
                 }
               }
             }
+            processedPlantillaTrasera = clonedPlantillaTrasera;
           }
-          if (clonedPlantillaTrasera.assets) {
-            for (let i = 0; i < clonedPlantillaTrasera.assets.length; i++) {
-              const asset = clonedPlantillaTrasera.assets[i];
-              if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
-                asset.src = await addBlobToZip(asset.src, `card_${card.id}_back_template_asset_${i}`);
-              }
-            }
-          }
-          processedPlantillaTrasera = clonedPlantillaTrasera;
         }
 
         processedCards.push({
@@ -1129,14 +1113,6 @@ export default function App() {
           }
         }
       }
-      if (clonedTemplate.assets) {
-        for (let i = 0; i < clonedTemplate.assets.length; i++) {
-          const asset = clonedTemplate.assets[i];
-          if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
-            asset.src = await addBlobToZip(asset.src, `template_${template.id}_asset_${i}`);
-          }
-        }
-      }
       templatesFolder.file(`${template.id}.json`, JSON.stringify(clonedTemplate, null, 2));
       processedImportedTemplates.push(clonedTemplate);
       processedTemplatesMap[template.id] = clonedTemplate;
@@ -1159,14 +1135,6 @@ export default function App() {
                 opt.src = await addBlobToZip(opt.src, `template_${id}_image_switch_option_${i}_${o}`);
               }
             }
-          }
-        }
-      }
-      if (clonedTemplate.assets) {
-        for (let i = 0; i < clonedTemplate.assets.length; i++) {
-          const asset = clonedTemplate.assets[i];
-          if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
-            asset.src = await addBlobToZip(asset.src, `template_${id}_asset_${i}`);
           }
         }
       }
@@ -1409,14 +1377,6 @@ export default function App() {
                 }
               }
             }
-            if (clonedPlantilla.assets) {
-              for (const asset of clonedPlantilla.assets) {
-                if (asset.src && matchesAssetScheme(asset.src)) {
-                  const url = await resolverAssetBlob(asset.src);
-                  if (url) asset.src = url;
-                }
-              }
-            }
             processedPlantilla = clonedPlantilla;
           }
 
@@ -1436,14 +1396,6 @@ export default function App() {
                       if (url) opt.src = url;
                     }
                   }
-                }
-              }
-            }
-            if (clonedPlantillaTrasera.assets) {
-              for (const asset of clonedPlantillaTrasera.assets) {
-                if (asset.src && matchesAssetScheme(asset.src)) {
-                  const url = await resolverAssetBlob(asset.src);
-                  if (url) asset.src = url;
                 }
               }
             }
@@ -1498,14 +1450,6 @@ export default function App() {
                   }
                 }
               }
-              if (tData.assets) {
-                for (const asset of tData.assets) {
-                  if (asset.src && matchesAssetScheme(asset.src)) {
-                    const url = await resolverAssetBlob(asset.src);
-                    if (url) asset.src = url;
-                  }
-                }
-              }
               newImported.push(tData);
               loadedTemplatesMap[tData.id] = tData;
             }
@@ -1532,14 +1476,6 @@ export default function App() {
                       if (url) opt.src = url;
                     }
                   }
-                }
-              }
-            }
-            if (tData.assets) {
-              for (const asset of tData.assets) {
-                if (asset.src && matchesAssetScheme(asset.src)) {
-                  const url = await resolverAssetBlob(asset.src);
-                  if (url) asset.src = url;
                 }
               }
             }
@@ -1744,17 +1680,7 @@ export default function App() {
         }
       }
 
-      if (templateData.assets) {
-        for (let i = 0; i < templateData.assets.length; i++) {
-          const asset = templateData.assets[i];
-          if (asset.src && asset.src.startsWith("asset://")) {
-            const objectUrl = await resolverAssetBlob(asset.src);
-            if (objectUrl) {
-              asset.src = objectUrl;
-            }
-          }
-        }
-      }
+
 
       setTemplatesMap((prev) => ({
         ...prev,
