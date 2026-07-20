@@ -483,33 +483,46 @@ export default function EditCardModal({
     const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newClave = `campo_${Date.now().toString().slice(-4)}`;
 
+    // Resolver tamaño del padre (contenedor o lienzo)
+    const selectedCapa = selectedLayerId ? (plantillaActiva.capas || []).find((c: any) => c.id === selectedLayerId) : null;
+    let parentId: string | null = null;
+    if (selectedCapa) {
+      if (selectedCapa.tipo === "container") {
+        parentId = selectedCapa.id;
+      } else {
+        parentId = selectedCapa.parentCapaId || null;
+      }
+    }
+
+    const parentContainer = parentId ? (plantillaActiva.capas || []).find((c: any) => c.id === parentId) : null;
+    const parentWidth = parentContainer ? parentContainer.anchoMm : cardConfig.anchoMm;
+    const parentHeight = parentContainer ? parentContainer.altoMm : cardConfig.altoMm;
+
     let newLayer: any;
     if (isImage) {
-      const size = Math.round((cardConfig.anchoMm * 0.3) * 10) / 10;
       newLayer = {
         id: newId,
         nombre: "Nueva Imagen",
         visible: true,
         tipo: "image" as const,
-        xMm: Math.round(((cardConfig.anchoMm - size) / 2) * 10) / 10,
-        yMm: Math.round(((cardConfig.altoMm - size) / 2) * 10) / 10,
-        anchoMm: size,
-        altoMm: size,
+        xMm: 0,
+        yMm: 0,
+        anchoMm: parentWidth,
+        altoMm: parentHeight,
         src: "",
         modoAjuste: "contain" as const,
         tinteColor: null,
       };
     } else if (isImageSwitch) {
-      const size = Math.round((cardConfig.anchoMm * 0.3) * 10) / 10;
       newLayer = {
         id: newId,
         nombre: "Nueva Imagen Switch",
         visible: true,
         tipo: "image-switch" as const,
-        xMm: Math.round(((cardConfig.anchoMm - size) / 2) * 10) / 10,
-        yMm: Math.round(((cardConfig.altoMm - size) / 2) * 10) / 10,
-        anchoMm: size,
-        altoMm: size,
+        xMm: 0,
+        yMm: 0,
+        anchoMm: parentWidth,
+        altoMm: parentHeight,
         src: "",
         options: [],
         selectedOptionId: undefined,
@@ -569,17 +582,21 @@ export default function EditCardModal({
       };
     } else {
       const defaultText = "Texto de ejemplo...";
+      // 12pt en mm: 12 * 25.4 / 72 = 4.23 mm
+      // Para evitar que se recorte visualmente se establece el alto inicial al doble (8.46 mm)
+      const fontSizePt = 12;
+      const initialHeightMm = (Math.round((fontSizePt * 25.4 / 72) * 100) / 100) * 2;
       newLayer = {
         id: newId,
         nombre: newClave,
         visible: true,
         tipo: "text" as const,
-        xMm: Math.round((cardConfig.anchoMm * 0.05) * 10) / 10,
-        yMm: Math.round((cardConfig.altoMm * 0.45) * 10) / 10,
-        anchoMm: Math.round((cardConfig.anchoMm * 0.9) * 10) / 10,
-        altoMm: 8,
+        xMm: 0,
+        yMm: 0,
+        anchoMm: parentWidth,
+        altoMm: initialHeightMm,
         fontFamily: "sans-serif",
-        fontSizePt: 12,
+        fontSizePt: fontSizePt,
         color: "#000000",
         alineacion: "center" as const,
         bold: false,
