@@ -26,6 +26,18 @@ const PREAJUSTES_HOJAS = {
   custom: { ancho: 210, alto: 297 },
 };
 
+const PROPERTY_WEIGHTS: Record<string, number> = {
+  visibility: 1,
+  contenidoRaw: 2,
+  src: 3,
+  selectedOptionId: 4,
+  modoAjuste: 5,
+  xMm: 6,
+  yMm: 7,
+  anchoMm: 8,
+  altoMm: 9,
+};
+
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
   let texto = capa.contenidoRaw || "";
   if (valoresCampos && valoresCampos[capa.id] !== undefined) {
@@ -3899,9 +3911,77 @@ export default function App() {
               ? (plantillaBase?.exposedProperties || [])
               : (cartaBase.exposedProperties || plantillaBase?.exposedProperties || []);
             const baseCapas = plantillaBase?.capas || [];
+
+            const getHierarchicalLayers = (capas: any[]) => {
+              const result: any[] = [];
+              const visited = new Set<string>();
+              const visit = (parentId: string | null) => {
+                const children = capas.filter(c => c.parentCapaId === parentId);
+                for (const child of children) {
+                  if (visited.has(child.id)) continue;
+                  visited.add(child.id);
+                  result.push(child);
+                  visit(child.id);
+                }
+              };
+              visit(null);
+              capas.forEach(c => {
+                if (!visited.has(c.id)) {
+                  result.push(c);
+                }
+              });
+              return result;
+            };
+
+            const capasOrdenadas = getHierarchicalLayers(baseCapas);
+
+            const ordenarPropiedadesExpuestas = (propiedades: any[]) => {
+              return [...propiedades].sort((a, b) => {
+                const idxA = capasOrdenadas.findIndex(c => c.id === a.layerId);
+                const idxB = capasOrdenadas.findIndex(c => c.id === b.layerId);
+                if (idxA !== idxB) return idxA - idxB;
+                
+                const wA = PROPERTY_WEIGHTS[a.property] ?? 100;
+                const wB = PROPERTY_WEIGHTS[b.property] ?? 100;
+                if (wA !== wB) return wA - wB;
+                return a.property.localeCompare(b.property);
+              });
+            };
+
+            const isLayerVisibleOnCard = (capaId: string, layers: any[], c: Carta): boolean => {
+              const capa = layers.find((x) => x.id === capaId);
+              if (!capa) return false;
+
+              const overrides = isBack ? c.capasOverridesTrasera?.[capaId] : c.capasOverrides?.[capaId];
+              const visibility = overrides?.visibility !== undefined ? overrides.visibility : (capa.visibility || "visible");
+              const visible = overrides?.visible !== undefined ? overrides.visible : (capa.visible !== false);
+
+              if (visibility === "collapsed" || visibility === "hidden" || !visible) {
+                return false;
+              }
+
+              if (capa.parentCapaId) {
+                return isLayerVisibleOnCard(capa.parentCapaId, layers, c);
+              }
+              return true;
+            };
+
+            const sortedExposedBase = ordenarPropiedadesExpuestas(exposedBase);
+
+            const visibleExposedBase = sortedExposedBase.filter((prop) => {
+              if (prop.property === "visibility" || prop.property === "visible") {
+                const capa = baseCapas.find((x: any) => x.id === prop.layerId);
+                if (capa && capa.parentCapaId) {
+                  return selectedCartas.every(c => isLayerVisibleOnCard(capa.parentCapaId, baseCapas, c));
+                }
+                return true;
+              }
+              return selectedCartas.every(c => isLayerVisibleOnCard(prop.layerId, baseCapas, c));
+            });
+
             const camposCoincidentes: any[] = [];
 
-            for (const prop of exposedBase) {
+            for (const prop of visibleExposedBase) {
               const capaBase = baseCapas.find((c: any) => c.id === prop.layerId);
               if (!capaBase) continue;
 
@@ -3955,22 +4035,27 @@ export default function App() {
               );
             }
 
-            // Agrupar campos por su parentPath (SRS-043)
+            // Agrupar campos por su parentPath (SRS-043) manteniendo el orden jerárquico de la plantilla
             const groups: Record<string, any[]> = {};
+            const sortedParentPaths: string[] = [];
+
             camposCoincidentes.forEach((campo: any) => {
-              const parts = campo.ruta.split(" > ");
-              const parentPath = parts.slice(0, -1).join(" > ");
+              let parentPath = "";
+              if (campo.tipoCapa === "container") {
+                parentPath = campo.ruta;
+              } else {
+                const parts = campo.ruta.split(" > ");
+                parentPath = parts.slice(0, -1).join(" > ");
+              }
+
               if (!groups[parentPath]) {
                 groups[parentPath] = [];
               }
               groups[parentPath].push(campo);
-            });
 
-            // Ordenar las claves para consistencia (raíz primero, luego subgrupos)
-            const sortedParentPaths = Object.keys(groups).sort((a, b) => {
-              if (a === "") return -1;
-              if (b === "") return 1;
-              return a.localeCompare(b);
+              if (!sortedParentPaths.includes(parentPath)) {
+                sortedParentPaths.push(parentPath);
+              }
             });
 
             return (
@@ -4101,8 +4186,14 @@ export default function App() {
                             };
 
                             const isTextarea = campo.tipoCapa === "text" && campo.property === "contenidoRaw" && campo.multiline !== false;
-                            const labelParts = campo.ruta.split(" > ");
-                            const displayLabel = labelParts[labelParts.length - 1];
+                            let displayLabel = "";
+                            if (campo.property === "contenidoRaw" || campo.property === "src") {
+                               const labelParts = campo.ruta.split(" > ");
+                               displayLabel = labelParts[labelParts.length - 1];
+                            } else {
+                               const labelParts = (campo.label || "").split(" > ");
+                               displayLabel = labelParts[labelParts.length - 1] || campo.property;
+                            }
                             const labelTruncated = displayLabel.length > 15 ? displayLabel.substring(0, 13) + "..." : displayLabel;
 
                             const currentCapaId = campo.mapaCartaCapaId[cartaBase.id];

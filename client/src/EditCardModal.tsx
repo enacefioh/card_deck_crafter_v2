@@ -4,6 +4,18 @@ import JSZip from "jszip";
 import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion } from "./utils/projectUtils";
 import "./EditCardModal.css";
 
+const PROPERTY_WEIGHTS: Record<string, number> = {
+  visibility: 1,
+  contenidoRaw: 2,
+  src: 3,
+  selectedOptionId: 4,
+  modoAjuste: 5,
+  xMm: 6,
+  yMm: 7,
+  anchoMm: 8,
+  altoMm: 9,
+};
+
 interface EditCardModalProps {
   carta: Carta;
   cardConfig: CardConfig;
@@ -446,6 +458,43 @@ export default function EditCardModal({
   const handleOpenExposedConfigModal = () => {
     if (!plantillaActiva) return;
     
+    // Recorrido DFS jerárquico de capas
+    const getHierarchicalLayers = (capas: any[]) => {
+      const result: any[] = [];
+      const visited = new Set<string>();
+      const visit = (parentId: string | null) => {
+        const children = capas.filter(c => c.parentCapaId === parentId);
+        for (const child of children) {
+          if (visited.has(child.id)) continue;
+          visited.add(child.id);
+          result.push(child);
+          visit(child.id);
+        }
+      };
+      visit(null);
+      capas.forEach(c => {
+        if (!visited.has(c.id)) {
+          result.push(c);
+        }
+      });
+      return result;
+    };
+
+    const capasOrdenadas = getHierarchicalLayers(plantillaActiva.capas || []);
+
+    const ordenarPropiedadesExpuestas = (propiedades: ExposedProperty[]) => {
+      return [...propiedades].sort((a, b) => {
+        const idxA = capasOrdenadas.findIndex(c => c.id === a.layerId);
+        const idxB = capasOrdenadas.findIndex(c => c.id === b.layerId);
+        if (idxA !== idxB) return idxA - idxB;
+        
+        const wA = PROPERTY_WEIGHTS[a.property] ?? 100;
+        const wB = PROPERTY_WEIGHTS[b.property] ?? 100;
+        if (wA !== wB) return wA - wB;
+        return a.property.localeCompare(b.property);
+      });
+    };
+
     let list: ExposedProperty[] = [];
     if (plantillaActiva.exposedProperties && plantillaActiva.exposedProperties.length > 0) {
       list = JSON.parse(JSON.stringify(plantillaActiva.exposedProperties));
@@ -467,7 +516,7 @@ export default function EditCardModal({
       });
     }
     
-    setTempExposedProperties(list);
+    setTempExposedProperties(ordenarPropiedadesExpuestas(list));
     setShowExposedConfigModal(true);
   };
 
@@ -948,6 +997,9 @@ export default function EditCardModal({
 
   // --- Modificar Propiedad de Capa ---
   const handleUpdateCapaProp = (capaId: string, propKey: string, propVal: any) => {
+    const originalLayer = plantillaActiva?.capas?.find((c: any) => c.id === capaId);
+    const oldNombre = originalLayer ? originalLayer.nombre : "";
+
     const updater = (prev: any) => {
       const updatedCapas = prev.capas.map((c: any) => {
         if (c.id === capaId) {
@@ -975,16 +1027,74 @@ export default function EditCardModal({
         }
         return c;
       });
+
+      let nextExposed = prev.exposedProperties || [];
+      if (propKey === "nombre") {
+        nextExposed = nextExposed.map((p: any) => {
+          if (p.layerId === capaId) {
+            const oldPrefix = oldNombre ? `${oldNombre} >` : "";
+            const newPrefix = `${propVal} >`;
+            if (oldPrefix && p.label.startsWith(oldPrefix)) {
+              return { ...p, label: p.label.replace(oldPrefix, newPrefix) };
+            } else {
+              const parts = p.label.split(" > ");
+              if (parts.length > 1) {
+                return { ...p, label: `${propVal} > ${parts.slice(1).join(" > ")}` };
+              }
+              return { ...p, label: `${propVal} > ${p.property}` };
+            }
+          }
+          return p;
+        });
+      }
+
       return {
         ...prev,
-        capas: updatedCapas
+        capas: updatedCapas,
+        exposedProperties: nextExposed
       };
     };
 
     if (activeTab === "frontal") {
       setTempPlantilla(updater);
+      if (propKey === "nombre") {
+        setTempExposedProperties((prev) => prev.map((p: any) => {
+          if (p.layerId === capaId) {
+            const oldPrefix = oldNombre ? `${oldNombre} >` : "";
+            const newPrefix = `${propVal} >`;
+            if (oldPrefix && p.label.startsWith(oldPrefix)) {
+              return { ...p, label: p.label.replace(oldPrefix, newPrefix) };
+            } else {
+              const parts = p.label.split(" > ");
+              if (parts.length > 1) {
+                return { ...p, label: `${propVal} > ${parts.slice(1).join(" > ")}` };
+              }
+              return { ...p, label: `${propVal} > ${p.property}` };
+            }
+          }
+          return p;
+        }));
+      }
     } else {
       setTempPlantillaTrasera(updater);
+      if (propKey === "nombre") {
+        setTempExposedProperties((prev) => prev.map((p: any) => {
+          if (p.layerId === capaId) {
+            const oldPrefix = oldNombre ? `${oldNombre} >` : "";
+            const newPrefix = `${propVal} >`;
+            if (oldPrefix && p.label.startsWith(oldPrefix)) {
+              return { ...p, label: p.label.replace(oldPrefix, newPrefix) };
+            } else {
+              const parts = p.label.split(" > ");
+              if (parts.length > 1) {
+                return { ...p, label: `${propVal} > ${parts.slice(1).join(" > ")}` };
+              }
+              return { ...p, label: `${propVal} > ${p.property}` };
+            }
+          }
+          return p;
+        }));
+      }
     }
   };
 
@@ -1563,6 +1673,28 @@ export default function EditCardModal({
     const sanitizedClave = newClave.replace(/[^a-zA-Z0-9_ ]/g, "").replace(/\s+/g, " ").trim();
     if (!sanitizedClave) return;
 
+    const oldName = oldClave || "";
+
+    const syncExposedList = (exposedList: any[]) => {
+      if (!exposedList) return [];
+      return exposedList.map((p: any) => {
+        if (p.layerId === capaId) {
+          const oldPrefix = oldName ? `${oldName} >` : "";
+          const newPrefix = `${sanitizedClave} >`;
+          if (oldPrefix && p.label.startsWith(oldPrefix)) {
+            return { ...p, label: p.label.replace(oldPrefix, newPrefix) };
+          } else {
+            const parts = p.label.split(" > ");
+            if (parts.length > 1) {
+              return { ...p, label: `${sanitizedClave} > ${parts.slice(1).join(" > ")}` };
+            }
+            return { ...p, label: `${sanitizedClave} > ${p.property}` };
+          }
+        }
+        return p;
+      });
+    };
+
     if (activeTab === "frontal") {
       const result = actualizarClavePlantillaYValores(
         tempPlantilla,
@@ -1571,8 +1703,13 @@ export default function EditCardModal({
         oldClave,
         sanitizedClave
       );
+      
+      const nextExposed = syncExposedList(result.plantilla.exposedProperties || []);
+      result.plantilla.exposedProperties = nextExposed;
+
       setTempPlantilla(result.plantilla);
       setTempValoresCampos(result.valoresCampos);
+      setTempExposedProperties(nextExposed);
     } else {
       const result = actualizarClavePlantillaYValores(
         tempPlantillaTrasera,
@@ -1581,8 +1718,13 @@ export default function EditCardModal({
         oldClave,
         sanitizedClave
       );
+
+      const nextExposed = syncExposedList(result.plantilla.exposedProperties || []);
+      result.plantilla.exposedProperties = nextExposed;
+
       setTempPlantillaTrasera(result.plantilla);
       setTempValoresCamposTrasera(result.valoresCampos);
+      setTempExposedProperties(nextExposed);
     }
   };
 
@@ -3999,6 +4141,10 @@ export default function EditCardModal({
             const idxA = capasOrdenadas.findIndex(c => c.id === a.layerId);
             const idxB = capasOrdenadas.findIndex(c => c.id === b.layerId);
             if (idxA !== idxB) return idxA - idxB;
+            
+            const wA = PROPERTY_WEIGHTS[a.property] ?? 100;
+            const wB = PROPERTY_WEIGHTS[b.property] ?? 100;
+            if (wA !== wB) return wA - wB;
             return a.property.localeCompare(b.property);
           });
         };
