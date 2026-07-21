@@ -373,6 +373,60 @@ export default function App() {
   const [projectAssets, setProjectAssetsInternal] = useState<any[]>([]);
   const [showProjectGallery, setShowProjectGallery] = useState<boolean>(false);
 
+  // --- Estados de la Galería de Símbolos (SRS-011) ---
+  const [projectSymbols, setProjectSymbolsInternal] = useState<any[]>([]);
+  const [showSymbolsGallery, setShowSymbolsGallery] = useState<boolean>(false);
+  const setProjectSymbols = (value: React.SetStateAction<any[]>) => {
+    setProjectSymbolsInternal(value);
+    setIsDirty(true);
+  };
+
+  const resizeImageToMax100 = (file: File): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+          
+          if (width > height) {
+            if (width > 100) {
+              height = Math.round((height * 100) / width);
+              width = 100;
+            }
+          } else {
+            if (height > 100) {
+              width = Math.round((width * 100) / height);
+              height = 100;
+            }
+          }
+          
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            canvas.toBlob((blob) => {
+              if (blob) {
+                resolve(blob);
+              } else {
+                reject(new Error("Error al convertir canvas a blob"));
+              }
+            }, "image/png");
+          } else {
+            reject(new Error("No se pudo obtener el contexto 2d del canvas"));
+          }
+        };
+        img.onerror = () => reject(new Error("Error al cargar la imagen"));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error("Error al leer el archivo"));
+      reader.readAsDataURL(file);
+    });
+  };
+
   // --- Galería de Usuario (SRS-045) ---
   const [userAssets, setUserAssetsInternal] = useState<any[]>([]);
 
@@ -884,11 +938,46 @@ export default function App() {
     const assetsFolder = zip.folder("assets")!;
     const projectAssetsFolder = zip.folder("project_assets")!;
     const userAssetsFolder = zip.folder("user_assets")!;
+    const symbolsFolder = zip.folder("symbols")!;
     const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
     const projectAssetMap = new Map<string, string>(); // blobUrl -> projectAssetPath
     const userAssetMap = new Map<string, string>(); // blobUrl -> userAssetPath
+    const symbolAssetMap = new Map<string, string>(); // blobUrl -> symbolAssetPath
     const processedProjectAssets = [];
     const processedUserAssets = [];
+    const processedProjectSymbols = [];
+
+    // Procesar recursos de la galería de símbolos (SRS-011)
+    for (const sym of projectSymbols) {
+      if (sym.src && (sym.src.startsWith("blob:") || sym.src.startsWith("data:"))) {
+        try {
+          const res = await fetch(sym.src);
+          const blob = await res.blob();
+          
+          let extension = "png";
+          if (blob.type === "image/jpeg") extension = "jpg";
+          else if (blob.type === "image/webp") extension = "webp";
+          else if (blob.type === "image/gif") extension = "gif";
+          else if (blob.type === "image/svg+xml") extension = "svg";
+          
+          const filename = `${sym.id}.${extension}`;
+          symbolsFolder.file(filename, blob);
+          
+          const assetPath = `symbol_asset://${filename}`;
+          symbolAssetMap.set(sym.src, assetPath);
+          processedProjectSymbols.push({
+            id: sym.id,
+            tag: sym.tag,
+            src: assetPath,
+          });
+        } catch (err) {
+          console.error("Error al procesar símbolo en generarProyectoZip:", sym, err);
+        }
+      } else if (sym.src && sym.src.startsWith("symbol_asset://")) {
+        symbolAssetMap.set(sym.src, sym.src);
+        processedProjectSymbols.push(sym);
+      }
+    }
 
     // Procesar recursos de la galería de usuario (SRS-045)
     for (const asset of userAssets) {
@@ -1165,6 +1254,7 @@ export default function App() {
       templates: processedTemplatesMap,
       assets: processedProjectAssets,
       userAssets: processedUserAssets,
+      projectSymbols: processedProjectSymbols,
       customFonts: projectFonts.map((f: any) => ({
         id: f.id,
         nombre: f.nombre,
@@ -1273,11 +1363,15 @@ export default function App() {
         if (f.src) URL.revokeObjectURL(f.src);
       });
       setProjectFontsInternal([]);
+      projectSymbols.forEach((s) => {
+        if (s.src) URL.revokeObjectURL(s.src);
+      });
+      setProjectSymbolsInternal([]);
 
       const cacheBlobUrls = new Map<string, string>();
       const matchesAssetScheme = (src: string | null | undefined): boolean => {
         if (!src) return false;
-        return src.startsWith("asset://") || src.startsWith("project_asset://") || src.startsWith("user_asset://");
+        return src.startsWith("asset://") || src.startsWith("project_asset://") || src.startsWith("user_asset://") || src.startsWith("symbol_asset://");
       };
 
       const resolverAssetBlob = async (assetPath: string | null): Promise<string | null> => {
@@ -1304,6 +1398,19 @@ export default function App() {
           const zipImgFile = zip.file(`user_assets/${filename}`);
           if (!zipImgFile) {
             console.error(`No se encontró el user asset ${filename} en el ZIP`);
+            return null;
+          }
+          const blob = await zipImgFile.async("blob");
+          const objectUrl = URL.createObjectURL(blob);
+          cacheBlobUrls.set(assetPath, objectUrl);
+          return objectUrl;
+        }
+
+        if (assetPath.startsWith("symbol_asset://")) {
+          const filename = assetPath.replace("symbol_asset://", "");
+          const zipImgFile = zip.file(`symbols/${filename}`);
+          if (!zipImgFile) {
+            console.error(`No se encontró el símbolo ${filename} en el ZIP`);
             return null;
           }
           const blob = await zipImgFile.async("blob");
@@ -4035,54 +4142,102 @@ export default function App() {
               );
             }
 
-            // Agrupar campos por su parentPath (SRS-043) manteniendo el orden jerárquico de la plantilla
-            const groups: Record<string, any[]> = {};
-            const sortedParentPaths: string[] = [];
+            // Construir los elementos a renderizar (cabeceras de contenedores y campos editables)
+            // siguiendo el orden de capas jerárquico DFS pre-orden de la plantilla (TKT-041)
+            const renderableItems: any[] = [];
 
-            camposCoincidentes.forEach((campo: any) => {
-              let parentPath = "";
-              if (campo.tipoCapa === "container") {
-                parentPath = campo.ruta;
-              } else {
-                const parts = campo.ruta.split(" > ");
-                parentPath = parts.slice(0, -1).join(" > ");
+            const isAncestorCollapsed = (layerId: string | null): boolean => {
+              if (!layerId) return false;
+              const layer = baseCapas.find(l => l.id === layerId);
+              if (!layer) return false;
+              let currentId = layer.parentCapaId;
+              while (currentId) {
+                if (collapsedSections[currentId] === true) {
+                  return true;
+                }
+                const parent = baseCapas.find(l => l.id === currentId);
+                currentId = parent ? parent.parentCapaId : null;
+              }
+              return false;
+            };
+
+            capasOrdenadas.forEach((capa) => {
+              if (capa.tipo === "container") {
+                const isContained = (layer: any) => {
+                  let curr = layer;
+                  while (curr) {
+                    if (curr.id === capa.id) return true;
+                    curr = curr.parentCapaId ? baseCapas.find((x: any) => x.id === curr.parentCapaId) : null;
+                  }
+                  return false;
+                };
+
+                const hasExposedDescendants = camposCoincidentes.some((cc) => {
+                  const ccCapa = baseCapas.find((x: any) => x.id === cc.mapaCartaCapaId[cartaBase.id]);
+                  return ccCapa && isContained(ccCapa);
+                });
+
+                if (hasExposedDescendants) {
+                  const rutaFriendly = obtenerRutaJerarquica(capa.id, baseCapas);
+                  const nestingLevel = rutaFriendly ? rutaFriendly.split(" > ").length : 1;
+                  renderableItems.push({
+                    type: "header",
+                    id: capa.id,
+                    label: rutaFriendly,
+                    nestingLevel: nestingLevel
+                  });
+                }
               }
 
-              if (!groups[parentPath]) {
-                groups[parentPath] = [];
-              }
-              groups[parentPath].push(campo);
-
-              if (!sortedParentPaths.includes(parentPath)) {
-                sortedParentPaths.push(parentPath);
-              }
+              const directFields = camposCoincidentes.filter(cc => cc.mapaCartaCapaId[cartaBase.id] === capa.id);
+              directFields.forEach((campo) => {
+                renderableItems.push({
+                  type: "field",
+                  id: `${campo.mapaCartaCapaId[cartaBase.id]}_${campo.property}`,
+                  campo: campo,
+                  layerId: capa.id
+                });
+              });
             });
 
             return (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                {sortedParentPaths.map((parentPath) => {
-                  const isCollapsed = collapsedSections[parentPath] === true;
-                  const nestingLevel = parentPath ? parentPath.split(" > ").length : 0;
+                {renderableItems.map((item, itemIdx) => {
+                  const fieldIdx = itemIdx;
+                  if (item.type === "header") {
+                    const isCollapsed = collapsedSections[item.id] === true;
+                    if (isAncestorCollapsed(item.id)) {
+                      return null;
+                    }
+                    const indentStyle = { paddingLeft: `${(item.nestingLevel - 1) * 12}px` };
+                    return (
+                      <div 
+                        key={`header_${item.id}`} 
+                        className="inspector-foldout-header"
+                        onClick={() => setCollapsedSections(prev => ({ ...prev, [item.id]: !isCollapsed }))}
+                        style={indentStyle}
+                      >
+                        <span className="inspector-foldout-arrow">
+                          {isCollapsed ? "▶" : "▼"}
+                        </span>
+                        <span>{item.label}</span>
+                      </div>
+                    );
+                  }
+
+                  const campo = item.campo;
+                  const isCollapsed = collapsedSections[item.layerId] === true;
+                  const layer = baseCapas.find(l => l.id === item.layerId);
+                  const hideField = (layer?.tipo === "container" && isCollapsed) || isAncestorCollapsed(item.layerId);
+                  if (hideField) {
+                    return null;
+                  }
+
+                  const friendlyPath = obtenerRutaJerarquica(item.layerId, baseCapas);
+                  const nestingLevel = friendlyPath ? friendlyPath.split(" > ").length : 1;
                   const indentStyle = { paddingLeft: `${nestingLevel * 12}px` };
 
-                  return (
-                    <div key={parentPath || "root"} style={{ width: "100%" }}>
-                      {parentPath && (
-                        <div 
-                          className="inspector-foldout-header"
-                          onClick={() => setCollapsedSections(prev => ({ ...prev, [parentPath]: !isCollapsed }))}
-                        >
-                          <span className="inspector-foldout-arrow">
-                            {isCollapsed ? "▶" : "▼"}
-                          </span>
-                          <span>{parentPath}</span>
-                        </div>
-                      )}
-                      
-                      {!isCollapsed && (
-                        <div style={{ display: "flex", flexDirection: "column", gap: "2px", width: "100%" }}>
-                          {groups[parentPath].map((campo: any, fieldIdx: number) => {
-                            const valores = selectedCartas.map((c) => {
+                  const valores = selectedCartas.map((c) => {
                               const capaId = campo.mapaCartaCapaId[c.id];
                               if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
                                 if (isBack) {
@@ -4473,11 +4628,6 @@ export default function App() {
                                 </div>
                               </div>
                             );
-                          })}
-                        </div>
-                      )}
-                    </div>
-                  );
                 })}
               </div>
             );

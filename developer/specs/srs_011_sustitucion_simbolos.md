@@ -1,35 +1,76 @@
-# Especificación Técnica - SRS-011: Motor de Sustitución de Símbolos en Capas de Texto (Borrador Futuro)
+# Especificación Técnica - SRS-011: Motor de Sustitución de Símbolos en Capas de Texto
 
 ## 1. Introducción y Objetivos
 - **Módulo**: Rich Text Rules Parser & Auto-complete System.
-- **Propósito**: Permitir al usuario escribir atajos o códigos de símbolos (ej. `{R}`, `{A}`, `{tap}`) en el campo de texto de las cartas y que estos se rendericen automáticamente como iconos/símbolos gráficos en el lienzo, además de ofrecer un selector asistido (tipo menú autocomplete).
+- **Propósito**: Permitir al usuario subir, gestionar y usar imágenes de símbolos personalizadas (ej. recursos, elementos, acciones) y que se rendericen inline como texto en las cartas mediante atajos/slugs con llaves/corchetes, por ejemplo `{tag}`.
 - **Objetivos**:
-  - **Reemplazo en Caliente**: Analizar las cadenas de texto y renderizar nodos HTML con imágenes o glifos correspondientes.
-  - **Menú de Autocompletado**: Mostrar un popup contextual al escribir caracteres especiales (como `/` o `{`) en el input del editor para seleccionar de forma rápida los símbolos disponibles del módulo.
+  - **Galería de Símbolos**: Crear una interfaz para subir imágenes y asociarlas a un tag o slug único sin espacios.
+  - **Redimensionado en Servidor**: Las imágenes de símbolos se guardan y el servidor las redimensiona a un tamaño de 100x100px para optimizar el rendimiento.
+  - **Sustitución en el Lienzo**: Parsear dinámicamente las cadenas de texto del lienzo para renderizar los iconos inline, con dimensiones acopladas al tamaño de fuente (`1em`).
+  - **Asistente de Inserción (Helper 🖼️)**: Añadir un botón o icono al lado de la información del campo de texto que permita desplegar la lista de símbolos y hacer clic para insertar el tag en la posición del cursor o al final si no está enfocado.
 
 ---
 
-## 2. Requisitos Funcionales Propuestos
+## 2. Requisitos Funcionales
 
-### RF-1: Definición de Símbolos en `module.json`
-- Cada módulo podrá especificar en su `module.json` una lista de símbolos mapeados a imágenes o iconos vectoriales:
-  ```json
-  "simbolos": [
-    { "codigo": "{T}", "imagen": "symbols/tap.svg", "nombreLegible": "Girar / Tap" },
-    { "codigo": "{R}", "imagen": "symbols/red_mana.svg", "nombreLegible": "Recurso Rojo" }
-  ]
-  ```
+### RF-1: Galería de Símbolos (Menú Recursos)
+- En el menú principal de navegación (Recursos), se añadirá la opción **"Galería de símbolos"**.
+- Al pulsarla, se abrirá un modal dedicado donde el usuario podrá:
+  - Subir una nueva imagen (PNG, JPG, SVG, WebP, etc.).
+  - Introducir un **tag / slug** para la imagen (cadena de texto sin espacios, ej. `fuego`, `tap`, `oro`).
+  - Ver el listado de símbolos registrados con su miniatura y su respectivo tag.
+  - Editar el tag de los símbolos existentes (validando que no tenga espacios ni caracteres reservados que rompan el formato).
+  - Eliminar símbolos.
 
-### RF-2: Parser de Texto en Capas de Plantilla
-- Al renderizar una capa de texto, el sistema buscará patrones que coincidan con los códigos definidos (ej. entre llaves `{}`) y generará dinámicamente elementos inline (`<img src="..." class="symbol-icon" />`) en lugar de texto plano.
-- Los estilos CSS asegurarán que las imágenes de los símbolos se alineen correctamente con la línea de texto (`vertical-align: middle`) y escalen de acuerdo al tamaño de la fuente.
+### RF-2: Redimensionado de Símbolos en Servidor
+- Cuando el servidor recibe una imagen para la galería de símbolos, se procesará y se guardará redimensionada a un tamaño máximo de **100x100 píxeles** (manteniendo la relación de aspecto si es posible, o reescalando).
+- Los símbolos se guardarán en un directorio del proyecto (ej. `public/symbols/` o en el almacenamiento de recursos del proyecto).
+- El servidor expondrá rutas API REST para:
+  - `POST /api/symbols` (subir e inicializar símbolo con tag).
+  - `GET /api/symbols` (listar todos los símbolos registrados).
+  - `PUT /api/symbols/:id` (actualizar tag/slug).
+  - `DELETE /api/symbols/:id` (eliminar símbolo).
 
-### RF-3: Autocomplete en el Input de Edición
-- Al escribir en el panel de edición, si el usuario pulsa un carácter disparador (ej. `/` o abre `{`), aparecerá un pequeño selector flotante debajo del cursor del teclado mostrando las opciones disponibles.
-- Al seleccionar una opción con las flechas del teclado y pulsar `Enter`, se insertará el código del símbolo correspondiente en el texto.
+### RF-3: Motor de Renderizado e Inserción Inline
+- Al renderizar cualquier capa de texto en el lienzo (Canvas), se procesará su valor raw. Cualquier aparición de un patrón como `{tag}` (donde `tag` es un slug de símbolo registrado) se sustituirá en el HTML generado por una etiqueta de imagen:
+  - `<img src="/api/symbols/raw/:filename" class="symbol-inline-icon" alt="tag" style="height: 1em; width: auto; vertical-align: middle; display: inline-block;" />`
+- Esto garantiza que el icono fluya inline con el texto ordinario de la carta y cambie su tamaño automáticamente de acuerdo al `fontSize` de la capa de texto.
+- En los campos de formulario del editor de cartas (inputs de texto y áreas de texto), el texto se mostrará en formato crudo/raw (es decir, el tag literal `{tag}`).
+
+### RF-4: Asistente Visual de Inserción (Helper 🖼️)
+- Junto al icono de información ℹ️ en la etiqueta de cada input/textarea de texto (tanto en el editor de cartas como en las propiedades expuestas en la barra del lienzo), se añadirá un icono de imagen/cuadro 🖼️.
+- Al hacer clic en 🖼️, se abrirá un desplegable/popover contextual con el listado de todos los símbolos disponibles y su slug al lado.
+- Al hacer clic en uno de los símbolos del listado:
+  - Se insertará el tag `{tag}` en la posición actual del cursor (selectionStart/selectionEnd) en el input/textarea correspondiente.
+  - Si el input no tenía el foco, se añadirá el tag `{tag}` al final del texto.
+  - Se disparará el evento de actualización para que el lienzo redibuje la carta con el nuevo símbolo de forma inmediata.
 
 ---
 
-## 3. Estrategia de Verificación Futura
-- Test unitarios para validar que la función de formateo (`parsearTextoConSimbolos`) devuelve los nodos HTML correctos sin romper caracteres de escape ni alterar etiquetas básicas.
-- Pruebas manuales en el editor escribiendo `{T}` y verificando que el lienzo se actualiza y muestra el icono del símbolo correspondiente.
+## 3. Arquitectura y Datos
+
+### Estructura de Datos (Símbolo)
+```typescript
+interface Simbolo {
+  id: string;
+  tag: string; // Ej: "fuego" (se usará como {fuego})
+  filename: string; // Ruta del archivo local en el servidor
+}
+```
+
+### Rutas API Backend
+- `GET /api/projects/:projectId/symbols` - Obtener lista de símbolos.
+- `POST /api/projects/:projectId/symbols` - Subir imagen de símbolo (multipart/form-data) con su respectivo tag, aplicando redimensionamiento en servidor.
+- `PUT /api/projects/:projectId/symbols/:symbolId` - Editar el tag del símbolo.
+- `DELETE /api/projects/:projectId/symbols/:symbolId` - Borrar el archivo y el registro del símbolo.
+
+---
+
+## 4. Estrategia de Verificación
+- **Pruebas Unitarias**:
+  - Testear la función `parsearTextoConSimbolos` con diferentes tags de entrada, asegurando que se transforman correctamente en etiquetas `<img>` y se escapan otros caracteres de forma segura.
+  - Testear el validador de tags (sin espacios, sin caracteres extraños).
+- **Pruebas Manuales**:
+  - Subir una imagen grande de 500x500px, comprobar en el disco del servidor que se ha guardado escalada a 100x100px.
+  - Crear una carta, agregar `{fuego}` en el texto y verificar que se muestra el icono en el lienzo del tamaño correcto de la letra.
+  - Usar el botón 🖼️ en el inspector lateral y en el editor de cartas para verificar que inserta `{slug}` en el cursor y refresca el lienzo en tiempo real.

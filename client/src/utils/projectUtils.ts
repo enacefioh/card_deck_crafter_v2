@@ -165,6 +165,17 @@ export function actualizarClavePlantillaYValores(
     return c;
   });
 
+  const labelTranslation: Record<string, string> = {};
+  const updatedExposedProperties = (plantilla.exposedProperties || []).map((p: any) => {
+    const newPath = obtenerRutaJerarquica(p.layerId, updatedCapas);
+    const propPart = p.label.includes(": ") ? p.label.split(": ").slice(1).join(": ") : p.property;
+    const newLabel = `${newPath}: ${propPart}`;
+    if (newLabel !== p.label) {
+      labelTranslation[p.label] = newLabel;
+    }
+    return { ...p, label: newLabel };
+  });
+
   let updatedCamposConfig = [...(plantilla.camposConfig || [])];
   if (oldClave) {
     if (sanitizedClave !== oldClave) {
@@ -200,13 +211,35 @@ export function actualizarClavePlantillaYValores(
     }
   }
 
+  // Traducir camposConfig usando la traducción de etiquetas
+  updatedCamposConfig = updatedCamposConfig.map((f: any) => {
+    if (labelTranslation[f.clave]) {
+      return {
+        ...f,
+        clave: labelTranslation[f.clave],
+        nombreLegible: labelTranslation[f.clave]
+      };
+    }
+    return f;
+  });
+
+  // Traducir valoresCampos usando la traducción de etiquetas
+  const updatedValoresCampos = { ...valoresCampos };
+  for (const [oldL, newL] of Object.entries(labelTranslation)) {
+    if (updatedValoresCampos[oldL] !== undefined) {
+      updatedValoresCampos[newL] = updatedValoresCampos[oldL];
+      delete updatedValoresCampos[oldL];
+    }
+  }
+
   return {
     plantilla: {
       ...plantilla,
       capas: updatedCapas,
+      exposedProperties: updatedExposedProperties,
       camposConfig: updatedCamposConfig
     },
-    valoresCampos
+    valoresCampos: updatedValoresCampos
   };
 }
 

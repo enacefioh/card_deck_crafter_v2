@@ -1830,7 +1830,7 @@ export default function EditCardModal({
   const traseraUrl = carta.imagenTrasera || imagenTraseraComun;
 
   return (
-    <div className="edit-modal-backdrop" onClick={handleCancel}>
+    <div className="edit-modal-backdrop">
       <div className="edit-modal-container" onClick={(e) => e.stopPropagation()}>
         <style>
           {((tempPlantilla?.customFonts || []) as any[]).map((font) => `
