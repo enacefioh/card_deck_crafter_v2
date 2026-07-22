@@ -283,5 +283,17 @@ export function prepararPlantillaParaExportacion(
   };
 }
 
+export function parsearTextoConSimbolos(text: string, projectSymbols: any[]): string {
+  if (!text) return "";
+  return text.replace(/\{([^}]+)\}/g, (match, tag) => {
+    const sym = projectSymbols?.find(s => s.tag === tag);
+    if (sym && sym.src) {
+      return `<img src="${sym.src}" class="symbol-inline-icon" alt="${tag}" style="height: 1em; width: auto; vertical-align: middle; display: inline-block;" />`;
+    }
+    return match;
+  });
+}
+
+
 
 

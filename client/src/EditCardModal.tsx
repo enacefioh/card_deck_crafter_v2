@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { CardConfig, Carta, ExposedProperty } from "shared";
 import JSZip from "jszip";
-import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion } from "./utils/projectUtils";
+import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion, parsearTextoConSimbolos } from "./utils/projectUtils";
 import "./EditCardModal.css";
 
 const PROPERTY_WEIGHTS: Record<string, number> = {
@@ -39,6 +39,7 @@ interface EditCardModalProps {
   projectColors?: any[];
   userAssets?: any[];
   onAddUserAsset?: (nombre: string, src: string) => void;
+  projectSymbols?: any[];
 }
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
@@ -90,6 +91,7 @@ export default function EditCardModal({
   projectColors = [],
   userAssets = [],
   onAddUserAsset,
+  projectSymbols = [],
 }: EditCardModalProps) {
   // --- Estados de Plantilla Editables Localmente ---
   const [tempPlantilla, setTempPlantilla] = useState<any>(() => {
@@ -2397,7 +2399,7 @@ export default function EditCardModal({
                           const overrides = tempCapasOverridesActivos[capa.id];
                           const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
                           const textoInterp = renderizarTextoCapa(resolvedCapa, tempValoresActivos, plantillaActiva?.capas);
-                          const htmlText = parseMarkdownToHtml(textoInterp);
+                          const htmlText = parsearTextoConSimbolos(parseMarkdownToHtml(textoInterp), projectSymbols);
                           const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * scale;
 
                           // Padding (SRS-033)

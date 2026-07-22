@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import "./DetailModal.css";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
+import { parsearTextoConSimbolos } from "./utils/projectUtils";
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
   if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
@@ -30,6 +31,7 @@ interface DetailModalProps {
   cardConfig: CardConfig;
   onClose: () => void;
   templatesMap?: Record<string, any>;
+  symbols?: any[];
 }
 
 export default function DetailModal({
@@ -40,6 +42,7 @@ export default function DetailModal({
   cardConfig,
   onClose,
   templatesMap = {},
+  symbols = [],
 }: DetailModalProps) {
   // Cerrar al presionar Escape
   useEffect(() => {
@@ -325,7 +328,7 @@ export default function DetailModal({
                                 const overrides = carta.capasOverrides?.[capa.id];
                                 const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
                                 const textoInterp = renderizarTextoCapa(resolvedCapa, carta.valoresCampos);
-                                const htmlText = parseMarkdownToHtml(textoInterp);
+                                const htmlText = parsearTextoConSimbolos(parseMarkdownToHtml(textoInterp), symbols);
                                 const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * 2.5;
 
                                 // Bordes y Esquinas (SRS-024)
@@ -655,7 +658,7 @@ export default function DetailModal({
                                 const overrides = carta.capasOverridesTrasera?.[capa.id];
                                 const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
                                 const textoInterp = renderizarTextoCapa(resolvedCapa, carta.valoresCamposTrasera);
-                                const htmlText = parseMarkdownToHtml(textoInterp);
+                                const htmlText = parsearTextoConSimbolos(parseMarkdownToHtml(textoInterp), symbols);
                                 const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * 2.5;
 
                                 // Bordes y Esquinas (SRS-024)

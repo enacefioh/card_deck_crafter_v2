@@ -23,11 +23,43 @@ app.use(express.json());
 // Directorio para cargas temporales
 const UPLOADS_DIR = path.join(__dirname, "../temp/uploads");
 const EXPORTS_DIR = path.join(__dirname, "../temp/exports");
+const SYMBOLS_DIR = path.join(__dirname, "../temp/symbols");
 
 fs.ensureDirSync(UPLOADS_DIR);
 fs.ensureDirSync(EXPORTS_DIR);
+fs.ensureDirSync(SYMBOLS_DIR);
 
 const upload = multer({ dest: UPLOADS_DIR });
+
+interface Simbolo {
+  id: string;
+  tag: string;
+  filename: string;
+  src?: string;
+}
+
+let registeredSymbols: Simbolo[] = [];
+
+function parsearTextoConSimbolos(text: string, projectSymbols: any[], tempDir?: string): string {
+  if (!text) return "";
+  return text.replace(/\{([^}]+)\}/g, (match, tag) => {
+    const sym = projectSymbols?.find(s => s.tag === tag);
+    if (sym && sym.src) {
+      let resolvedSrc = sym.src;
+      if (resolvedSrc.startsWith("symbol_asset://")) {
+        const filename = resolvedSrc.replace("symbol_asset://", "");
+        if (tempDir) {
+          const absPath = path.join(tempDir, "symbols", filename);
+          resolvedSrc = `file:///${absPath.replace(/\\/g, "/")}`;
+        } else {
+          resolvedSrc = `/api/symbols/raw/${filename}`;
+        }
+      }
+      return `<img src="${resolvedSrc}" class="symbol-inline-icon" alt="${tag}" style="height: 1em; width: auto; vertical-align: middle; display: inline-block;" />`;
+    }
+    return match;
+  });
+}
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
   let texto = capa.contenidoRaw || "";
@@ -152,6 +184,11 @@ function generarHtmlImpresion(
 
   const resolverAssetPath = (src: string | null) => {
     if (!src) return "";
+    if (src.startsWith("symbol_asset://")) {
+      const filename = src.replace("symbol_asset://", "");
+      const absPath = path.join(tempDir, "symbols", filename);
+      return `file:///${absPath.replace(/\\/g, "/")}`;
+    }
     if (src.startsWith("user_asset://")) {
       const filename = src.replace("user_asset://", "");
       const absPath = path.join(tempDir, "user_assets", filename);
@@ -354,7 +391,8 @@ function generarHtmlImpresion(
                 const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
                 const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
                 const textoInterp = renderizarTextoCapa(resolvedCapa, valores, plantilla?.capas);
-                const htmlText = parseMarkdownToHtml(textoInterp);
+                const htmlTextWithMarkdown = parseMarkdownToHtml(textoInterp);
+                const htmlText = parsearTextoConSimbolos(htmlTextWithMarkdown, proyecto.projectSymbols, tempDir);
                 const fontSizePt = resolvedCapa.fontSizePt || 12;
                 const align = resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : resolvedCapa.alineacion === "justify" ? "justify" : "left";
                 const weight = resolvedCapa.bold ? "bold" : "normal";
@@ -618,6 +656,100 @@ function generarHtmlImpresion(
     </html>
   `;
 }
+
+// --- RUTAS DE LA GALERÍA DE SÍMBOLOS (SRS-011) ---
+
+// Servir símbolos en crudo
+app.get("/api/symbols/raw/:filename", async (req, res) => {
+  const filepath = path.join(SYMBOLS_DIR, req.params.filename);
+  if (await fs.pathExists(filepath)) {
+    return res.sendFile(filepath);
+  }
+  return res.status(404).json({ error: "Símbolo no encontrado." });
+});
+
+// Listar todos los símbolos registrados
+app.get(["/api/symbols", "/api/projects/:projectId/symbols"], (req, res) => {
+  return res.json(registeredSymbols);
+});
+
+// Subir nuevo símbolo
+app.post(["/api/symbols", "/api/projects/:projectId/symbols"], upload.single("image"), async (req, res) => {
+  try {
+    const file = req.file;
+    const tag = req.body.tag;
+
+    if (!file) {
+      return res.status(400).json({ error: "No se recibió ninguna imagen." });
+    }
+    if (!tag) {
+      return res.status(400).json({ error: "No se recibió ningún tag." });
+    }
+
+    const id = `symbol_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const extension = path.extname(file.originalname) || ".png";
+    const filename = `${id}${extension}`;
+    const destPath = path.join(SYMBOLS_DIR, filename);
+
+    // Mover archivo temporal al directorio final de símbolos
+    await fs.move(file.path, destPath, { overwrite: true });
+
+    const newSymbol: Simbolo = {
+      id,
+      tag: tag.trim().replace(/\s+/g, ""),
+      filename,
+      src: `/api/symbols/raw/${filename}`
+    };
+
+    registeredSymbols.push(newSymbol);
+    return res.status(201).json(newSymbol);
+  } catch (err: any) {
+    console.error("Error al subir símbolo:", err);
+    return res.status(500).json({ error: "Error interno al guardar símbolo." });
+  }
+});
+
+// Modificar tag de un símbolo
+app.put(["/api/symbols/:id", "/api/projects/:projectId/symbols/:symbolId"], (req, res) => {
+  const id = req.params.id || req.params.symbolId;
+  const newTag = req.body.tag;
+
+  if (!newTag) {
+    return res.status(400).json({ error: "El tag no puede estar vacío." });
+  }
+
+  const cleanTag = newTag.trim().replace(/\s+/g, "");
+  const sym = registeredSymbols.find(s => s.id === id);
+  if (!sym) {
+    return res.status(404).json({ error: "Símbolo no encontrado." });
+  }
+
+  sym.tag = cleanTag;
+  return res.json(sym);
+});
+
+// Eliminar un símbolo
+app.delete(["/api/symbols/:id", "/api/projects/:projectId/symbols/:symbolId"], async (req, res) => {
+  const id = req.params.id || req.params.symbolId;
+  const symIdx = registeredSymbols.findIndex(s => s.id === id);
+  if (symIdx === -1) {
+    return res.status(404).json({ error: "Símbolo no encontrado." });
+  }
+
+  const sym = registeredSymbols[symIdx];
+  const filepath = path.join(SYMBOLS_DIR, sym.filename);
+
+  try {
+    if (await fs.pathExists(filepath)) {
+      await fs.remove(filepath);
+    }
+  } catch (err) {
+    console.error("Error eliminando archivo físico de símbolo:", err);
+  }
+
+  registeredSymbols.splice(symIdx, 1);
+  return res.json({ success: true, id });
+});
 
 // Endpoint de exportación a PDF
 app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res) => {

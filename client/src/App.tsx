@@ -3,9 +3,10 @@ import { calcularDistribucion } from "shared";
 import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2 } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
-import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla, obtenerRutaJerarquica } from "./utils/projectUtils";
+import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla, obtenerRutaJerarquica, parsearTextoConSimbolos } from "./utils/projectUtils";
 import DetailModal from "./DetailModal";
 import EditCardModal from "./EditCardModal";
+import SymbolsGalleryModal from "./SymbolsGalleryModal";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -1640,6 +1641,24 @@ export default function App() {
       }
       setUserAssetsInternal(nuevosUserAssets);
 
+      // Cargar galería de símbolos (SRS-011)
+      const nuevosProjectSymbols: any[] = [];
+      if (proyecto.projectSymbols) {
+        for (const sym of proyecto.projectSymbols) {
+          if (sym.src) {
+            const url = await resolverAssetBlob(sym.src);
+            if (url) {
+              nuevosProjectSymbols.push({
+                id: sym.id,
+                tag: sym.tag,
+                src: url
+              });
+            }
+          }
+        }
+      }
+      setProjectSymbolsInternal(nuevosProjectSymbols);
+
       // Cargar tipografías del proyecto (SRS-026)
       const nuevosProjectFonts: any[] = [];
       if (proyecto.customFonts) {
@@ -2414,6 +2433,7 @@ export default function App() {
         onShowProjectFonts={() => setShowProjectFonts(true)}
         onShowTemplatesManager={() => setShowTemplatesManager(true)}
         onShowProjectColors={() => setShowProjectColors(true)}
+        onShowSymbolsGallery={() => setShowSymbolsGallery(true)}
         onShowProjectConfig={() => setShowProjectConfig(true)}
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
         onExportarPdf={handleExportarPdf}
@@ -3093,7 +3113,7 @@ export default function App() {
                                           const overrides = cardData.capasOverrides?.[capa.id];
                                           const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
                                           const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCampos, plantilla?.capas);
-                                          const htmlText = parseMarkdownToHtml(textoInterp);
+                                          const htmlText = parsearTextoConSimbolos(parseMarkdownToHtml(textoInterp), projectSymbols);
                                           const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
 
                                           // Padding (SRS-033)
@@ -3783,7 +3803,7 @@ export default function App() {
                                               const overrides = cardData.capasOverridesTrasera?.[capa.id];
                                               const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
                                               const textoInterp = renderizarTextoCapa(resolvedCapa, cardData.valoresCamposTrasera, plantilla?.capas);
-                                              const htmlText = parseMarkdownToHtml(textoInterp);
+                                              const htmlText = parsearTextoConSimbolos(parseMarkdownToHtml(textoInterp), projectSymbols);
                                               const fontSizePx = (resolvedCapa.fontSizePt || 12) * 0.352778 * zoomFactor;
 
                                               // Padding (SRS-033)
@@ -4667,6 +4687,7 @@ export default function App() {
           cardConfig={cardConfig}
           onClose={() => setInspectingCardId(null)}
           templatesMap={templatesMap}
+          symbols={projectSymbols}
         />
       )}
       {editingCardId && cartas.find((c) => c.id === editingCardId) && (
@@ -4706,6 +4727,7 @@ export default function App() {
               return [...prev, { id: assetId, nombre, src }];
             });
           }}
+          projectSymbols={projectSymbols}
         />
       )}
       {showTemplateModal && (
@@ -4809,6 +4831,13 @@ export default function App() {
             </footer>
           </div>
         </div>
+      )}
+      {showSymbolsGallery && (
+        <SymbolsGalleryModal
+          symbols={projectSymbols}
+          onSaveSymbols={(updated) => setProjectSymbols(updated)}
+          onClose={() => setShowSymbolsGallery(false)}
+        />
       )}
       {showProjectGallery && (
         <div className="gallery-popup-backdrop" onClick={() => setShowProjectGallery(false)}>

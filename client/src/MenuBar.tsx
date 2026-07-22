@@ -25,6 +25,7 @@ interface MenuBarProps {
   onShowProjectFonts?: () => void;
   onShowTemplatesManager?: () => void;
   onShowProjectColors?: () => void;
+  onShowSymbolsGallery?: () => void;
 
   // Acciones de Selección
   selectedCount: number;
@@ -72,6 +73,7 @@ export default function MenuBar({
   onShowProjectFonts,
   onShowTemplatesManager,
   onShowProjectColors,
+  onShowSymbolsGallery,
   selectedCount,
   puedeMoverArriba,
   puedeMoverAbajo,
@@ -285,6 +287,12 @@ export default function MenuBar({
                 onClick={() => handleAction(onShowProjectColors || (() => {}))}
               >
                 <span className="menu-item-icon">🎨</span> Colores del Proyecto...
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onShowSymbolsGallery || (() => {}))}
+              >
+                <span className="menu-item-icon">🧸</span> Galería de Símbolos...
               </button>
             </div>
           )}
