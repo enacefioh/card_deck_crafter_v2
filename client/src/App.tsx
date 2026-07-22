@@ -382,51 +382,6 @@ export default function App() {
     setIsDirty(true);
   };
 
-  const resizeImageToMax100 = (file: File): Promise<Blob> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          let width = img.width;
-          let height = img.height;
-          
-          if (width > height) {
-            if (width > 100) {
-              height = Math.round((height * 100) / width);
-              width = 100;
-            }
-          } else {
-            if (height > 100) {
-              width = Math.round((width * 100) / height);
-              height = 100;
-            }
-          }
-          
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            canvas.toBlob((blob) => {
-              if (blob) {
-                resolve(blob);
-              } else {
-                reject(new Error("Error al convertir canvas a blob"));
-              }
-            }, "image/png");
-          } else {
-            reject(new Error("No se pudo obtener el contexto 2d del canvas"));
-          }
-        };
-        img.onerror = () => reject(new Error("Error al cargar la imagen"));
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = () => reject(new Error("Error al leer el archivo"));
-      reader.readAsDataURL(file);
-    });
-  };
 
   // --- Galería de Usuario (SRS-045) ---
   const [userAssets, setUserAssetsInternal] = useState<any[]>([]);
@@ -4079,7 +4034,7 @@ export default function App() {
               const capa = layers.find((x) => x.id === capaId);
               if (!capa) return false;
 
-              const overrides = isBack ? c.capasOverridesTrasera?.[capaId] : c.capasOverrides?.[capaId];
+              const overrides = (isBack ? c.capasOverridesTrasera?.[capaId] : c.capasOverrides?.[capaId]) as any;
               const visibility = overrides?.visibility !== undefined ? overrides.visibility : (capa.visibility || "visible");
               const visible = overrides?.visible !== undefined ? overrides.visible : (capa.visible !== false);
 
@@ -4168,14 +4123,14 @@ export default function App() {
 
             const isAncestorCollapsed = (layerId: string | null): boolean => {
               if (!layerId) return false;
-              const layer = baseCapas.find(l => l.id === layerId);
+              const layer = baseCapas.find((l: any) => l.id === layerId);
               if (!layer) return false;
               let currentId = layer.parentCapaId;
               while (currentId) {
                 if (collapsedSections[currentId] === true) {
                   return true;
                 }
-                const parent = baseCapas.find(l => l.id === currentId);
+                const parent = baseCapas.find((l: any) => l.id === currentId);
                 currentId = parent ? parent.parentCapaId : null;
               }
               return false;
@@ -4247,7 +4202,7 @@ export default function App() {
 
                   const campo = item.campo;
                   const isCollapsed = collapsedSections[item.layerId] === true;
-                  const layer = baseCapas.find(l => l.id === item.layerId);
+                  const layer = baseCapas.find((l: any) => l.id === item.layerId);
                   const hideField = (layer?.tipo === "container" && isCollapsed) || isAncestorCollapsed(item.layerId);
                   if (hideField) {
                     return null;
