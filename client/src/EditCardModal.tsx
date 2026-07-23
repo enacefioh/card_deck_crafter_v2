@@ -126,6 +126,26 @@ export default function EditCardModal({
   const [hoveredLayerId, setHoveredLayerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"frontal" | "trasera">("frontal");
 
+  const [activeSymbolPopover, setActiveSymbolPopover] = useState<string | null>(null);
+
+  const handleInsertSymbol = (tag: string, inputId: string, currentValue: string, onUpdate: (val: string) => void) => {
+    const input = document.getElementById(inputId) as HTMLInputElement | HTMLTextAreaElement | null;
+    if (input) {
+      const start = input.selectionStart ?? currentValue.length;
+      const end = input.selectionEnd ?? currentValue.length;
+      const nextVal = currentValue.substring(0, start) + `{${tag}}` + currentValue.substring(end);
+      onUpdate(nextVal);
+      setTimeout(() => {
+        input.focus();
+        const newCursorPos = start + tag.length + 2;
+        input.setSelectionRange(newCursorPos, newCursorPos);
+      }, 50);
+    } else {
+      onUpdate(currentValue + `{${tag}}`);
+    }
+    setActiveSymbolPopover(null);
+  };
+
   // Popup de añadir elementos
   const [showAddElementPopup, setShowAddElementPopup] = useState<boolean>(false);
   const [canvasEditMode, setCanvasEditMode] = useState<boolean>(false);
@@ -260,12 +280,15 @@ export default function EditCardModal({
       if (showDropdown && !target.closest(".template-actions-group")) {
         setShowDropdown(false);
       }
+      if (activeSymbolPopover && !target.closest(".symbols-helper-container")) {
+        setActiveSymbolPopover(null);
+      }
     };
     document.addEventListener("click", handleOutsideClick);
     return () => {
       document.removeEventListener("click", handleOutsideClick);
     };
-  }, [showDropdown]);
+  }, [showDropdown, activeSymbolPopover]);
 
   // Resolver estructuras activas según la pestaña activa
   const plantillaActiva = activeTab === "frontal" ? tempPlantilla : tempPlantillaTrasera;
@@ -2994,7 +3017,7 @@ export default function EditCardModal({
                           </div>
                           
                           <div className="inspector-section">
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px", position: "relative" }}>
                               <label className="inspector-label" style={{ margin: 0 }}>
                                 {selectedCapa.nombre || "Texto"}
                               </label>
@@ -3004,9 +3027,48 @@ export default function EditCardModal({
                               >
                                 ℹ️
                               </span>
+                              <div className="symbols-helper-container">
+                                <span
+                                  className="symbols-helper-trigger"
+                                  title="Insertar símbolo"
+                                  onClick={() => setActiveSymbolPopover(activeSymbolPopover === "override" ? null : "override")}
+                                >
+                                  🖼️
+                                </span>
+                                {activeSymbolPopover === "override" && (
+                                  <div className="symbols-helper-popover">
+                                    {projectSymbols.length === 0 ? (
+                                      <div className="symbols-helper-empty">No hay símbolos en el proyecto</div>
+                                    ) : (
+                                      projectSymbols.map((sym: any) => (
+                                        <button
+                                          key={sym.id}
+                                          type="button"
+                                          className="symbols-helper-item"
+                                          onClick={() => {
+                                            const currentVal = tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "");
+                                            const inputId = selectedCapa.multiline !== false ? ("editcard-override-textarea-" + selectedCapa.id) : ("editcard-override-input-" + selectedCapa.id);
+                                            handleInsertSymbol(sym.tag, inputId, currentVal, (newVal) => {
+                                              if (activeTab === "frontal") {
+                                                setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: newVal }));
+                                              } else {
+                                                setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: newVal }));
+                                              }
+                                            });
+                                          }}
+                                        >
+                                          <img src={sym.src} alt={sym.tag} />
+                                          <span className="symbols-helper-tag">{`{${sym.tag}}`}</span>
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                             {selectedCapa.multiline !== false ? (
                               <textarea
+                                id={"editcard-override-textarea-" + selectedCapa.id}
                                 className="inspector-textarea"
                                 value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
                                 rows={4}
@@ -3021,6 +3083,7 @@ export default function EditCardModal({
                               />
                             ) : (
                               <input
+                                id={"editcard-override-input-" + selectedCapa.id}
                                 type="text"
                                 className="inspector-input"
                                 value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
@@ -3147,7 +3210,7 @@ export default function EditCardModal({
                           <h4 className="inspector-group-title">Definición de Plantilla</h4>
 
                           <div className="inspector-section">
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px", position: "relative" }}>
                               <label className="inspector-label" style={{ margin: 0 }}>Texto por defecto</label>
                               <span
                                 style={{ cursor: "pointer", fontSize: "14px" }}
@@ -3159,9 +3222,44 @@ export default function EditCardModal({
                               >
                                 📋
                               </span>
+                              <div className="symbols-helper-container">
+                                <span
+                                  className="symbols-helper-trigger"
+                                  title="Insertar símbolo"
+                                  onClick={() => setActiveSymbolPopover(activeSymbolPopover === "default" ? null : "default")}
+                                >
+                                  🖼️
+                                </span>
+                                {activeSymbolPopover === "default" && (
+                                  <div className="symbols-helper-popover">
+                                    {projectSymbols.length === 0 ? (
+                                      <div className="symbols-helper-empty">No hay símbolos en el proyecto</div>
+                                    ) : (
+                                      projectSymbols.map((sym: any) => (
+                                        <button
+                                          key={sym.id}
+                                          type="button"
+                                          className="symbols-helper-item"
+                                          onClick={() => {
+                                            const currentVal = selectedCapa.contenidoRaw || "";
+                                            const inputId = selectedCapa.multiline !== false ? ("editcard-default-textarea-" + selectedCapa.id) : ("editcard-default-input-" + selectedCapa.id);
+                                            handleInsertSymbol(sym.tag, inputId, currentVal, (newVal) => {
+                                              handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", newVal);
+                                            });
+                                          }}
+                                        >
+                                          <img src={sym.src} alt={sym.tag} />
+                                          <span className="symbols-helper-tag">{`{${sym.tag}}`}</span>
+                                        </button>
+                                      ))
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             </div>
                             {selectedCapa.multiline !== false ? (
                               <textarea
+                                id={"editcard-default-textarea-" + selectedCapa.id}
                                 className="inspector-textarea"
                                 value={selectedCapa.contenidoRaw || ""}
                                 rows={4}
@@ -3169,6 +3267,7 @@ export default function EditCardModal({
                               />
                             ) : (
                               <input
+                                id={"editcard-default-input-" + selectedCapa.id}
                                 type="text"
                                 className="inspector-input"
                                 value={selectedCapa.contenidoRaw || ""}

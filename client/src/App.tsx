@@ -458,6 +458,25 @@ export default function App() {
   // --- Estado de la pestaña del Inspector Delantera/Trasera (SRS-044) ---
   const [inspectorTab, setInspectorTab] = useState<"front" | "back">("front");
   const [hoveredCapaId, setHoveredCapaId] = useState<string | null>(null);
+  const [activeSymbolPopover, setActiveSymbolPopover] = useState<string | null>(null);
+
+  const handleInsertSymbol = (tag: string, inputId: string, currentValue: string, onUpdate: (val: string) => void) => {
+    const input = document.getElementById(inputId) as HTMLInputElement | HTMLTextAreaElement | null;
+    if (input) {
+      const start = input.selectionStart ?? currentValue.length;
+      const end = input.selectionEnd ?? currentValue.length;
+      const nextVal = currentValue.substring(0, start) + `{${tag}}` + currentValue.substring(end);
+      onUpdate(nextVal);
+      setTimeout(() => {
+        input.focus();
+        const newCursorPos = start + tag.length + 2;
+        input.setSelectionRange(newCursorPos, newCursorPos);
+      }, 50);
+    } else {
+      onUpdate(currentValue + `{${tag}}`);
+    }
+    setActiveSymbolPopover(null);
+  };
 
   const setProjectColors = (value: React.SetStateAction<any[]>) => {
     setProjectColorsInternal(value);
@@ -2017,6 +2036,20 @@ export default function App() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [showTemplateModal]);
+
+  // Cerrar popover de símbolos al hacer clic fuera (RF-4)
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (activeSymbolPopover && !target.closest(".symbols-helper-container")) {
+        setActiveSymbolPopover(null);
+      }
+    };
+    document.addEventListener("click", handleOutsideClick);
+    return () => {
+      document.removeEventListener("click", handleOutsideClick);
+    };
+  }, [activeSymbolPopover]);
 
   // --- Nuevo Proyecto (Reset) ---
   const handleNuevoProyecto = () => {
@@ -4341,8 +4374,50 @@ export default function App() {
                                   <label className="inspector-label-col" title={displayLabel} style={{ fontWeight: "600", fontSize: "11px" }}>
                                     {labelTruncated}
                                   </label>
-                                  <div className="inspector-value-col">
+                                  <div className="inspector-value-col" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                                      <div className="symbols-helper-container" style={{ position: "relative" }}>
+                                        <span
+                                          className="symbols-helper-trigger"
+                                          title="Insertar símbolo"
+                                          style={{ cursor: "pointer", fontSize: "14px" }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveSymbolPopover(activeSymbolPopover === `inspector_${campo.property}_${fieldIdx}` ? null : `inspector_${campo.property}_${fieldIdx}`);
+                                          }}
+                                        >
+                                          🖼️
+                                        </span>
+                                        {activeSymbolPopover === `inspector_${campo.property}_${fieldIdx}` && (
+                                          <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "4px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                                            {projectSymbols.length === 0 ? (
+                                              <div className="symbols-helper-empty" style={{ fontSize: "11px", padding: "4px", color: "var(--text-secondary)" }}>No hay símbolos</div>
+                                            ) : (
+                                              projectSymbols.map((sym: any) => (
+                                                <button
+                                                  key={sym.id}
+                                                  type="button"
+                                                  className="symbols-helper-item"
+                                                  style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const inputId = `inspector-textarea-${campo.property}-${fieldIdx}`;
+                                                    handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
+                                                      handleUpdateValorLote(newVal);
+                                                    });
+                                                  }}
+                                                >
+                                                  <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
+                                                  <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
+                                                </button>
+                                              ))
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
                                     <textarea
+                                      id={`inspector-textarea-${campo.property}-${fieldIdx}`}
                                       ref={(el) => {
                                         if (el) {
                                           el.style.height = "auto";
@@ -4377,14 +4452,56 @@ export default function App() {
                                 </label>
                                 <div className="inspector-value-col">
                                   {campo.tipoCapa === "text" && campo.property === "contenidoRaw" && (
-                                    <input
-                                      type="text"
-                                      className="inspector-input"
-                                      value={valorMostrar}
-                                      placeholder={placeholderTexto}
-                                      onChange={(e) => handleUpdateValorLote(e.target.value)}
-                                      style={{ height: "26px", fontSize: "12px", width: "100%" }}
-                                    />
+                                    <div style={{ display: "flex", gap: "4px", width: "100%", alignItems: "center", position: "relative" }}>
+                                      <input
+                                        id={`inspector-input-${campo.property}-${fieldIdx}`}
+                                        type="text"
+                                        className="inspector-input"
+                                        value={valorMostrar}
+                                        placeholder={placeholderTexto}
+                                        onChange={(e) => handleUpdateValorLote(e.target.value)}
+                                        style={{ height: "26px", fontSize: "12px", flex: 1, minWidth: 0 }}
+                                      />
+                                      <div className="symbols-helper-container" style={{ position: "relative" }}>
+                                        <span
+                                          className="symbols-helper-trigger"
+                                          title="Insertar símbolo"
+                                          style={{ cursor: "pointer", fontSize: "14px" }}
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setActiveSymbolPopover(activeSymbolPopover === `inspector_${campo.property}_${fieldIdx}` ? null : `inspector_${campo.property}_${fieldIdx}`);
+                                          }}
+                                        >
+                                          🖼️
+                                        </span>
+                                        {activeSymbolPopover === `inspector_${campo.property}_${fieldIdx}` && (
+                                          <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "4px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                                            {projectSymbols.length === 0 ? (
+                                              <div className="symbols-helper-empty" style={{ fontSize: "11px", padding: "4px", color: "var(--text-secondary)" }}>No hay símbolos</div>
+                                            ) : (
+                                              projectSymbols.map((sym: any) => (
+                                                <button
+                                                  key={sym.id}
+                                                  type="button"
+                                                  className="symbols-helper-item"
+                                                  style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const inputId = `inspector-input-${campo.property}-${fieldIdx}`;
+                                                    handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
+                                                      handleUpdateValorLote(newVal);
+                                                    });
+                                                  }}
+                                                >
+                                                  <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
+                                                  <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
+                                                </button>
+                                              ))
+                                            )}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
                                   )}
 
                                   {(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) && (

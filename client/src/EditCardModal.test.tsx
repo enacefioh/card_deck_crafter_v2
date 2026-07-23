@@ -128,4 +128,66 @@ describe("EditCardModal Component - Zoom Tests", () => {
     expect(blockLayer.nombre).toContain("bloque_");
     expect(blockLayer.backgroundColor).toBe("");
   });
+
+  it("muestra el ayudante de símbolos si se provee projectSymbols y permite insertar un símbolo en los campos de texto editables", () => {
+    const mockTemplatesWithExposed = {
+      template_1: {
+        id: "template_1",
+        nombre: "Template 1",
+        capas: [
+          { id: "layer_1", tipo: "text", nombre: "CapaTexto", contenidoRaw: "Hola" }
+        ],
+        camposConfig: [],
+        exposedProperties: [
+          { layerId: "layer_1", property: "contenidoRaw", label: "TextoCapa" }
+        ]
+      }
+    };
+
+    const mockSymbols = [
+      { id: "sym_1", tag: "fuego", src: "data:image/svg+xml;utf8,<svg></svg>" }
+    ];
+
+    render(
+      <EditCardModal
+        carta={{
+          ...mockCarta,
+          valoresCampos: {
+            "layer_1": "Hola"
+          }
+        }}
+        cardConfig={mockCardConfig}
+        templatesMap={mockTemplatesWithExposed}
+        generarReversos={false}
+        imagenTraseraComun={null}
+        onSave={vi.fn()}
+        onClose={vi.fn()}
+        projectSymbols={mockSymbols}
+      />
+    );
+
+    // Muestra el trigger de insertar símbolos (el emoji 🖼️)
+    // Primero, debemos seleccionar la capa "CapaTexto" en el árbol para abrir el inspector
+    const layerItem = screen.getByText("CapaTexto");
+    expect(layerItem).toBeTruthy();
+    fireEvent.click(layerItem);
+
+    // Ahora el inspector debe estar visible para esa capa.
+    // Buscamos el trigger de insertar símbolos (el emoji 🖼️)
+    const triggers = screen.getAllByTitle("Insertar símbolo");
+    expect(triggers.length).toBeGreaterThanOrEqual(1);
+    const trigger = triggers[0];
+
+    // Al hacer click, abre el popover y muestra el tag
+    fireEvent.click(trigger);
+    const tagText = screen.getByText("{fuego}");
+    expect(tagText).toBeTruthy();
+
+    // Al hacer click en el botón del símbolo, debe insertar el tag en el texto
+    fireEvent.click(tagText);
+
+    // El input o textarea del valor editable de la carta debe actualizarse
+    const textInput = screen.getByDisplayValue("Hola{fuego}") as HTMLInputElement;
+    expect(textInput).toBeTruthy();
+  });
 });
