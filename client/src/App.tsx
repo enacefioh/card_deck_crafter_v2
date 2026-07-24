@@ -204,7 +204,7 @@ export default function App() {
 
     const initialValues = selectedCardIds.map(cid => {
       const c = cartas.find(x => x.id === cid);
-      if (!c) return { cardId: cid, layerId: targetCapaId, xMm: 0, yMm: 0, anchoMm: 0, altoMm: 0 };
+      if (!c) return { cardId: cid, layerId: targetCapaId, xMm: 0, yMm: 0, anchoMm: 0, altoMm: 0, chainIds: [], savedRotations: {} as Record<string, number> };
       
       const p = isBack
         ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
@@ -223,6 +223,24 @@ export default function App() {
       const layerObj = p?.capas?.find((x: any) => x.id === targetLayerId) as any;
       const overrides = (isBack ? c.capasOverridesTrasera?.[targetLayerId] : c.capasOverrides?.[targetLayerId]) as any;
 
+      // Obtener cadena completa de ancestros (hijo, padre, abuelo... hasta contenedor raíz)
+      const chainIds: string[] = [];
+      let currentId: string | null = targetLayerId;
+      while (currentId) {
+        chainIds.push(currentId);
+        const lObj = p?.capas?.find((x: any) => x.id === currentId);
+        currentId = lObj?.parentCapaId || null;
+      }
+
+      // Guardar las rotaciones originales de todos los elementos en la cadena
+      const savedRotations: Record<string, number> = {};
+      chainIds.forEach(id => {
+        const lObj = p?.capas?.find((x: any) => x.id === id);
+        const ov = isBack ? c.capasOverridesTrasera?.[id] : c.capasOverrides?.[id];
+        const rot = Number(ov?.rotacion !== undefined ? ov.rotacion : (lObj?.rotacion || 0));
+        savedRotations[id] = rot;
+      });
+
       return {
         cardId: cid,
         layerId: targetLayerId,
@@ -230,8 +248,34 @@ export default function App() {
         yMm: Number(overrides?.yMm !== undefined ? overrides.yMm : (layerObj?.yMm || 0)),
         anchoMm: Number(overrides?.anchoMm !== undefined ? overrides.anchoMm : (layerObj?.anchoMm || 0)),
         altoMm: Number(overrides?.altoMm !== undefined ? overrides.altoMm : (layerObj?.altoMm || 0)),
+        chainIds,
+        savedRotations
       };
     });
+
+    // Poner a 0° la rotación de todos los elementos en la cadena inmediatamente al hacer mouseDown
+    const cartasZeroRotations = cartas.map(c => {
+      if (!selectedCardIds.includes(c.id)) return c;
+      const init = initialValues.find(x => x.cardId === c.id);
+      if (!init) return c;
+
+      if (isBack) {
+        const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
+        init.chainIds.forEach((id: string) => {
+          const currentOverride = nextOverridesTrasera[id] || {};
+          nextOverridesTrasera[id] = { ...currentOverride, rotacion: 0 };
+        });
+        return { ...c, capasOverridesTrasera: nextOverridesTrasera };
+      } else {
+        const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+        init.chainIds.forEach((id: string) => {
+          const currentOverride = nextOverrides[id] || {};
+          nextOverrides[id] = { ...currentOverride, rotacion: 0 };
+        });
+        return { ...c, capasOverrides: nextOverrides };
+      }
+    });
+    setCartas(cartasZeroRotations);
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - startX;
@@ -256,18 +300,28 @@ export default function App() {
 
         if (isBack) {
           const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
-          const currentOverride = nextOverridesTrasera[init.layerId] || {};
+          init.chainIds.forEach((id: string) => {
+            const currentOverride = nextOverridesTrasera[id] || {};
+            nextOverridesTrasera[id] = { ...currentOverride, rotacion: 0 };
+          });
+          const currentTargetOverride = nextOverridesTrasera[init.layerId] || {};
           nextOverridesTrasera[init.layerId] = {
-            ...currentOverride,
-            ...extraUpdates
+            ...currentTargetOverride,
+            ...extraUpdates,
+            rotacion: 0
           };
           return { ...c, capasOverridesTrasera: nextOverridesTrasera };
         } else {
           const nextOverrides = { ...(c.capasOverrides || {}) } as any;
-          const currentOverride = nextOverrides[init.layerId] || {};
+          init.chainIds.forEach((id: string) => {
+            const currentOverride = nextOverrides[id] || {};
+            nextOverrides[id] = { ...currentOverride, rotacion: 0 };
+          });
+          const currentTargetOverride = nextOverrides[init.layerId] || {};
           nextOverrides[init.layerId] = {
-            ...currentOverride,
-            ...extraUpdates
+            ...currentTargetOverride,
+            ...extraUpdates,
+            rotacion: 0
           };
           return { ...c, capasOverrides: nextOverrides };
         }
@@ -278,6 +332,34 @@ export default function App() {
 
     const handleMouseUp = () => {
       setIsDirty(true);
+
+      // Restaurar las rotaciones originales de toda la cadena de ancestros al terminar de mover/redimensionar
+      setCartas(prevCartas =>
+        prevCartas.map(c => {
+          if (!selectedCardIds.includes(c.id)) return c;
+          const init = initialValues.find(x => x.cardId === c.id);
+          if (!init) return c;
+
+          if (isBack) {
+            const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
+            init.chainIds.forEach((id: string) => {
+              const currentOverride = nextOverridesTrasera[id] || {};
+              const origRot = init.savedRotations[id];
+              nextOverridesTrasera[id] = { ...currentOverride, rotacion: origRot };
+            });
+            return { ...c, capasOverridesTrasera: nextOverridesTrasera };
+          } else {
+            const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+            init.chainIds.forEach((id: string) => {
+              const currentOverride = nextOverrides[id] || {};
+              const origRot = init.savedRotations[id];
+              nextOverrides[id] = { ...currentOverride, rotacion: origRot };
+            });
+            return { ...c, capasOverrides: nextOverrides };
+          }
+        })
+      );
+
       document.removeEventListener("mousemove", handleMouseMove);
       document.removeEventListener("mouseup", handleMouseUp);
     };
@@ -3014,6 +3096,8 @@ export default function App() {
                                           visibility: (resolvedCapa.visibility || "visible") === "hidden" ? "hidden" : undefined,
                                           display: (resolvedCapa.visibility || "visible") === "collapsed" ? "none" : (isParentFlex ? "flex" : undefined),
                                           zIndex: isEditActive ? 10 : (hoveredCapaId === capa.id ? 9 : 1),
+                                          transform: (!isEditActive && resolvedCapa.rotacion) ? `rotate(${resolvedCapa.rotacion}deg)` : undefined,
+                                          transformOrigin: (!isEditActive && resolvedCapa.rotacion) ? "center center" : undefined,
                                         };
 
                                         if (capa.tipo === "background") {
@@ -3584,10 +3668,8 @@ export default function App() {
 
 
                                               zIndex: isEditActive ? 10 : (hoveredCapaId === capa.id ? 9 : 1),
-
-
-
-
+                                              transform: (!isEditActive && resolvedCapa.rotacion) ? `rotate(${resolvedCapa.rotacion}deg)` : undefined,
+                                              transformOrigin: (!isEditActive && resolvedCapa.rotacion) ? "center center" : undefined,
                                             };
 
                                             if (capa.tipo === "background") {
@@ -4686,10 +4768,42 @@ export default function App() {
                                      </div>
                                    )}
 
+                                   {campo.property === "rotacion" && (
+                                      <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                                        <input
+                                          type="number"
+                                          min="-180"
+                                          max="180"
+                                          step="1"
+                                          className="inspector-input"
+                                          style={{ width: "60px", height: "26px", fontSize: "12px" }}
+                                          value={valorMostrar !== undefined ? valorMostrar : 0}
+                                          placeholder={placeholderTexto}
+                                          onChange={(e) => {
+                                            let val = Number(e.target.value);
+                                            if (isNaN(val)) val = 0;
+                                            if (val < -180) val = -180;
+                                            if (val > 180) val = 180;
+                                            handleUpdateValorLote(val);
+                                          }}
+                                        />
+                                        <input
+                                          type="range"
+                                          min="-180"
+                                          max="180"
+                                          step="1"
+                                          style={{ flex: 1, cursor: "pointer", height: "26px" }}
+                                          value={valorMostrar !== undefined ? valorMostrar : 0}
+                                          onChange={(e) => handleUpdateValorLote(Number(e.target.value))}
+                                        />
+                                      </div>
+                                    )}
+
                                    {campo.property !== "anchoMm" &&
                                     campo.property !== "altoMm" &&
                                     campo.property !== "canvasEditMode" &&
                                     campo.property !== "visibility" &&
+                                    campo.property !== "rotacion" &&
                                     !(campo.tipoCapa === "text" && campo.property === "contenidoRaw") &&
                                     !(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) &&
                                     !((campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src") && (

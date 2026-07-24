@@ -20,6 +20,11 @@ const port = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
+// Endpoint de Health Check
+app.get("/api/health", (_req, res) => {
+  res.json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // Directorio para cargas temporales
 const UPLOADS_DIR = path.join(__dirname, "../temp/uploads");
 const EXPORTS_DIR = path.join(__dirname, "../temp/exports");
@@ -313,7 +318,8 @@ function generarHtmlImpresion(
                 visStyle = "display: none;";
               }
 
-              const baseStyle = `${positionCss} ${leftPx} ${topPx} width: ${widthPx}; height: ${heightPx}; pointer-events: none; box-sizing: border-box; flex-shrink: 0; ${visStyle}`;
+              const rotationStyle = resolvedCapa.rotacion ? `transform: rotate(${resolvedCapa.rotacion}deg); transform-origin: center center;` : "";
+              const baseStyle = `${positionCss} ${leftPx} ${topPx} width: ${widthPx}; height: ${heightPx}; pointer-events: none; box-sizing: border-box; flex-shrink: 0; ${visStyle} ${rotationStyle}`;
 
               if (resolvedCapa.tipo === "background") {
                 const colorFill = resolvedCapa.colorFill || "#ffffff";

@@ -6,4 +6,6 @@
 - Antes de realizar cualquier commit o push, el agente debe preguntar al usuario primero y obtener su autorización explícita para comprobar el funcionamiento manualmente antes.
 - Después de cada commit o al inicio de la sesión, el agente debe mostrar una lista con las especificaciones (specs) y tickets que están pendientes en el proyecto.
 - En el logo superior izquierdo ("Card Deck Crafter v2"), a partir de ahora se mostrará la versión actual del proyecto bajo el formato: `v2.<YYMMDD>.<n_commit_sesion>` (ej. `v2.260708.1` para la sesión del 8 de julio de 2026, primer commit). Esta versión debe actualizarse en el código en cada commit de la sesión.
+- Tras realizar cualquier modificación en el backend, el agente debe detener de manera explícita y completa todos los procesos y servicios/servidores activos (tanto backend como frontend si aplica) y volver a arrancarlos desde cero antes de realizar cualquier prueba o dar la tarea por finalizada.
+
 

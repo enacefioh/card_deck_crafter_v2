@@ -2222,6 +2222,17 @@ export default function EditCardModal({
 
                 {plantillaActiva && plantillaActiva.capas && plantillaActiva.capas.length > 0 ? (
                   (() => {
+                    const isSelfOrAncestor = (layerId: string, targetId: string | null, layers: any[]): boolean => {
+                      if (!targetId) return false;
+                      let curr: string | null = targetId;
+                      while (curr) {
+                        if (curr === layerId) return true;
+                        const lObj = layers.find((x: any) => x.id === curr);
+                        curr = lObj?.parentCapaId || null;
+                      }
+                      return false;
+                    };
+
                     const renderCapaRecursiva = (parentId: string | null): React.ReactNode => {
                       const layers = plantillaActiva?.capas || [];
                       const filteredLayers = layers.filter((c: any) => {
@@ -2247,6 +2258,7 @@ export default function EditCardModal({
                         const isHidden = activeVisibility === "hidden";
                         const isCollapsed = activeVisibility === "collapsed";
                         const isEditActive = isSelected && canvasEditMode;
+                        const isZeroRotationActive = canvasEditMode && isSelfOrAncestor(capa.id, selectedLayerId, layers);
 
                         const layerStyle: React.CSSProperties = {
                           position: isParentFlex ? "relative" : "absolute",
@@ -2275,6 +2287,8 @@ export default function EditCardModal({
                           visibility: (isHidden && !isSelected) ? "hidden" : undefined,
                           display: (isCollapsed && !isSelected) ? "none" : undefined,
                           opacity: (isSelected && (isHidden || isCollapsed)) ? 0.4 : undefined,
+                          transform: (!isZeroRotationActive && resolvedCapa.rotacion) ? `rotate(${resolvedCapa.rotacion}deg)` : undefined,
+                          transformOrigin: (!isZeroRotationActive && resolvedCapa.rotacion) ? "center center" : undefined,
                         };
 
                         if (capa.tipo === "background") {
@@ -4116,6 +4130,43 @@ export default function EditCardModal({
                           </div>
                         </div>
 
+                        {/* Rotación (º) */}
+                        <div className="inspector-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                            <label className="inspector-label" style={{ margin: 0 }}>Rotación (º)</label>
+                            {renderExposedEye("rotacion", "Rotación (º)")}
+                          </div>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px" }}>
+                            <input
+                              type="number"
+                              min="-180"
+                              max="180"
+                              step="1"
+                              className="inspector-input"
+                              style={{ width: "80px" }}
+                              value={selectedCapa.rotacion !== undefined ? selectedCapa.rotacion : 0}
+                              onChange={(e) => {
+                                let val = Number(e.target.value);
+                                if (isNaN(val)) val = 0;
+                                if (val < -180) val = -180;
+                                if (val > 180) val = 180;
+                                handleUpdateCapaProp(selectedCapa.id, "rotacion", val);
+                              }}
+                            />
+                            <input
+                              type="range"
+                              min="-180"
+                              max="180"
+                              step="1"
+                              style={{ flex: 1, cursor: "pointer" }}
+                              value={selectedCapa.rotacion !== undefined ? selectedCapa.rotacion : 0}
+                              onChange={(e) => {
+                                handleUpdateCapaProp(selectedCapa.id, "rotacion", Number(e.target.value));
+                              }}
+                            />
+                          </div>
+                        </div>
+
                       </div>
                     )}
                   </div>
@@ -4338,6 +4389,7 @@ export default function EditCardModal({
                         { property: "borderTopColor", label: "Color Borde" },
                         { property: "backgroundColor", label: "Color Fondo" },
                         { property: "borderTopLeftRadius", label: "Radio Esquinas" },
+                        { property: "rotacion", label: "Rotación (º)" },
                       ];
                       if (capa.tipo !== "background") {
                         list.push({ property: "canvasEditMode", label: "Posición y Dimensiones (Lienzo)" });
