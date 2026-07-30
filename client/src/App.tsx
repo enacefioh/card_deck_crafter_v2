@@ -1376,6 +1376,46 @@ export default function App() {
     }
   };
 
+  // --- Exportación a PNG (.zip) vía Servidor Local ---
+  const [exportandoPng, setExportandoPng] = useState<boolean>(false);
+
+  const handleExportarPng = async () => {
+    if (cartas.length === 0) return;
+
+    try {
+      setExportandoPng(true);
+      const zipContentBlob = await generarProyectoZip();
+
+      const formData = new FormData();
+      formData.append("archivoProyecto", zipContentBlob, "proyecto.cdc2");
+
+      const response = await fetch("/api/exportar/png", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || "Error en el servidor al generar las imágenes PNG.");
+      }
+
+      const zipBlob = await response.blob();
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = getExportFileName("zip").replace(/\.zip$/, "_imagenes.zip");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+    } catch (error: any) {
+      alert(`Error al generar las imágenes PNG: ${error.message || error}`);
+    } finally {
+      setExportandoPng(false);
+    }
+  };
+
   // --- Guardar Proyecto Localmente (.cdc2) ---
   const handleGuardarProyecto = async () => {
     if (cartas.length === 0) return;
@@ -2508,6 +2548,8 @@ export default function App() {
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
         onExportarPdf={handleExportarPdf}
         exportandoPdf={exportandoPdf}
+        onExportarPng={handleExportarPng}
+        exportandoPng={exportandoPng}
         cartasCount={cartas.length}
         paginasCount={paginasFrontales.length}
         zoomFactor={zoomFactor}

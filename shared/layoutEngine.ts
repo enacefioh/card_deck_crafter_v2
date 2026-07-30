@@ -134,6 +134,7 @@ export interface ProyectoCDC2 {
   templates?: Record<string, any>;
   assets?: ProjectAsset[];
   customFonts?: CustomFont[];
+  projectSymbols?: any[];
 }
 
 export interface LayoutSlot {

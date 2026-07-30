@@ -9,6 +9,8 @@ interface MenuBarProps {
   onImportarImagenesClick: () => void;
   onExportarPdf: () => void;
   exportandoPdf: boolean;
+  onExportarPng?: () => void;
+  exportandoPng?: boolean;
   cartasCount: number;
   paginasCount: number;
   zoomFactor: number;
@@ -57,6 +59,8 @@ export default function MenuBar({
   onImportarImagenesClick,
   onExportarPdf,
   exportandoPdf,
+  onExportarPng,
+  exportandoPng,
   cartasCount,
   paginasCount,
   zoomFactor,
@@ -143,7 +147,7 @@ export default function MenuBar({
     <div className="menu-bar" ref={menuBarRef}>
       <div className="menu-bar-brand">
         <span className="brand-logo">🎴</span>
-        <span className="brand-text">Card Deck Crafter v2.260724.1</span>
+        <span className="brand-text">Card Deck Crafter v2.260730.1</span>
       </div>
 
 
@@ -196,6 +200,13 @@ export default function MenuBar({
                 disabled={exportandoPdf || cartasCount === 0}
               >
                 <span className="menu-item-icon">{exportandoPdf ? "⏳" : "📥"}</span> Exportar PDF
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onExportarPng || (() => {}))}
+                disabled={exportandoPng || cartasCount === 0}
+              >
+                <span className="menu-item-icon">{exportandoPng ? "⏳" : "🖼️"}</span> {exportandoPng ? "Exportando imágenes..." : "Exportar Imágenes (PNG)..."}
               </button>
             </div>
           )}
