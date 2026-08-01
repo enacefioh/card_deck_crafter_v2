@@ -6388,6 +6388,21 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {(exportandoPdf || exportandoPng) && (
+        <div className="export-loading-overlay" onClick={(e) => e.stopPropagation()}>
+          <div className="export-loading-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="export-loading-spinner" />
+            <h3 className="export-loading-title">Preparando la descarga</h3>
+            <p className="export-loading-message">
+              {exportandoPdf
+                ? "Generando documento PDF de alta resolución... Por favor espera."
+                : "Empaquetando cartas a imágenes PNG en archivo .zip... Por favor espera."}
+            </p>
+            <span className="export-loading-subtext">No cierres ni refresques la página durante el proceso</span>
+          </div>
+        </div>
+      )}
     </div>
     </div>
   );
