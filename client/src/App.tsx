@@ -236,7 +236,7 @@ export default function App() {
       const savedRotations: Record<string, number> = {};
       chainIds.forEach(id => {
         const lObj = p?.capas?.find((x: any) => x.id === id);
-        const ov = isBack ? c.capasOverridesTrasera?.[id] : c.capasOverrides?.[id];
+        const ov = (isBack ? c.capasOverridesTrasera?.[id] : c.capasOverrides?.[id]) as any;
         const rot = Number(ov?.rotacion !== undefined ? ov.rotacion : (lObj?.rotacion || 0));
         savedRotations[id] = rot;
       });

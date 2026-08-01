@@ -79,19 +79,19 @@ pm2 start npm --name "carta-backend" -- run server:start
 
 
 
-## 4. Configuración de Nginx (Proxy e IP Pública)
+## 4. Configuración de Nginx y SSL (Subdominio y HTTPS)
 
-Para enlazar el servidor web con la aplicación, se crea un archivo de configuración que actúa como "Catch-All" (responde a cualquier petición que entre por la IP o subdominio asignado) y aumenta el límite de tamaño para poder enviar datos pesados de cartas.
+Para enlazar el servidor web con la aplicación bajo el subdominio `cdc2.enacefio.com` con soporte HTTPS:
 
-1. Crear el archivo: nano /etc/nginx/sites-available/carta-app
+1. Editar el archivo de sitio: `sudo nano /etc/nginx/sites-available/carta-app`
 
-2. Pegar el siguiente contenido:
+2. Configuración para `cdc2.enacefio.com`:
 
-```Bash
+```nginx
 server {
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
+    listen 80;
+    listen [::]:80;
+    server_name cdc2.enacefio.com 80.240.126.122;
 
     # Aumentar límite de subida para evitar error 413 Request Entity Too Large
     client_max_body_size 200M; 
@@ -105,7 +105,6 @@ server {
     }
 
     # 2. Redirigir la API al Backend (Node.js en puerto 3000)
-    # Al no poner la barra "/" al final de localhost:3000, mantenemos el prefijo /api/
     location /api/ {
         proxy_pass http://localhost:3000; 
         proxy_http_version 1.1;
@@ -117,10 +116,10 @@ server {
 }
 ```
 
-3. Activar la configuración y reiniciar el servicio:
+3. Activar la configuración y validar Nginx:
 
-```Bash
-# Enlazar sitio a la carpeta activa
+```bash
+# Enlazar sitio a la carpeta activa (si no estuviese enlazado)
 ln -s /etc/nginx/sites-available/carta-app /etc/nginx/sites-enabled/
 
 # Eliminar el archivo por defecto de Nginx si existiera
@@ -129,8 +128,18 @@ rm -f /etc/nginx/sites-enabled/default
 # Validar sintaxis y reiniciar
 nginx -t
 systemctl restart nginx
-
 ```
+
+4. **Instalación y Configuración de SSL/HTTPS con Certbot**:
+
+```bash
+sudo apt update
+sudo apt install certbot python3-certbot-nginx -y
+sudo certbot --nginx -d cdc2.enacefio.com
+```
+
+*Certbot añadirá automáticamente la redirección de HTTP a HTTPS y configurará los certificados en `/etc/nginx/sites-available/carta-app`.*
+
 
 
 ## 5. Guía de Mantenimiento Diario
