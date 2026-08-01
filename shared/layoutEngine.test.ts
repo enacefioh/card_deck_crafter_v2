@@ -173,4 +173,21 @@ describe("layoutEngine - Motor de Maquetación", () => {
     expect(slots[5].xMm).toBeCloseTo(14.5 + 5 * (63.5 + 2), 2);
     expect(slots[12].yMm).toBeCloseTo(13.15 + 2 * (88.9 + 2), 2);
   });
+
+  it("TKT-047: debe asignar correctamente la imagenTrasera de cada carta en los slots traseros incluso cuando modoTraseras es comun o individual", () => {
+    const cartas: Carta[] = [
+      { id: "1", nombre: "Carta 1", imagenFrontal: "front1.png", imagenTrasera: "back1.png", cantidad: 1 },
+      { id: "2", nombre: "Carta 2", imagenFrontal: "front2.png", imagenTrasera: "back2.png", cantidad: 1 },
+    ];
+
+    const { paginasTraseras } = calcularDistribucion(canvasA4, cardPoker, cartas, "comun", null);
+
+    expect(paginasTraseras.length).toBe(1);
+    expect(paginasTraseras[0].slots.length).toBe(2);
+    // En las páginas traseras, el orden horizontal se invierte para simetría
+    expect(paginasTraseras[0].slots[0].cartaId).toBe("2");
+    expect(paginasTraseras[0].slots[0].imagenSrc).toBe("back2.png");
+    expect(paginasTraseras[0].slots[1].cartaId).toBe("1");
+    expect(paginasTraseras[0].slots[1].imagenSrc).toBe("back1.png");
+  });
 });

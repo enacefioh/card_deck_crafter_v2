@@ -168,7 +168,7 @@ export default function App() {
         const booleanVal = typeof newVal === "function" ? newVal(d.modoTraseras !== "ninguno") : newVal;
         return {
           ...d,
-          modoTraseras: booleanVal ? "comun" : "ninguno"
+          modoTraseras: booleanVal ? (d.modoTraseras !== "ninguno" ? d.modoTraseras : "comun") : "ninguno"
         };
       }
       return d;
@@ -884,11 +884,24 @@ export default function App() {
     setCartas((prev) => [...prev, ...nuevasCartas]);
   };
 
+  const setModoTraserasInternal = (modo: "comun" | "individual" | "ninguno") => {
+    setDocumentos(prev => prev.map(d => {
+      if (d.id === activeDocumentoId) {
+        return { ...d, modoTraseras: modo };
+      }
+      return d;
+    }));
+  };
+
   const procesarTraseraComun = (file: File) => {
     setImagenTraseraComun(URL.createObjectURL(file));
+    if (activeDocumento.modoTraseras === "ninguno") {
+      setModoTraserasInternal("comun");
+    }
   };
 
   const procesarTraseraBloque = (files: File[]) => {
+    setModoTraserasInternal("individual");
     setCartas((prev) => {
       return prev.map((carta, index) => {
         if (index < files.length) {
@@ -911,6 +924,7 @@ export default function App() {
   const handleTraseraIndividualUpload = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const url = URL.createObjectURL(e.target.files[0]);
+      setModoTraserasInternal("individual");
       setCartas((prev) =>
         prev.map((c) => (c.id === id ? { ...c, imagenTrasera: url } : c))
       );
@@ -1099,6 +1113,15 @@ export default function App() {
     }
 
     const addBlobToZip = async (blobUrl: string, baseName: string): Promise<string> => {
+      if (!blobUrl) return "";
+      if (
+        blobUrl.startsWith("asset://") ||
+        blobUrl.startsWith("user_asset://") ||
+        blobUrl.startsWith("project_asset://") ||
+        blobUrl.startsWith("symbol_asset://")
+      ) {
+        return blobUrl;
+      }
       if (userAssetMap.has(blobUrl)) {
         return userAssetMap.get(blobUrl)!;
       }

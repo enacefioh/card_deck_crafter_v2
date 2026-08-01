@@ -237,12 +237,7 @@ export function calcularDistribucion(
         if (modoTraseras !== "ninguno") {
           const xMmTrasera = startX + (columnas - 1 - c) * (cardAnchoTotal + card.espaciadoXMm);
 
-          let imagenSrcTrasera: string | null = null;
-          if (modoTraseras === "comun") {
-            imagenSrcTrasera = imagenTraseraComun;
-          } else if (modoTraseras === "individual") {
-            imagenSrcTrasera = carta.imagenTrasera || imagenTraseraComun;
-          }
+          let imagenSrcTrasera: string | null = carta.imagenTrasera || imagenTraseraComun;
 
           slotsTraseros.push({
             cartaId: carta.id,
