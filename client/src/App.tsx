@@ -1020,7 +1020,7 @@ export default function App() {
 
     // Procesar recursos de la galería de símbolos (SRS-011)
     for (const sym of projectSymbols) {
-      if (sym.src && (sym.src.startsWith("blob:") || sym.src.startsWith("data:"))) {
+      if (sym.src && !sym.src.startsWith("symbol_asset://")) {
         try {
           const res = await fetch(sym.src);
           const blob = await res.blob();
@@ -1052,7 +1052,7 @@ export default function App() {
 
     // Procesar recursos de la galería de usuario (SRS-045)
     for (const asset of userAssets) {
-      if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
+      if (asset.src && !asset.src.startsWith("user_asset://")) {
         try {
           const res = await fetch(asset.src);
           const blob = await res.blob();
@@ -1083,7 +1083,7 @@ export default function App() {
 
     // Procesar recursos de la galería del proyecto
     for (const asset of projectAssets) {
-      if (asset.src && (asset.src.startsWith("blob:") || asset.src.startsWith("data:"))) {
+      if (asset.src && !asset.src.startsWith("project_asset://")) {
         try {
           const res = await fetch(asset.src);
           const blob = await res.blob();
