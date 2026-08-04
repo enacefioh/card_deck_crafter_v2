@@ -3300,6 +3300,9 @@ export default function App() {
                                                 fontWeight: resolvedCapa.bold ? "bold" : "normal",
                                                 fontStyle: resolvedCapa.italic ? "italic" : "normal",
                                                 textDecoration: resolvedCapa.underline ? "underline" : "none",
+                                                WebkitTextStrokeWidth: (resolvedCapa.textOutlineWidth || 0) > 0 ? `${(resolvedCapa.textOutlineWidth || 0) * zoomFactor}px` : undefined,
+                                                WebkitTextStrokeColor: (resolvedCapa.textOutlineWidth || 0) > 0 ? (resolvedCapa.textOutlineColor || "#000000") : undefined,
+                                                paintOrder: (resolvedCapa.textOutlineWidth || 0) > 0 ? ("stroke fill" as any) : undefined,
                                                 whiteSpace: "pre-wrap",
                                                 wordBreak: "break-word",
                                                 lineHeight: 1.2,
@@ -3976,7 +3979,7 @@ export default function App() {
                                                   key={capa.id}
                                                   {...syncEvents}
                                                   data-capa-id={capa.id}
-                                                  onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", true) : undefined}
+                                                  onMouseDown={isEditActive ? (e) => handleLayerCanvasMouseDown(e, capa.id, "drag", false) : undefined}
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
@@ -3988,6 +3991,9 @@ export default function App() {
                                                     fontWeight: resolvedCapa.bold ? "bold" : "normal",
                                                     fontStyle: resolvedCapa.italic ? "italic" : "normal",
                                                     textDecoration: resolvedCapa.underline ? "underline" : "none",
+                                                    WebkitTextStrokeWidth: (resolvedCapa.textOutlineWidth || 0) > 0 ? `${(resolvedCapa.textOutlineWidth || 0) * zoomFactor}px` : undefined,
+                                                    WebkitTextStrokeColor: (resolvedCapa.textOutlineWidth || 0) > 0 ? (resolvedCapa.textOutlineColor || "#000000") : undefined,
+                                                    paintOrder: (resolvedCapa.textOutlineWidth || 0) > 0 ? ("stroke fill" as any) : undefined,
                                                     whiteSpace: "pre-wrap",
                                                     wordBreak: "break-word",
                                                     lineHeight: 1.2,

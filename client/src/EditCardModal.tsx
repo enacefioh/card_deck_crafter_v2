@@ -2488,6 +2488,9 @@ export default function EditCardModal({
                                 fontWeight: resolvedCapa.bold ? "bold" : "normal",
                                 fontStyle: resolvedCapa.italic ? "italic" : "normal",
                                 textDecoration: resolvedCapa.underline ? "underline" : "none",
+                                WebkitTextStrokeWidth: (resolvedCapa.textOutlineWidth || 0) > 0 ? `${(resolvedCapa.textOutlineWidth || 0) * scale}px` : undefined,
+                                WebkitTextStrokeColor: (resolvedCapa.textOutlineWidth || 0) > 0 ? (resolvedCapa.textOutlineColor || "#000000") : undefined,
+                                paintOrder: (resolvedCapa.textOutlineWidth || 0) > 0 ? ("stroke fill" as any) : undefined,
                                 whiteSpace: "pre-wrap",
                                 wordBreak: "break-word",
                                 lineHeight: 1.2,
@@ -3217,6 +3220,72 @@ export default function EditCardModal({
                               })}
                             </div>
                           </div>
+
+                          {/* Contorno de Texto - Anulación (SRS-057) */}
+                          <div className="inspector-section" style={{ marginTop: "12px" }}>
+                            <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                              <label className="inspector-label" style={{ margin: 0 }}>Contorno de Texto (Outline)</label>
+                              {renderExposedEye("textOutlineWidth", "Grosor Contorno")}
+                            </div>
+                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Grosor (px)</label>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.5"
+                                  className="inspector-input"
+                                  value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineWidth ?? selectedCapa.textOutlineWidth ?? 0}
+                                  onChange={(e) => {
+                                    const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        textOutlineWidth: val,
+                                      },
+                                    }));
+                                  }}
+                                />
+                              </div>
+                              <div style={{ flex: 1 }}>
+                                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Color Contorno</label>
+                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                  <input
+                                    type="color"
+                                    value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineColor || selectedCapa.textOutlineColor || "#000000"}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setTempCapasOverridesActivos((prev) => ({
+                                        ...prev,
+                                        [selectedCapa.id]: {
+                                          ...(prev[selectedCapa.id] || {}),
+                                          textOutlineColor: val,
+                                        },
+                                      }));
+                                    }}
+                                    style={{ width: "32px", height: "32px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
+                                  />
+                                  <input
+                                    type="text"
+                                    className="inspector-input"
+                                    style={{ flex: 1, height: "32px", fontSize: "12px" }}
+                                    value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineColor || selectedCapa.textOutlineColor || "#000000"}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setTempCapasOverridesActivos((prev) => ({
+                                        ...prev,
+                                        [selectedCapa.id]: {
+                                          ...(prev[selectedCapa.id] || {}),
+                                          textOutlineColor: val,
+                                        },
+                                      }));
+                                    }}
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Sección 2: Definición de Plantilla (Diseño) */}
@@ -3403,6 +3472,42 @@ export default function EditCardModal({
                                 >
                                   ↕️
                                 </button>
+                              </div>
+                            </div>
+
+                            {/* Contorno de Texto Base de Plantilla (SRS-057) */}
+                            <div className="inspector-section" style={{ marginTop: "12px" }}>
+                              <label className="inspector-label">Contorno por Defecto (Text Outline)</label>
+                              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Grosor (px)</label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="0.5"
+                                    className="inspector-input"
+                                    value={selectedCapa.textOutlineWidth ?? 0}
+                                    onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "textOutlineWidth", Math.max(0, parseFloat(e.target.value) || 0))}
+                                  />
+                                </div>
+                                <div style={{ flex: 1 }}>
+                                  <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Color Contorno</label>
+                                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                                    <input
+                                      type="color"
+                                      value={selectedCapa.textOutlineColor || "#000000"}
+                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "textOutlineColor", e.target.value)}
+                                      style={{ width: "32px", height: "32px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
+                                    />
+                                    <input
+                                      type="text"
+                                      className="inspector-input"
+                                      style={{ flex: 1, height: "32px", fontSize: "12px" }}
+                                      value={selectedCapa.textOutlineColor || "#000000"}
+                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "textOutlineColor", e.target.value)}
+                                    />
+                                  </div>
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -4401,6 +4506,8 @@ export default function EditCardModal({
                           { property: "fontSizePt", label: "Tamaño Fuente" },
                           { property: "color", label: "Color Texto" },
                           { property: "alineacion", label: "Alineación Texto" },
+                          { property: "textOutlineWidth", label: "Grosor Contorno Texto" },
+                          { property: "textOutlineColor", label: "Color Contorno Texto" },
                           { property: "paddingTopMm", label: "Padding Texto" }
                         );
                       } else if (capa.tipo === "image" || capa.tipo === "image-switch") {

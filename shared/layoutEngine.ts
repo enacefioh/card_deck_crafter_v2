@@ -45,6 +45,8 @@ export interface Carta {
     contenidoRaw?: string;
     fontFamily?: string;
     fontSizePt?: number;
+    textOutlineWidth?: number;
+    textOutlineColor?: string;
     visibility?: "visible" | "hidden" | "collapsed";
   }>;
   plantillaTraseraId?: string;
@@ -57,6 +59,8 @@ export interface Carta {
     contenidoRaw?: string;
     fontFamily?: string;
     fontSizePt?: number;
+    textOutlineWidth?: number;
+    textOutlineColor?: string;
     visibility?: "visible" | "hidden" | "collapsed";
   }>;
   exposedProperties?: ExposedProperty[];

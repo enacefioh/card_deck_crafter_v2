@@ -147,7 +147,7 @@ export default function MenuBar({
     <div className="menu-bar" ref={menuBarRef}>
       <div className="menu-bar-brand">
         <span className="brand-logo">🎴</span>
-        <span className="brand-text">Card Deck Crafter v2.260804.1</span>
+        <span className="brand-text">Card Deck Crafter v2.260804.2</span>
       </div>
 
 
