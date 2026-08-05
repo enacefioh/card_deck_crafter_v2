@@ -7,7 +7,8 @@ import {
   actualizarClavePlantillaYValores,
   validarYParsearPlantilla,
   prepararPlantillaParaExportacion,
-  obtenerRutaJerarquica
+  obtenerRutaJerarquica,
+  parseMarkdownToHtml
 } from "./projectUtils";
 
 describe("projectUtils - Validación de Formato de Proyecto (.cdc2)", () => {
@@ -855,6 +856,28 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
 
       expect(obtenerRutaJerarquica("layer1", capasMock)).toBe("Cabecera > Barra Titulo > texto");
       expect(obtenerRutaJerarquica("root2", capasMock)).toBe("Pie");
+    });
+  });
+
+  describe("parseMarkdownToHtml - Escalado de Texto Inline con ++ (SRS-058)", () => {
+    it("debe transformar ++texto++ al 125%", () => {
+      const html = parseMarkdownToHtml("Hola ++Edu++ feliz navidad");
+      expect(html).toBe('Hola <span style="font-size: 125%;">Edu</span> feliz navidad');
+    });
+
+    it("debe transformar +++texto+++ al 156.25%", () => {
+      const html = parseMarkdownToHtml("Hola +++Edu+++ feliz navidad");
+      expect(html).toBe('Hola <span style="font-size: 156.25%;">Edu</span> feliz navidad');
+    });
+
+    it("no debe alterar un signo + aislado en textos convencionales", () => {
+      const html = parseMarkdownToHtml("Ataque +5 Fuerza 1+1");
+      expect(html).toBe("Ataque +5 Fuerza 1+1");
+    });
+
+    it("debe combinarse correctamente con negrita y subrayado", () => {
+      const html = parseMarkdownToHtml("**++Poder++** __*Fuego*__");
+      expect(html).toBe('<strong><span style="font-size: 125%;">Poder</span></strong> <u><em>Fuego</em></u>');
     });
   });
 });

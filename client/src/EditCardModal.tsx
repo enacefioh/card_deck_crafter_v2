@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import type { CardConfig, Carta, ExposedProperty } from "shared";
 import JSZip from "jszip";
-import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion, parsearTextoConSimbolos } from "./utils/projectUtils";
+import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
 import "./EditCardModal.css";
 
 const PROPERTY_WEIGHTS: Record<string, number> = {
@@ -62,18 +62,7 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, 
   return texto;
 }
 
-function parseMarkdownToHtml(text: string): string {
-  if (!text) return "";
-  let escaped = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  escaped = escaped.replace(/\n/g, "<br />");
-  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  escaped = escaped.replace(/__([^_]+)__/g, "<u>$1</u>");
-  return escaped;
-}
+
 
 export default function EditCardModal({
   carta,
@@ -3040,7 +3029,7 @@ export default function EditCardModal({
                               </label>
                               <span
                                 style={{ cursor: "help", fontSize: "14px" }}
-                                title="Formato disponible: **negrita**, *cursiva* y __subrayado__ para texto enriquecido."
+                                title="Formato disponible: **negrita**, *cursiva*, __subrayado__ y ++texto grande (+25%)++, +++muy grande (+56%)+++."
                               >
                                 ℹ️
                               </span>

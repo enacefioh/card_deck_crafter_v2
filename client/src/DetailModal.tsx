@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import "./DetailModal.css";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
-import { parsearTextoConSimbolos } from "./utils/projectUtils";
+import { parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
   if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
@@ -10,18 +10,7 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>):
   return capa.contenidoRaw || "";
 }
 
-function parseMarkdownToHtml(text: string): string {
-  if (!text) return "";
-  let escaped = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  escaped = escaped.replace(/\n/g, "<br />");
-  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  escaped = escaped.replace(/__([^_]+)__/g, "<u>$1</u>");
-  return escaped;
-}
+
 
 interface DetailModalProps {
   carta: Carta;

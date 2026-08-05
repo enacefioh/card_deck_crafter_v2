@@ -3,7 +3,7 @@ import { calcularDistribucion } from "shared";
 import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2 } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
-import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla, obtenerRutaJerarquica, parsearTextoConSimbolos } from "./utils/projectUtils";
+import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla, obtenerRutaJerarquica, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
 import DetailModal from "./DetailModal";
 import EditCardModal from "./EditCardModal";
 import SymbolsGalleryModal from "./SymbolsGalleryModal";
@@ -59,18 +59,7 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, 
   return texto;
 }
 
-function parseMarkdownToHtml(text: string): string {
-  if (!text) return "";
-  let escaped = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-  escaped = escaped.replace(/\n/g, "<br />");
-  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  escaped = escaped.replace(/__([^_]+)__/g, "<u>$1</u>");
-  return escaped;
-}
+
 
 export default function App() {
   // --- Refs para Enfoque y Triggers ---

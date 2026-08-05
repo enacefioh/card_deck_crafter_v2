@@ -294,6 +294,31 @@ export function parsearTextoConSimbolos(text: string, projectSymbols: any[]): st
   });
 }
 
+export function parseMarkdownToHtml(text: string): string {
+  if (!text) return "";
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  escaped = escaped.replace(/\n/g, "<br />");
+  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  escaped = escaped.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  escaped = escaped.replace(/__([^_]+)__/g, "<u>$1</u>");
+
+  // Procesar escalado de texto con ++ (SRS-058)
+  // Cada nivel K (donde K es la cantidad de + >= 2) aplica 1.25^(K-1)
+  while (/(\+{2,})([^+]+)\1/.test(escaped)) {
+    escaped = escaped.replace(/(\+{2,})([^+]+)\1/g, (_match, pluses, content) => {
+      const count = pluses.length;
+      const factor = Math.pow(1.25, count - 1);
+      const percentStr = (factor * 100).toFixed(2).replace(/\.00$/, "");
+      return `<span style="font-size: ${percentStr}%;">${content}</span>`;
+    });
+  }
+
+  return escaped;
+}
+
 
 
 
