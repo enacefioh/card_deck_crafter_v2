@@ -2776,7 +2776,7 @@ export default function App() {
                 const selectedCarta = cartas.find((c) => c.id === selectedCardIds[0]);
                 if (!selectedCarta) return null;
                 return (
-                  <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                     <div className="input-field">
                       <label>Nombre de la Carta</label>
                       <input

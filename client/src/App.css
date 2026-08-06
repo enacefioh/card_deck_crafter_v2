@@ -825,7 +825,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 4px 0;
+  padding: 2px 0;
   margin-bottom: 2px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   font-size: 13px;
@@ -850,7 +850,7 @@
 .inspector-row-multiline {
   display: flex;
   flex-direction: column;
-  padding: 4px 0;
+  padding: 2px 0;
   margin-bottom: 2px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.04);
   width: 100%;

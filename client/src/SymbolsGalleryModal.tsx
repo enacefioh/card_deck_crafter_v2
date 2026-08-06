@@ -17,10 +17,10 @@ export default function SymbolsGalleryModal({
   onSaveSymbols,
   onClose
 }: SymbolsGalleryModalProps) {
-  const [tagInput, setTagInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingTag, setEditingTag] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
+  const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const resizeImageToMax100 = (file: File): Promise<Blob> => {
@@ -64,72 +64,103 @@ export default function SymbolsGalleryModal({
     });
   };
 
-  const handleUploadClick = () => {
-    setErrorMsg("");
-    const cleanTag = tagInput.trim().replace(/\s+/g, "");
-    if (!cleanTag) {
-      setErrorMsg("Por favor, introduce un tag antes de seleccionar la imagen.");
-      return;
+  const generateUniqueTag = (fileName: string, existingSymbols: SymbolItem[]): string => {
+    // 1. Quitar extensión del archivo
+    const baseName = fileName.replace(/\.[^/.]+$/, "");
+    // 2. Limpiar espacios y caracteres no válidos para tags
+    let cleanName = baseName.trim().replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_-]/g, "");
+    if (!cleanName) cleanName = "simbolo";
+
+    // 3. Resolver duplicados secuencialmente (icono, icono2, icono3...)
+    let targetTag = cleanName;
+    let counter = 2;
+    while (existingSymbols.some(s => s.tag.toLowerCase() === targetTag.toLowerCase())) {
+      targetTag = `${cleanName}${counter}`;
+      counter++;
     }
-    // Validar tag sin caracteres extraños que puedan romper expresiones regulares
-    if (!/^[a-zA-Z0-9_-]+$/.test(cleanTag)) {
-      setErrorMsg("El tag solo puede contener letras, números, guiones y guiones bajos.");
-      return;
-    }
-    // Comprobar duplicado
-    if (symbols.some(s => s.tag.toLowerCase() === cleanTag.toLowerCase())) {
-      setErrorMsg(`El tag "${cleanTag}" ya está en uso.`);
-      return;
-    }
-    fileInputRef.current?.click();
+    return targetTag;
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || files.length === 0) return;
+  const processFiles = async (fileList: FileList | File[]) => {
+    setErrorMsg("");
+    const filesArray = Array.from(fileList).filter(f => f.type.startsWith("image/"));
+    if (filesArray.length === 0) {
+      setErrorMsg("Por favor, selecciona archivos de imagen válidos.");
+      return;
+    }
 
-    const file = files[0];
-    const cleanTag = tagInput.trim().replace(/\s+/g, "");
+    const currentSymbolsList = [...symbols];
+    const addedSymbols: SymbolItem[] = [];
 
-    try {
-      // 1. Redimensionar en cliente
-      const resizedBlob = await resizeImageToMax100(file);
-      const id = `symbol_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-      const localUrl = URL.createObjectURL(resizedBlob);
-
-      const newSymbol: SymbolItem = {
-        id,
-        tag: cleanTag,
-        src: localUrl
-      };
-
-      // 2. Subir al servidor backend en segundo plano (si está activo)
+    for (const file of filesArray) {
       try {
-        const formData = new FormData();
-        formData.append("image", resizedBlob, `${id}.png`);
-        formData.append("tag", cleanTag);
+        const cleanTag = generateUniqueTag(file.name, currentSymbolsList);
+        const resizedBlob = await resizeImageToMax100(file);
+        const id = `symbol_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+        const localUrl = URL.createObjectURL(resizedBlob);
 
-        const response = await fetch("/api/symbols", {
-          method: "POST",
-          body: formData
-        });
-        if (response.ok) {
-          const serverData = await response.json();
-          // Si el servidor asignó un src formal, podemos usarlo
-          if (serverData.src) {
-            newSymbol.src = serverData.src;
+        const newSymbol: SymbolItem = {
+          id,
+          tag: cleanTag,
+          src: localUrl
+        };
+
+        try {
+          const formData = new FormData();
+          formData.append("image", resizedBlob, `${id}.png`);
+          formData.append("tag", cleanTag);
+
+          const response = await fetch("/api/symbols", {
+            method: "POST",
+            body: formData
+          });
+          if (response.ok) {
+            const serverData = await response.json();
+            if (serverData.src) {
+              newSymbol.src = serverData.src;
+            }
           }
+        } catch (err) {
+          console.warn("Backend no disponible. Guardando únicamente local/ZIP:", err);
         }
-      } catch (err) {
-        console.warn("Backend no disponible. Guardando únicamente local/ZIP:", err);
-      }
 
-      onSaveSymbols([...symbols, newSymbol]);
-      setTagInput("");
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (err: any) {
-      console.error(err);
-      setErrorMsg("Error al procesar la imagen.");
+        currentSymbolsList.push(newSymbol);
+        addedSymbols.push(newSymbol);
+      } catch (err) {
+        console.error(`Error al procesar la imagen ${file.name}:`, err);
+      }
+    }
+
+    if (addedSymbols.length > 0) {
+      onSaveSymbols(currentSymbolsList);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFiles(e.dataTransfer.files);
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files.length > 0) {
+      processFiles(e.target.files);
     }
   };
 
@@ -198,37 +229,35 @@ export default function SymbolsGalleryModal({
         </header>
 
         <div className="template-modal-body" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-          {/* Subir Símbolo */}
-          <div style={{ backgroundColor: "rgba(255, 255, 255, 0.03)", padding: "16px", borderRadius: "8px", border: "1px solid var(--border-color)" }}>
-            <div style={{ display: "flex", gap: "16px", alignItems: "flex-end" }}>
-              <div style={{ flex: "2 1 0%" }}>
-                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "6px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
-                  Tag de acceso (ej. fuego, tap, oro)
-                </label>
-                <input
-                  type="text"
-                  placeholder="Introduce el tag sin espacios..."
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value.replace(/\s+/g, ""))}
-                  style={{ width: "100%", padding: "10px", borderRadius: "6px", border: "1px solid var(--border-color)", boxSizing: "border-box", backgroundColor: "rgba(0, 0, 0, 0.2)", color: "var(--text-primary)", height: "40px" }}
-                />
-              </div>
-              <div style={{ flex: "1.5 1 0%" }}>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={handleUploadClick}
-                  style={{ width: "100%", height: "40px", padding: "0 16px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px" }}
-                >
-                  📥 Seleccionar Imagen
-                </button>
-              </div>
-            </div>
+          {/* Area Dropzone Múltiple (SRS-059) */}
+          <div
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+            style={{
+              border: dragActive ? "2px dashed var(--accent-primary)" : "2px dashed var(--border-color)",
+              backgroundColor: dragActive ? "rgba(139, 92, 246, 0.12)" : "rgba(255, 255, 255, 0.02)",
+              padding: "24px 16px",
+              borderRadius: "10px",
+              textAlign: "center",
+              cursor: "pointer",
+              transition: "all 0.2s ease"
+            }}
+          >
+            <span style={{ fontSize: "32px", display: "block", marginBottom: "8px" }}>📥</span>
+            <p style={{ margin: 0, fontSize: "14px", fontWeight: "600", color: "var(--text-primary)" }}>
+              Arrastra o haz clic para añadir imágenes de símbolos
+            </p>
+            <p style={{ margin: "4px 0 0 0", fontSize: "12px", color: "var(--text-secondary)" }}>
+              Permite selección múltiple. El tag se asignará automáticamente desde el nombre del archivo.
+            </p>
             <input
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
               accept="image/*"
+              multiple
               style={{ display: "none" }}
             />
           </div>
@@ -243,7 +272,7 @@ export default function SymbolsGalleryModal({
           <div style={{ maxHeight: "300px", overflowY: "auto", border: "1px solid var(--border-color)", borderRadius: "8px" }}>
             {symbols.length === 0 ? (
               <div style={{ padding: "32px", textAlign: "center", color: "var(--text-secondary)", fontSize: "14px" }}>
-                No hay símbolos registrados en este proyecto. Utiliza el panel superior para añadir tu primer símbolo.
+                No hay símbolos registrados en este proyecto. Utiliza la zona superior para añadir imágenes de símbolos.
               </div>
             ) : (
               <div style={{ display: "flex", flexDirection: "column" }}>
