@@ -4,6 +4,7 @@ import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2 } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
 import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla, obtenerRutaJerarquica, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
+import { initAnalytics, trackEvent } from "./utils/analytics";
 import DetailModal from "./DetailModal";
 import EditCardModal from "./EditCardModal";
 import SymbolsGalleryModal from "./SymbolsGalleryModal";
@@ -470,6 +471,10 @@ export default function App() {
   // --- Estados del Setup y Configuración del Proyecto (SRS-022) ---
   const [nombreProyecto, setNombreProyectoInternal] = useState<string>("Mi Baraja");
   const [projectCreated, setProjectCreated] = useState<boolean>(false);
+
+  useEffect(() => {
+    initAnalytics();
+  }, []);
 
   useEffect(() => {
     setActiveCanvasEditLayerId(null);
@@ -1371,6 +1376,7 @@ export default function App() {
         throw new Error(errorText || "Error en el servidor al generar el PDF.");
       }
 
+      trackEvent("export_pdf", { num_cartas: cartas.length });
       const pdfBlob = await response.blob();
       const downloadUrl = URL.createObjectURL(pdfBlob);
       const link = document.createElement("a");
@@ -1411,6 +1417,7 @@ export default function App() {
         throw new Error(errorText || "Error en el servidor al generar las imágenes PNG.");
       }
 
+      trackEvent("export_zip", { num_cartas: cartas.length });
       const zipBlob = await response.blob();
       const downloadUrl = URL.createObjectURL(zipBlob);
       const link = document.createElement("a");

@@ -25,6 +25,34 @@ app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
+// Cargar configuración de servidor (config.json) (SRS-060)
+const CONFIG_PATH = path.join(__dirname, "../config.json");
+const CONFIG_SAMPLE_PATH = path.join(__dirname, "../config.sample.json");
+
+function loadServerConfig(): { googleAnalyticsId?: string } {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      return fs.readJsonSync(CONFIG_PATH);
+    }
+    if (fs.existsSync(CONFIG_SAMPLE_PATH)) {
+      return fs.readJsonSync(CONFIG_SAMPLE_PATH);
+    }
+  } catch (err) {
+    console.warn("[cdc2] Error al leer la configuración del servidor:", err);
+  }
+  return {
+    googleAnalyticsId: process.env.GOOGLE_ANALYTICS_ID || ""
+  };
+}
+
+// Endpoint de Configuración Pública (SRS-060)
+app.get("/api/config", (_req, res) => {
+  const config = loadServerConfig();
+  res.json({
+    googleAnalyticsId: config.googleAnalyticsId || process.env.GOOGLE_ANALYTICS_ID || ""
+  });
+});
+
 // Directorio para cargas temporales
 const UPLOADS_DIR = path.join(__dirname, "../temp/uploads");
 const EXPORTS_DIR = path.join(__dirname, "../temp/exports");
