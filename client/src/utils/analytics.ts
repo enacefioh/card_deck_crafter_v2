@@ -15,7 +15,7 @@ export function resetAnalyticsStateForTesting(): void {
  * inyecta dinámicamente el script gtag.js en el <head> del DOM.
  */
 export async function initAnalytics(): Promise<void> {
-  resetAnalyticsStateForTesting();
+  if (isInitialized) return;
   try {
     const res = await fetch("/api/config");
     if (!res.ok) return;
@@ -46,8 +46,8 @@ function injectGtagScript(gaId: string): void {
   document.head.appendChild(script);
 
   (window as any).dataLayer = (window as any).dataLayer || [];
-  function gtag(...args: any[]) {
-    (window as any).dataLayer.push(args);
+  function gtag(..._args: any[]) {
+    (window as any).dataLayer.push(arguments);
   }
   (window as any).gtag = gtag;
 
