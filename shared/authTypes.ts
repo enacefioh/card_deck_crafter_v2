@@ -48,6 +48,12 @@ export interface LoginResponse {
   error?: string;
 }
 
+export interface DashboardMetrics {
+  totalUsers: number;
+  activeUsers: number;
+  pendingUsers: number;
+}
+
 export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   findById(id: string): Promise<User | null>;
@@ -58,4 +64,5 @@ export interface IUserRepository {
   deleteUser(userId: string): Promise<void>;
   countUsers(): Promise<number>;
   listUsers(): Promise<UserSummary[]>;
+  getDashboardMetrics(): Promise<DashboardMetrics>;
 }

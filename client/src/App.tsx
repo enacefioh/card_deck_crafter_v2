@@ -10,6 +10,7 @@ import EditCardModal from "./EditCardModal";
 import SymbolsGalleryModal from "./SymbolsGalleryModal";
 import { AuthProvider } from "./AuthContext";
 import { AuthModals } from "./AuthModals";
+import { AdminPanel } from "./admin/AdminPanel";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -2544,6 +2545,20 @@ export default function App() {
       window.removeEventListener("keydown", handleKeyDown);
     };
   }, [cartas, selectedCardIds, puedeMoverArriba, puedeMoverAbajo, editingCardId]);
+
+  // Detección de ruta de administración dedicada (/admin) - SRS-063
+  const [isAdminPath] = useState(() => {
+    return typeof window !== "undefined" && window.location.pathname.startsWith("/admin");
+  });
+
+  if (isAdminPath) {
+    return (
+      <AuthProvider>
+        <AdminPanel />
+        <AuthModals />
+      </AuthProvider>
+    );
+  }
 
   return (
     <AuthProvider>

@@ -144,6 +144,142 @@ app.post("/api/auth/logout", async (req, res) => {
   }
 });
 
+// ==================== ENDPOINTS DE ADMINISTRACIÓN (SRS-063) ====================
+
+const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
+    if (!sessionId) {
+      return res.status(401).json({ error: "No autenticado. Inicia sesión como administrador." });
+    }
+    const user = await authService.getSessionUser(sessionId);
+    if (!user) {
+      res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+      return res.status(401).json({ error: "Sesión inválida o expirada." });
+    }
+    if (user.role !== "admin") {
+      return res.status(403).json({ error: "Acceso denegado. Se requiere rol de Administrador." });
+    }
+    (req as any).currentUser = user;
+    next();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
+  try {
+    const metrics = await authService.getRepository().getDashboardMetrics();
+    res.json({
+      ...metrics,
+      version: "v2.260928.3",
+      database: "SQLite 3"
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/admin/users", requireAdmin, async (_req, res) => {
+  try {
+    const users = await authService.getRepository().listUsers();
+    res.json(users);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/users", requireAdmin, async (req, res) => {
+  try {
+    const { email, role } = req.body;
+    const cleanEmail = (email || "").trim().toLowerCase();
+    if (!cleanEmail || !cleanEmail.includes("@")) {
+      return res.status(400).json({ error: "El correo electrónico no es válido." });
+    }
+
+    const existing = await authService.getRepository().findByEmail(cleanEmail);
+    if (existing) {
+      return res.status(400).json({ error: "Ya existe un usuario con ese correo electrónico." });
+    }
+
+    const assignedRole = role === "admin" ? "admin" : "user";
+    const user = await authService.getRepository().createUser(cleanEmail, assignedRole, null);
+    res.json({
+      status: "OK",
+      user: {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        hasPassword: false,
+        createdAt: user.createdAt
+      }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/admin/users/:id/reset-password", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await authService.getRepository().findById(id);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    await authService.getRepository().resetPassword(id);
+    res.json({ status: "OK", message: "Contraseña reseteada con éxito." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/admin/users/:id/role", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+    if (role !== "admin" && role !== "user") {
+      return res.status(400).json({ error: "Rol no válido. Debe ser 'admin' o 'user'." });
+    }
+
+    const currentAdmin = (req as any).currentUser;
+    if (currentAdmin.id === id && role !== "admin") {
+      return res.status(400).json({ error: "No puedes revocar tu propio rol de Administrador." });
+    }
+
+    const user = await authService.getRepository().findById(id);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    await authService.getRepository().updateRole(id, role);
+    res.json({ status: "OK", role });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const currentAdmin = (req as any).currentUser;
+    if (currentAdmin.id === id) {
+      return res.status(400).json({ error: "No puedes eliminar tu propia cuenta de Administrador." });
+    }
+
+    const user = await authService.getRepository().findById(id);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    await authService.getRepository().deleteUser(id);
+    res.json({ status: "OK" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+
 
 // Cargar configuración de servidor (config.json) (SRS-060)
 const CONFIG_PATH = path.join(__dirname, "../config.json");

@@ -3,7 +3,7 @@ import type { Database as DatabaseType } from "better-sqlite3";
 import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs-extra";
-import type { User, UserSummary, UserRole, AuthSession, IUserRepository } from "shared";
+import type { User, UserSummary, UserRole, AuthSession, IUserRepository, DashboardMetrics } from "shared";
 
 export class SqliteUserRepository implements IUserRepository {
   private db: DatabaseType;
@@ -145,6 +145,21 @@ export class SqliteUserRepository implements IUserRepository {
       hasPassword: r.password_hash !== null && r.password_hash !== "",
       createdAt: r.created_at
     }));
+  }
+
+  public async getDashboardMetrics(): Promise<DashboardMetrics> {
+    const totalRow = this.db.prepare("SELECT COUNT(*) as count FROM users").get() as any;
+    const activeRow = this.db.prepare(
+      "SELECT COUNT(*) as count FROM users WHERE password_hash IS NOT NULL AND password_hash != ''"
+    ).get() as any;
+    const totalUsers = totalRow ? Number(totalRow.count) : 0;
+    const activeUsers = activeRow ? Number(activeRow.count) : 0;
+    const pendingUsers = totalUsers - activeUsers;
+    return {
+      totalUsers,
+      activeUsers,
+      pendingUsers
+    };
   }
 
   // Métodos de Sesión
