@@ -897,6 +897,7 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
     // 6. Levantar Puppeteer de manera headless y configurar acceso a file:///
     const browser = await puppeteer.launch({
       headless: true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -1511,6 +1512,7 @@ app.post("/api/exportar/png", upload.single("archivoProyecto"), async (req, res)
 
     const browser = await puppeteer.launch({
       headless: true,
+      executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",

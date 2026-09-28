@@ -14,6 +14,10 @@
     "client:build": "npm run build -w client",
     "server:dev": "npm run dev -w server",
     "server:start": "npm run start -w server",
-    "test": "vitest run"
+    "test": "vitest run",
+    "docker:build": "docker build -t cdc2:local -t enacefio/cdc2:latest .",
+    "docker:run": "docker run -it --rm -p 5173:5173 -p 3000:3000 --name cdc2_app cdc2:local",
+    "docker:build-multiarch": "docker buildx build --platform linux/amd64,linux/arm64 -t enacefio/cdc2:latest .",
+    "docker:push": "docker push enacefio/cdc2:latest"
   }
 }

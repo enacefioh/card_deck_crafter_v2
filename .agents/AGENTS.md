@@ -20,3 +20,6 @@
 - **Confirmación de Commit / Push y Lista de Pendientes**:
   - Antes de realizar cualquier commit o push, el agente debe obtener la autorización explícita del usuario tras comprobar el funcionamiento manualmente.
   - Después de cada commit o al inicio de la sesión, el agente debe mostrar una lista con las especificaciones (specs) y tickets pendientes en el proyecto.
+
+- **Automatización de Imagen Docker tras cada Hito**:
+  - Tras completar y verificar cada hito (spec o ticket) y antes/durante el cierre del commit, el agente debe verificar y compilar la imagen local de Docker (`npm run docker:build`) para asegurar que la imagen se mantiene siempre actualizada y lista para su despliegue en la Raspberry Pi o entornos con Docker.
