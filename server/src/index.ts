@@ -10,6 +10,9 @@ import { randomUUID } from "crypto";
 import { calcularDistribucion } from "shared";
 import type { CanvasConfig, ProyectoCDC2, Carta } from "shared";
 
+import cookieParser from "cookie-parser";
+import { AuthService, SESSION_COOKIE_NAME, SESSION_DURATION_MS } from "./auth/authService.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -17,13 +20,130 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 // Configurar CORS
-app.use(cors());
+app.use(cors({
+  origin: true,
+  credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
+
+const authService = new AuthService();
+
+// Inicialización desatendida opcional por variables de entorno
+(async () => {
+  try {
+    const status = await authService.getStatus();
+    if (!status.initialized && process.env.CDC2_ADMIN_EMAIL && process.env.CDC2_ADMIN_PASSWORD) {
+      await authService.setupAdmin(process.env.CDC2_ADMIN_EMAIL, process.env.CDC2_ADMIN_PASSWORD);
+      console.log(`[cdc2 auth] Administrador inicial creado desatendidamente: ${process.env.CDC2_ADMIN_EMAIL}`);
+    }
+  } catch (err) {
+    console.error("[cdc2 auth] Error al inicializar administrador por entorno:", err);
+  }
+})();
+
+const cookieOptions: express.CookieOptions = {
+  httpOnly: true,
+  sameSite: "lax",
+  maxAge: SESSION_DURATION_MS,
+  path: "/"
+};
 
 // Endpoint de Health Check
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
+
+// ==================== ENDPOINTS DE AUTENTICACIÓN (SRS-062) ====================
+
+app.get("/api/auth/status", async (_req, res) => {
+  try {
+    const status = await authService.getStatus();
+    res.json(status);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/setup-admin", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const { user, session } = await authService.setupAdmin(email, password);
+    res.cookie(SESSION_COOKIE_NAME, session.id, cookieOptions);
+    res.json({
+      status: "OK",
+      user: { id: user.id, email: user.email, role: user.role }
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Error al configurar el administrador." });
+  }
+});
+
+app.post("/api/auth/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const result = await authService.login(email, password);
+    if (result.status === "REQUIRES_ACTIVATION") {
+      res.json({ status: "REQUIRES_ACTIVATION", email: result.email });
+    } else {
+      res.cookie(SESSION_COOKIE_NAME, result.session!.id, cookieOptions);
+      res.json({
+        status: "OK",
+        email: result.email,
+        user: { id: result.user!.id, email: result.user!.email, role: result.user!.role }
+      });
+    }
+  } catch (err: any) {
+    res.status(401).json({ error: err.message || "Credenciales incorrectas." });
+  }
+});
+
+app.post("/api/auth/activate-password", async (req, res) => {
+  try {
+    const { email, password, confirmPassword } = req.body;
+    const { user, session } = await authService.activatePassword(email, password, confirmPassword);
+    res.cookie(SESSION_COOKIE_NAME, session.id, cookieOptions);
+    res.json({
+      status: "OK",
+      user: { id: user.id, email: user.email, role: user.role }
+    });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message || "Error al activar contraseña." });
+  }
+});
+
+app.get("/api/auth/me", async (req, res) => {
+  try {
+    const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
+    if (!sessionId) {
+      return res.json({ user: null });
+    }
+    const user = await authService.getSessionUser(sessionId);
+    if (!user) {
+      res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+      return res.json({ user: null });
+    }
+    res.json({
+      user: { id: user.id, email: user.email, role: user.role }
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/logout", async (req, res) => {
+  try {
+    const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
+    if (sessionId) {
+      await authService.logout(sessionId);
+    }
+    res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+    res.json({ status: "OK" });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 
 // Cargar configuración de servidor (config.json) (SRS-060)
 const CONFIG_PATH = path.join(__dirname, "../config.json");

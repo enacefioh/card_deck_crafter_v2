@@ -8,6 +8,8 @@ import { initAnalytics, trackEvent } from "./utils/analytics";
 import DetailModal from "./DetailModal";
 import EditCardModal from "./EditCardModal";
 import SymbolsGalleryModal from "./SymbolsGalleryModal";
+import { AuthProvider } from "./AuthContext";
+import { AuthModals } from "./AuthModals";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -2544,7 +2546,8 @@ export default function App() {
   }, [cartas, selectedCardIds, puedeMoverArriba, puedeMoverAbajo, editingCardId]);
 
   return (
-    <div className="app-layout">
+    <AuthProvider>
+      <div className="app-layout">
       <style>
         {projectFonts.map((font: any) => `
           @font-face {
@@ -6407,5 +6410,7 @@ export default function App() {
       )}
     </div>
     </div>
+    <AuthModals />
+    </AuthProvider>
   );
 }

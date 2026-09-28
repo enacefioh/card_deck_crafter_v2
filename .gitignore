@@ -30,3 +30,7 @@ tmp/
 .tmp/
 developer/scratch/
 server/config.json
+server/data/
+*.db
+*.db-wal
+*.db-shm

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import type { DocumentoCDC2 } from "shared";
 import "./MenuBar.css";
+import { useAuth } from "./AuthContext";
+import { getAvatarInitials, getAvatarColor } from "./utils/avatarUtils";
 
 interface MenuBarProps {
   onNuevoProyecto: () => void;
@@ -143,11 +145,30 @@ export default function MenuBar({
     action();
   };
 
+  // Autenticación de Usuario (SRS-062)
+  const { user, setShowLoginModal, logout } = useAuth();
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutsideUserMenu = (event: MouseEvent) => {
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    if (showUserMenu) {
+      document.addEventListener("mousedown", handleClickOutsideUserMenu);
+    }
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutsideUserMenu);
+    };
+  }, [showUserMenu]);
+
   return (
     <div className="menu-bar" ref={menuBarRef}>
       <div className="menu-bar-brand">
         <span className="brand-logo">🎴</span>
-        <span className="brand-text">Card Deck Crafter v2.260928.1</span>
+        <span className="brand-text">Card Deck Crafter v2.260928.2</span>
       </div>
 
 
@@ -435,10 +456,145 @@ export default function MenuBar({
         </div>
       </div>
 
-      <div className="menu-bar-status">
+      <div className="menu-bar-status" style={{ display: "flex", alignItems: "center" }}>
         <span className="status-badge info-badge">Hojas: {paginasCount}</span>
         <span className="status-badge">Cartas: {cartasCount}</span>
         <span className="status-badge info-badge">Zoom: {zoomFactor.toFixed(1)}x</span>
+
+        {/* Sección de Usuario / Autenticación (SRS-062) */}
+        {!user ? (
+          <button
+            type="button"
+            className="btn-login-trigger"
+            onClick={() => setShowLoginModal(true)}
+            style={{
+              marginLeft: "10px",
+              padding: "4px 10px",
+              borderRadius: "6px",
+              backgroundColor: "var(--accent-primary, #6366f1)",
+              color: "#fff",
+              border: "none",
+              fontSize: "12px",
+              fontWeight: "600",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px"
+            }}
+          >
+            <span>👤</span> Iniciar Sesión
+          </button>
+        ) : (
+          <div style={{ position: "relative", marginLeft: "10px" }} ref={userMenuRef}>
+            {(() => {
+              const initials = getAvatarInitials(user.email);
+              const { bg, text } = getAvatarColor(user.email);
+              return (
+                <button
+                  type="button"
+                  onClick={() => setShowUserMenu(!showUserMenu)}
+                  title={user.email}
+                  style={{
+                    width: "28px",
+                    height: "28px",
+                    borderRadius: "50%",
+                    backgroundColor: bg,
+                    color: text,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "11px",
+                    fontWeight: "700",
+                    border: "2px solid rgba(255,255,255,0.25)",
+                    cursor: "pointer",
+                    padding: 0,
+                    boxShadow: "0 2px 4px rgba(0,0,0,0.3)"
+                  }}
+                >
+                  {initials}
+                </button>
+              );
+            })()}
+
+            {showUserMenu && (
+              <div
+                style={{
+                  position: "absolute",
+                  top: "100%",
+                  right: 0,
+                  marginTop: "8px",
+                  width: "220px",
+                  backgroundColor: "var(--bg-secondary, #1e1e24)",
+                  border: "1px solid var(--border-color, #333340)",
+                  borderRadius: "8px",
+                  boxShadow: "0 10px 25px rgba(0,0,0,0.5)",
+                  padding: "12px",
+                  zIndex: 9999,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: "8px"
+                }}
+              >
+                <div style={{ borderBottom: "1px solid var(--border-color, #333340)", paddingBottom: "8px" }}>
+                  <div style={{ fontSize: "13px", fontWeight: "600", color: "#fff", wordBreak: "break-all" }}>
+                    {user.email}
+                  </div>
+                  <div style={{ fontSize: "11px", color: user.role === "admin" ? "#a855f7" : "#a1a1aa", marginTop: "2px", fontWeight: "500" }}>
+                    {user.role === "admin" ? "🛡️ Administrador" : "👤 Usuario"}
+                  </div>
+                </div>
+
+                {user.role === "admin" && (
+                  <a
+                    href="/admin"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setShowUserMenu(false)}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "8px",
+                      padding: "6px 8px",
+                      borderRadius: "4px",
+                      color: "#e2e8f0",
+                      textDecoration: "none",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      backgroundColor: "rgba(168, 85, 247, 0.15)",
+                      border: "1px solid rgba(168, 85, 247, 0.3)"
+                    }}
+                  >
+                    <span>⚙️</span> Panel de Administrador
+                  </a>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    logout();
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "6px 8px",
+                    borderRadius: "4px",
+                    backgroundColor: "transparent",
+                    border: "none",
+                    color: "#ef4444",
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    cursor: "pointer",
+                    textAlign: "left"
+                  }}
+                >
+                  <span>🚪</span> Cerrar Sesión
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

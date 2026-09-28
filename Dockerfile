@@ -1,7 +1,10 @@
-FROM node:20-slim
+FROM node:22-slim
 
-# Dependencias para Chromium/Puppeteer
+# Dependencias para Chromium/Puppeteer y compilación nativa (better-sqlite3)
 RUN apt-get update && apt-get install -y \
+    python3 \
+    make \
+    g++ \
     chromium \
     ca-certificates \
     fonts-liberation \

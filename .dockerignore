@@ -7,3 +7,8 @@ client/dist
 .gitignore
 .agents
 scratch
+server/config.json
+server/data/
+*.db
+*.db-wal
+*.db-shm
