@@ -32,9 +32,9 @@ curl -fsSL [https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key](https://d
 NODE_MAJOR=22
 echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] [https://deb.nodesource.com/node_$NODE_MAJOR.x](https://deb.nodesource.com/node_$NODE_MAJOR.x) nodistro main" | sudo tee /etc/apt/sources.list.d/nodesource.list
 
-# Instalar Node.js, Nginx y PM2
+# Instalar Node.js, Nginx, PM2 y herramientas de compilación C++ nativas (para better-sqlite3)
 sudo apt-get update
-sudo apt-get install nodejs nginx -y
+sudo apt-get install nodejs nginx build-essential python3 make g++ -y
 sudo npm install pm2 -g
 
 ```
@@ -182,6 +182,7 @@ git pull origin main
 
 # 2. Instalar nuevas dependencias si las hubiera
 npm install
+npm rebuild better-sqlite3
 
 # 3. Volver a compilar el Frontend (los cambios se aplican al instante en la web)
 npm run client:build
@@ -193,3 +194,29 @@ pm2 restart carta-backend
 npm cache clean --force
 
 ```
+
+## 6. Copias de Seguridad y Restauración de Datos (SRS-064)
+
+### A. Desde el Panel de Administración Web
+- **Exportar**: En el panel de control de `/admin`, pulsar en **"⬇️ Descargar Copia de Seguridad (.zip)"**. El servidor empaqueta `users.db` y datos del sistema y descarga el archivo comprimido.
+- **Restaurar**: Pulsar en **"⬆️ Restaurar Copia (.zip)"**, seleccionar un archivo `.zip` válido y confirmar en el diálogo. El sistema generará una copia de rescate automática antes de aplicar los cambios y ejecutará las migraciones pendientes automáticamente.
+
+### B. En Entorno Docker (Local o Raspberry Pi)
+- **Exportar volumen**:
+  ```bash
+  npm run docker:volume:backup
+  # Genera cdc2_backup.tar.gz en el directorio raíz del proyecto
+  ```
+- **Restaurar volumen**:
+  ```bash
+  npm run docker:volume:restore
+  # Extrae cdc2_backup.tar.gz directamente en el volumen cdc2_data
+  ```
+
+### C. En Servidor VPS (Producción con PM2)
+- **Restaurar backup manual**:
+  ```bash
+  pm2 stop carta-backend
+  unzip -o /ruta/cdc2_backup_YYYYMMDD.zip -d /var/www/cdc/server/data/
+  pm2 start carta-backend
+  ```

@@ -23,6 +23,7 @@ jobs:
             cd /var/www/cdc
             git pull origin main
             npm install
+            npm rebuild better-sqlite3
             npm run client:build
             pm2 restart carta-backend
             npm cache clean --force

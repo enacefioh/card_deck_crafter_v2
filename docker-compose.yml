@@ -1,0 +1,17 @@
+services:
+  cdc2:
+    image: cdc2:local
+    container_name: cdc2_app
+    ports:
+      - "80:5173"
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - CDC2_DB_PATH=/app/server/data/users.db
+    volumes:
+      - cdc2_data:/app/server/data
+    restart: unless-stopped
+
+volumes:
+  cdc2_data:
+    name: cdc2_data

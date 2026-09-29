@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import Database from "better-sqlite3";
+import AdmZip from "adm-zip";
+import fs from "fs-extra";
+import path from "path";
 import { SqliteUserRepository } from "./sqliteUserRepository";
 import { AuthService } from "./authService";
 
@@ -72,4 +75,77 @@ describe("Panel de Administración y Métricas - SRS-063", () => {
     const count = await repo.countUsers();
     expect(count).toBe(1);
   });
+
+  it("debe empaquetar archivos de datos en un archivo ZIP de backup excluyendo la carpeta backups", async () => {
+    const AdmZip = (await import("adm-zip")).default;
+    const fs = (await import("fs-extra")).default;
+    const path = (await import("path")).default;
+
+    const tempTestDir = path.join(process.cwd(), "temp/test_backup_" + Date.now());
+    await fs.ensureDir(tempTestDir);
+    await fs.ensureDir(path.join(tempTestDir, "backups"));
+    await fs.writeFile(path.join(tempTestDir, "users.db"), "fake sqlite database content");
+    await fs.writeFile(path.join(tempTestDir, "backups/old.zip"), "old backup");
+
+    const zip = new AdmZip();
+    const entries = await fs.readdir(tempTestDir);
+    for (const entry of entries) {
+      if (entry === "backups") continue;
+      const fullPath = path.join(tempTestDir, entry);
+      const stat = await fs.stat(fullPath);
+      if (stat.isDirectory()) {
+        zip.addLocalFolder(fullPath, entry);
+      } else {
+        zip.addLocalFile(fullPath);
+      }
+    }
+
+    const zipBuffer = zip.toBuffer();
+    expect(zipBuffer.length).toBeGreaterThan(0);
+
+    const readZip = new AdmZip(zipBuffer);
+    const zipEntries = readZip.getEntries().map((e: any) => e.entryName);
+    expect(zipEntries).toContain("users.db");
+    expect(zipEntries).not.toContain("backups/old.zip");
+
+    await fs.remove(tempTestDir);
+  });
+
+  it("permite cerrar y reabrir el SqliteUserRepository tras restaurar datos", async () => {
+    const testDbDir = path.join(process.cwd(), "temp/test_restore_" + Date.now());
+    const testDbPath = path.join(testDbDir, "users.db");
+    await fs.ensureDir(testDbDir);
+
+    const repo = new SqliteUserRepository(testDbPath);
+    await repo.createUser("initial@test.com", "admin", "hash1");
+    expect(await repo.findByEmail("initial@test.com")).not.toBeNull();
+
+    // Crear un backup simulado con otro usuario
+    const altDbPath = path.join(testDbDir, "alt.db");
+    const altRepo = new SqliteUserRepository(altDbPath);
+    await altRepo.createUser("restored@test.com", "user", "hash2");
+    altRepo.close();
+
+    const zip = new AdmZip();
+    zip.addLocalFile(altDbPath, "", "users.db");
+    const zipBuffer = zip.toBuffer();
+
+    // Restaurar sobre el repo principal: cerramos, sobreescribimos y reabrimos
+    repo.close();
+
+    const unzipper = new AdmZip(zipBuffer);
+    unzipper.extractAllTo(testDbDir, true);
+
+    repo.reopen();
+    const restoredUser = await repo.findByEmail("restored@test.com");
+    expect(restoredUser).not.toBeNull();
+    expect(restoredUser?.email).toBe("restored@test.com");
+
+    const oldUser = await repo.findByEmail("initial@test.com");
+    expect(oldUser).toBeNull();
+
+    repo.close();
+    await fs.remove(testDbDir);
+  });
 });
+

@@ -4,17 +4,23 @@ import { randomUUID } from "crypto";
 import path from "path";
 import fs from "fs-extra";
 import type { User, UserSummary, UserRole, AuthSession, IUserRepository, DashboardMetrics } from "shared";
+import { MigrationManager } from "../db/migrations.js";
 
 export class SqliteUserRepository implements IUserRepository {
   private db: DatabaseType;
+  private dbPath?: string;
 
   constructor(dbOrPath?: DatabaseType | string) {
     if (typeof dbOrPath === "object" && dbOrPath !== null) {
       this.db = dbOrPath;
     } else {
-      const dbPath = dbOrPath || process.env.CDC2_DB_PATH || path.join(process.cwd(), "server/data/users.db");
-      fs.ensureDirSync(path.dirname(dbPath));
-      this.db = new Database(dbPath);
+      this.dbPath = dbOrPath || process.env.CDC2_DB_PATH || path.join(process.cwd(), "server/data/users.db");
+      const baseDir = path.dirname(this.dbPath);
+      fs.ensureDirSync(baseDir);
+      fs.ensureDirSync(path.join(baseDir, "backups"));
+      fs.ensureDirSync(path.join(baseDir, "uploads"));
+      fs.ensureDirSync(path.join(baseDir, "templates"));
+      this.db = new Database(this.dbPath);
     }
 
     // Activar claves foráneas y modo WAL para alta concurrencia
@@ -24,27 +30,34 @@ export class SqliteUserRepository implements IUserRepository {
     this.initSchema();
   }
 
+  public close(): void {
+    if (this.db && this.db.open) {
+      try {
+        this.db.pragma("wal_checkpoint(TRUNCATE)");
+      } catch (err) {
+        console.warn("[SqliteUserRepository] Error al consolidar WAL antes de cerrar:", err);
+      }
+      this.db.close();
+    }
+  }
+
+  public reopen(newPath?: string): void {
+    const targetPath = newPath || this.dbPath;
+    if (!targetPath) {
+      throw new Error("No se puede reabrir una base de datos en memoria sin ruta de fichero.");
+    }
+    this.dbPath = targetPath;
+    const baseDir = path.dirname(this.dbPath);
+    fs.ensureDirSync(baseDir);
+    this.db = new Database(this.dbPath);
+    this.db.pragma("journal_mode = WAL");
+    this.db.pragma("foreign_keys = ON");
+    this.initSchema();
+  }
+
   private initSchema(): void {
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT UNIQUE NOT NULL,
-        password_hash TEXT NULL,
-        role TEXT NOT NULL DEFAULT 'user',
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-        expires_at TEXT NOT NULL,
-        created_at TEXT NOT NULL
-      );
-
-      CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
-      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-    `);
+    const migrationManager = new MigrationManager(this.db);
+    migrationManager.runMigrations();
   }
 
   public getDatabase(): DatabaseType {

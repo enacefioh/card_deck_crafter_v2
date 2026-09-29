@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../AuthContext";
 import { getAvatarInitials, getAvatarColor } from "../utils/avatarUtils";
 import type { UserSummary, UserRole } from "shared";
@@ -30,6 +30,12 @@ export const AdminPanel: React.FC = () => {
 
   const [userToReset, setUserToReset] = useState<UserSummary | null>(null);
   const [userToDelete, setUserToDelete] = useState<UserSummary | null>(null);
+
+  // Estado para exportación e importación de copias de seguridad (SRS-064)
+  const [isExportingBackup, setIsExportingBackup] = useState(false);
+  const [isImportingBackup, setIsImportingBackup] = useState(false);
+  const [restoreConfirmFile, setRestoreConfirmFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Carga de datos
   const loadDashboard = async () => {
@@ -155,6 +161,81 @@ export const AdminPanel: React.FC = () => {
       loadDashboard();
     } catch (err: any) {
       showFeedback(err.message, "error");
+    }
+  };
+
+  // Descargar Copia de Seguridad (SRS-064)
+  const handleExportBackup = async () => {
+    try {
+      setIsExportingBackup(true);
+      const res = await fetch("/api/admin/backup/export");
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || "Error al exportar la copia de seguridad.");
+      }
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = downloadUrl;
+      const contentDisposition = res.headers.get("Content-Disposition");
+      let filename = "cdc2_backup.zip";
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="?([^"]+)"?/);
+        if (match && match[1]) filename = match[1];
+      }
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      showFeedback("Copia de seguridad descargada con éxito.");
+    } catch (err: any) {
+      showFeedback(err.message, "error");
+    } finally {
+      setIsExportingBackup(false);
+    }
+  };
+
+  // Seleccionar archivo para restauración (SRS-064)
+  const handleSelectRestoreFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith(".zip")) {
+        showFeedback("El archivo debe tener extensión .zip", "error");
+        e.target.value = "";
+        return;
+      }
+      setRestoreConfirmFile(file);
+    }
+    e.target.value = "";
+  };
+
+  // Confirmar y ejecutar restauración (SRS-064)
+  const handleConfirmRestore = async () => {
+    if (!restoreConfirmFile) return;
+    try {
+      setIsImportingBackup(true);
+      const formData = new FormData();
+      formData.append("backup", restoreConfirmFile);
+
+      const res = await fetch("/api/admin/backup/import", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || "Error al restaurar la copia de seguridad.");
+      }
+
+      showFeedback("¡Copia de seguridad restaurada correctamente! Recargando sistema...");
+      setRestoreConfirmFile(null);
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } catch (err: any) {
+      showFeedback(err.message, "error");
+      setIsImportingBackup(false);
     }
   };
 
@@ -429,6 +510,72 @@ export const AdminPanel: React.FC = () => {
                   <div>
                     <span style={{ color: "#64748b", display: "block" }}>Entorno:</span>
                     <strong style={{ color: "#e2e8f0" }}>Docker / Multiplataforma</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Copias de Seguridad del Sistema (SRS-064) */}
+              <div style={{ backgroundColor: "#1e1e24", border: "1px solid #2a2a35", borderRadius: "10px", padding: "24px", marginTop: "24px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+                  <div style={{ maxWidth: "650px" }}>
+                    <h3 style={{ fontSize: "16px", fontWeight: "600", margin: "0 0 6px 0", color: "#fff" }}>
+                      📦 Copia de Seguridad del Sistema
+                    </h3>
+                    <p style={{ color: "#94a3b8", fontSize: "13px", margin: 0, lineHeight: "1.5" }}>
+                      Gestiona copias completas de la base de datos de usuarios (SQLite), sesiones y recursos del sistema en archivos comprimidos <code>.zip</code>. Puedes descargar copias de respaldo o restaurar el sistema en cualquier momento.
+                    </p>
+                  </div>
+                  <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
+                    <button
+                      onClick={handleExportBackup}
+                      disabled={isExportingBackup || isImportingBackup}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        backgroundColor: isExportingBackup ? "#334155" : "#10b981",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "10px 16px",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        cursor: isExportingBackup || isImportingBackup ? "wait" : "pointer",
+                        boxShadow: "0 4px 12px rgba(16, 185, 129, 0.2)",
+                        transition: "background-color 0.2s"
+                      }}
+                    >
+                      {isExportingBackup ? "Empaquetando datos..." : "⬇️ Descargar Copia (.zip)"}
+                    </button>
+
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isExportingBackup || isImportingBackup}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "8px",
+                        backgroundColor: isImportingBackup ? "#334155" : "#6366f1",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: "6px",
+                        padding: "10px 16px",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                        cursor: isExportingBackup || isImportingBackup ? "wait" : "pointer",
+                        boxShadow: "0 4px 12px rgba(99, 102, 241, 0.2)",
+                        transition: "background-color 0.2s"
+                      }}
+                    >
+                      {isImportingBackup ? "Restaurando..." : "⬆️ Restaurar Copia (.zip)"}
+                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      accept=".zip,application/zip"
+                      style={{ display: "none" }}
+                      onChange={handleSelectRestoreFile}
+                    />
                   </div>
                 </div>
               </div>
@@ -874,6 +1021,77 @@ export const AdminPanel: React.FC = () => {
                 style={{ padding: "8px 16px", borderRadius: "6px", border: "none", backgroundColor: "#ef4444", color: "#fff", fontWeight: "600", fontSize: "13px", cursor: "pointer" }}
               >
                 Eliminar Cuenta
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: CONFIRMAR RESTAURACIÓN DE COPIA DE SEGURIDAD (SRS-064) */}
+      {restoreConfirmFile && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.75)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+          onClick={() => !isImportingBackup && setRestoreConfirmFile(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#1e1e24",
+              border: "1px solid #eab308",
+              borderRadius: "10px",
+              padding: "24px 28px",
+              width: "100%",
+              maxWidth: "460px",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.6)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+              <span style={{ fontSize: "28px" }}>⚠️</span>
+              <h3 style={{ margin: 0, fontSize: "17px", color: "#facc15" }}>Confirmar Restauración del Sistema</h3>
+            </div>
+            <p style={{ fontSize: "13px", color: "#cbd5e1", lineHeight: "1.5", margin: "0 0 10px 0" }}>
+              Estás a punto de restaurar la copia de seguridad: <strong>{restoreConfirmFile.name}</strong> ({(restoreConfirmFile.size / 1024).toFixed(1)} KB).
+            </p>
+            <div style={{ backgroundColor: "rgba(234, 179, 8, 0.1)", border: "1px solid rgba(234, 179, 8, 0.3)", borderRadius: "6px", padding: "12px", marginBottom: "16px" }}>
+              <p style={{ fontSize: "12px", color: "#fef08a", margin: 0, lineHeight: "1.4" }}>
+                <strong>ADVERTENCIA:</strong> Esta acción reemplazará la base de datos y los datos actuales por los contenidos en este archivo. El servidor guardará una copia preventiva automática antes de sobreescribir.
+              </p>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                disabled={isImportingBackup}
+                onClick={() => setRestoreConfirmFile(null)}
+                style={{ padding: "8px 14px", borderRadius: "6px", border: "1px solid #3f3f4e", backgroundColor: "transparent", color: "#cbd5e1", fontSize: "13px", cursor: isImportingBackup ? "not-allowed" : "pointer" }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={isImportingBackup}
+                onClick={handleConfirmRestore}
+                style={{
+                  padding: "8px 18px",
+                  borderRadius: "6px",
+                  border: "none",
+                  backgroundColor: isImportingBackup ? "#713f12" : "#eab308",
+                  color: "#000",
+                  fontWeight: "700",
+                  fontSize: "13px",
+                  cursor: isImportingBackup ? "wait" : "pointer"
+                }}
+              >
+                {isImportingBackup ? "Restaurando y migrando..." : "Sí, Restaurar Ahora"}
               </button>
             </div>
           </div>

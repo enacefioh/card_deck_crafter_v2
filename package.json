@@ -16,7 +16,11 @@
     "server:start": "npm run start -w server",
     "test": "vitest run",
     "docker:build": "docker build -t cdc2:local -t enacefio/cdc2:latest .",
-    "docker:run": "docker run -it --rm -p 80:5173 -p 3000:3000 --name cdc2_app cdc2:local",
+    "docker:run": "docker run -it --rm -p 80:5173 -p 3000:3000 -v cdc2_data:/app/server/data --name cdc2_app cdc2:local",
+    "docker:compose:up": "docker compose up -d",
+    "docker:compose:down": "docker compose down",
+    "docker:volume:backup": "docker run --rm -v cdc2_data:/data -v ${PWD}:/backup alpine tar czf /backup/cdc2_backup.tar.gz -C /data .",
+    "docker:volume:restore": "docker run --rm -v cdc2_data:/data -v ${PWD}:/backup alpine sh -c \"rm -rf /data/* && tar xzf /backup/cdc2_backup.tar.gz -C /data\"",
     "docker:build-multiarch": "docker buildx build --platform linux/amd64,linux/arm64 -t enacefio/cdc2:latest .",
     "docker:push": "docker push enacefio/cdc2:latest"
   }

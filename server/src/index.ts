@@ -172,7 +172,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.260928.3",
+      version: "v2.260929.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -276,6 +276,163 @@ app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
     res.json({ status: "OK" });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Endpoint de descarga de copia de seguridad (SRS-064)
+app.get("/api/admin/backup/export", requireAdmin, async (_req, res) => {
+  try {
+    const repo = authService.getRepository() as SqliteUserRepository;
+    const db = repo.getDatabase();
+
+    // 1. Consolidar el WAL de SQLite para asegurar que el fichero users.db tenga todo el estado actual
+    try {
+      db.pragma("wal_checkpoint(TRUNCATE)");
+    } catch (walErr) {
+      console.warn("[backup] Advertencia al ejecutar wal_checkpoint:", walErr);
+    }
+
+    const dataDir = process.env.CDC2_DB_PATH
+      ? path.dirname(process.env.CDC2_DB_PATH)
+      : path.join(process.cwd(), "server/data");
+
+    if (!await fs.pathExists(dataDir)) {
+      return res.status(404).json({ error: "El directorio de datos no existe." });
+    }
+
+    // 2. Empaquetar el contenido del directorio en un ZIP con AdmZip
+    const zip = new AdmZip();
+    const entries = await fs.readdir(dataDir);
+    for (const entry of entries) {
+      if (entry === "backups") continue; // evitar recursión dentro de la carpeta backups
+      const fullPath = path.join(dataDir, entry);
+      const stat = await fs.stat(fullPath);
+      if (stat.isDirectory()) {
+        zip.addLocalFolder(fullPath, entry);
+      } else {
+        zip.addLocalFile(fullPath);
+      }
+    }
+
+    const zipBuffer = zip.toBuffer();
+    const now = new Date();
+    const dateStr = now.toISOString().replace(/[-:T]/g, "").slice(0, 14); // YYYYMMDDHHmmss
+    const filename = `cdc2_backup_${dateStr}.zip`;
+
+    // 3. Guardar también una copia interna en server/data/backups/
+    const localBackupDir = path.join(dataDir, "backups");
+    await fs.ensureDir(localBackupDir);
+    await fs.writeFile(path.join(localBackupDir, filename), zipBuffer);
+
+    // 4. Enviar archivo para descarga en el navegador
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Length", zipBuffer.length);
+    res.send(zipBuffer);
+  } catch (err: any) {
+    console.error("Error al exportar copia de seguridad:", err);
+    res.status(500).json({ error: err.message || "Error al exportar la copia de seguridad." });
+  }
+});
+
+// Endpoint de importación / restauración de copia de seguridad (SRS-064)
+app.post("/api/admin/backup/import", requireAdmin, multer({ storage: multer.memoryStorage(), limits: { fileSize: 100 * 1024 * 1024 } }).single("backup"), async (req, res) => {
+  const repo = authService.getRepository() as SqliteUserRepository;
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({ error: "No se ha subido ningún archivo de copia de seguridad." });
+    }
+
+    // 1. Validar que el archivo subido sea un ZIP válido
+    let incomingZip: AdmZip;
+    try {
+      incomingZip = new AdmZip(req.file.buffer);
+    } catch {
+      return res.status(400).json({ error: "El archivo proporcionado no es un archivo ZIP válido." });
+    }
+
+    // 2. Comprobar que contiene la base de datos de usuarios
+    const entries = incomingZip.getEntries();
+    const hasUsersDb = entries.some(e => e.entryName === "users.db" || e.entryName.endsWith("/users.db") || e.entryName.endsWith("\\users.db"));
+    if (!hasUsersDb) {
+      return res.status(400).json({ error: "El archivo ZIP no contiene una base de datos válida ('users.db')." });
+    }
+
+    const dataDir = process.env.CDC2_DB_PATH
+      ? path.dirname(process.env.CDC2_DB_PATH)
+      : path.join(process.cwd(), "server/data");
+
+    // 3. Crear una copia de seguridad automática preventiva antes de sobreescribir
+    const backupDir = path.join(dataDir, "backups");
+    await fs.ensureDir(backupDir);
+    const now = new Date();
+    const dateStr = now.toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    const preRestoreFilename = `auto_pre_restore_${dateStr}.zip`;
+
+    try {
+      const currentZip = new AdmZip();
+      if (await fs.pathExists(dataDir)) {
+        const existingEntries = await fs.readdir(dataDir);
+        for (const entry of existingEntries) {
+          if (entry === "backups") continue;
+          const fullPath = path.join(dataDir, entry);
+          const stat = await fs.stat(fullPath);
+          if (stat.isDirectory()) {
+            currentZip.addLocalFolder(fullPath, entry);
+          } else {
+            currentZip.addLocalFile(fullPath);
+          }
+        }
+        await fs.writeFile(path.join(backupDir, preRestoreFilename), currentZip.toBuffer());
+      }
+    } catch (preErr) {
+      console.warn("[backup-restore] Advertencia al generar copia preventiva:", preErr);
+    }
+
+    // 4. Cerrar de forma ordenada la conexión SQLite activa
+    repo.close();
+
+    // 5. Limpiar ficheros anteriores de SQLite para evitar mezclas con WAL previo
+    for (const f of ["users.db", "users.db-wal", "users.db-shm"]) {
+      const p = path.join(dataDir, f);
+      if (await fs.pathExists(p)) {
+        await fs.remove(p);
+      }
+    }
+
+    // 6. Extraer las entradas del ZIP
+    for (const entry of entries) {
+      if (entry.isDirectory) {
+        await fs.ensureDir(path.join(dataDir, entry.entryName));
+      } else {
+        if (entry.entryName.startsWith("backups/") || entry.entryName.startsWith("backups\\")) {
+          continue;
+        }
+        // Si el archivo viene anidado en una carpeta raíz del zip, normalizar si es users.db
+        let targetRelative = entry.entryName;
+        if (targetRelative.endsWith("users.db")) {
+          targetRelative = "users.db";
+        }
+        const targetPath = path.join(dataDir, targetRelative);
+        await fs.ensureDir(path.dirname(targetPath));
+        await fs.writeFile(targetPath, entry.getData());
+      }
+    }
+
+    // 7. Reabrir el repositorio SQLite y ejecutar migraciones si correspondieran
+    repo.reopen();
+
+    res.json({
+      status: "OK",
+      message: "Copia de seguridad restaurada correctamente.",
+      preRestoreBackup: preRestoreFilename
+    });
+  } catch (err: any) {
+    console.error("Error al restaurar copia de seguridad:", err);
+    try {
+      repo.reopen();
+    } catch (_) {}
+    res.status(500).json({ error: err.message || "Error al restaurar la copia de seguridad." });
   }
 });
 
