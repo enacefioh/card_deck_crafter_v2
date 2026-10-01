@@ -64,32 +64,26 @@ export interface Carta {
     visibility?: "visible" | "hidden" | "collapsed";
   }>;
   exposedProperties?: ExposedProperty[];
-  plantilla?: {
+  plantilla?: PlantillaCDC2;
+  plantillaTrasera?: PlantillaCDC2;
+}
+
+export interface PlantillaCDC2 {
+  id: string;
+  nombre: string;
+  anchoMm?: number;
+  altoMm?: number;
+  capas: any[];
+  camposConfig?: any[];
+  assets?: Array<{
     id: string;
     nombre: string;
-    capas: any[];
-    camposConfig: any[];
-    assets?: Array<{
-      id: string;
-      nombre: string;
-      src: string;
-    }>;
-    customFonts?: CustomFont[];
-    exposedProperties?: ExposedProperty[];
-  };
-  plantillaTrasera?: {
-    id: string;
-    nombre: string;
-    capas: any[];
-    camposConfig: any[];
-    assets?: Array<{
-      id: string;
-      nombre: string;
-      src: string;
-    }>;
-    customFonts?: CustomFont[];
-    exposedProperties?: ExposedProperty[];
-  };
+    src: string;
+  }>;
+  customFonts?: CustomFont[];
+  exposedProperties?: ExposedProperty[];
+  miniatura?: string; // Data URL en base64 de la miniatura JPG (max 100x100px)
+  [key: string]: any;
 }
 
 export interface CustomFont {

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import type { CardConfig, Carta, ExposedProperty } from "shared";
 import JSZip from "jszip";
 import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
+import { generarMiniaturaPlantilla } from "./utils/thumbnailUtils";
 import "./EditCardModal.css";
 
 const PROPERTY_WEIGHTS: Record<string, number> = {
@@ -799,6 +800,20 @@ export default function EditCardModal({
 
     const valoresActivos = activeTab === "frontal" ? tempValoresCampos : tempValoresCamposTrasera;
     const updatedTemplate = prepararPlantillaParaExportacion(plantillaActiva, name, valoresActivos, idOverride);
+
+    // Generar miniatura JPEG Base64 de la plantilla (SRS-069)
+    try {
+      const miniatura = await generarMiniaturaPlantilla(
+        updatedTemplate,
+        plantillaActiva.anchoMm || cardConfig.anchoMm,
+        plantillaActiva.altoMm || cardConfig.altoMm
+      );
+      if (miniatura) {
+        updatedTemplate.miniatura = miniatura;
+      }
+    } catch (thumbErr) {
+      console.warn("[thumbnail] No se pudo generar la miniatura:", thumbErr);
+    }
 
     if (guardarEnProyecto) {
       if (activeTab === "frontal") {

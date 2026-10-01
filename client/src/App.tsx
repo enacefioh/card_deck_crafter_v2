@@ -13,6 +13,7 @@ import { AuthModals } from "./AuthModals";
 import { AdminPanel } from "./admin/AdminPanel";
 import { SaveCloudModal } from "./components/SaveCloudModal";
 import { CloudProjectsModal } from "./components/CloudProjectsModal";
+import { TemplatePreviewModal } from "./components/TemplatePreviewModal";
 import {
   fetchUserStorage,
   uploadCloudProject,
@@ -487,6 +488,7 @@ function AppContent() {
   const [showTemplateModal, setShowTemplateModal] = useState<boolean>(false);
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
   const [templateModalMode, setTemplateModalMode] = useState<"addCard" | "assignBack">("addCard");
+  const [previewingTemplate, setPreviewingTemplate] = useState<any | null>(null);
 
   // --- Estados de la Galería Multimedia del Proyecto (SRS-014) ---
   const [projectAssets, setProjectAssetsInternal] = useState<any[]>([]);
@@ -2439,6 +2441,36 @@ function AppContent() {
     }
     setShowTemplateModal(false);
   };
+
+  // Lista unificada de plantillas ordenadas por compatibilidad (SRS-069)
+  const unifiedTemplates = useMemo(() => {
+    const allTemplatesMap = new Map<string, any>();
+    activeTemplates.forEach((t) => allTemplatesMap.set(t.id, t));
+    importedTemplates.forEach((t) => allTemplatesMap.set(t.id, t));
+    const all = Array.from(allTemplatesMap.values());
+
+    return all.sort((a, b) => {
+      // 1. "vacia" siempre primero
+      if (a.id === "vacia") return -1;
+      if (b.id === "vacia") return 1;
+
+      // Comprobación de compatibilidad con cardConfig del documento activo
+      const aWidth = a.anchoMm ?? cardConfig.anchoMm;
+      const aHeight = a.altoMm ?? cardConfig.altoMm;
+      const aMismatch = Math.abs(aWidth - cardConfig.anchoMm) > 0.1 || Math.abs(aHeight - cardConfig.altoMm) > 0.1;
+
+      const bWidth = b.anchoMm ?? cardConfig.anchoMm;
+      const bHeight = b.altoMm ?? cardConfig.altoMm;
+      const bMismatch = Math.abs(bWidth - cardConfig.anchoMm) > 0.1 || Math.abs(bHeight - cardConfig.altoMm) > 0.1;
+
+      // 2. Compatibles antes que incompatibles
+      if (!aMismatch && bMismatch) return -1;
+      if (aMismatch && !bMismatch) return 1;
+
+      // 3. Dentro de cada grupo, ordenar alfabéticamente por nombre
+      return (a.nombre || "").localeCompare(b.nombre || "");
+    });
+  }, [activeTemplates, importedTemplates, cardConfig.anchoMm, cardConfig.altoMm]);
 
   const abrirModalPlantillaParaTrasera = () => {
     setTemplateModalMode("assignBack");
@@ -5349,17 +5381,19 @@ function AppContent() {
             <div className="template-modal-body">
               <p className="template-modal-info">Selecciona una de las plantillas disponibles:</p>
               
-              <div className="template-modal-group-title">Plantillas por Defecto</div>
-              {activeTemplates.length === 0 ? (
+              {unifiedTemplates.length === 0 ? (
                 <div className="template-modal-empty">
-                  No hay plantillas por defecto cargadas.
+                  No hay plantillas disponibles.
                 </div>
               ) : (
                 <div className="template-list">
-                  {activeTemplates.map((plantilla) => {
-                    const widthMm = plantilla.id === "vacia" ? cardConfig.anchoMm : plantilla.anchoMm;
-                    const heightMm = plantilla.id === "vacia" ? cardConfig.altoMm : plantilla.altoMm;
-                    const isMismatch = Math.abs(widthMm - cardConfig.anchoMm) > 0.1 || Math.abs(heightMm - cardConfig.altoMm) > 0.1;
+                  {unifiedTemplates.map((plantilla) => {
+                    const widthMm = plantilla.id === "vacia" ? cardConfig.anchoMm : (plantilla.anchoMm || cardConfig.anchoMm);
+                    const heightMm = plantilla.id === "vacia" ? cardConfig.altoMm : (plantilla.altoMm || cardConfig.altoMm);
+                    const isMismatch =
+                      plantilla.id !== "vacia" &&
+                      (Math.abs(widthMm - cardConfig.anchoMm) > 0.1 || Math.abs(heightMm - cardConfig.altoMm) > 0.1);
+
                     return (
                       <div
                         key={plantilla.id}
@@ -5367,64 +5401,108 @@ function AppContent() {
                         onClick={() => handleSelectTemplate(plantilla)}
                         style={isMismatch ? { color: "var(--text-secondary)" } : undefined}
                       >
-                        {isMismatch ? (
-                          <div
-                            className="template-icon"
-                            style={{ color: "#d97706", fontSize: "16px", cursor: "help" }}
-                            title={`El tamaño de la plantilla (${widthMm}x${heightMm}mm) no coincide con las dimensiones de las cartas configuradas en el proyecto (${cardConfig.anchoMm}x${cardConfig.altoMm}mm)`}
-                          >
-                            ⚠️
-                          </div>
-                        ) : (
-                          <div className="template-icon">📄</div>
-                        )}
+                        {/* Miniatura / Silueta flotante con overlay de advertencia (RF-2, RF-3, RF-5) */}
+                        <div
+                          className="template-thumbnail-wrapper"
+                          style={{
+                            position: "relative",
+                            width: "56px",
+                            height: "56px",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                            background: "transparent",
+                          }}
+                        >
+                          {plantilla.miniatura ? (
+                            <img
+                              src={plantilla.miniatura}
+                              alt={plantilla.nombre}
+                              style={{
+                                maxWidth: "100%",
+                                maxHeight: "100%",
+                                width: "auto",
+                                height: "auto",
+                                objectFit: "contain",
+                                display: "block",
+                                borderRadius: "3px",
+                                boxShadow: "0 2px 6px rgba(0, 0, 0, 0.45)",
+                                opacity: isMismatch ? 0.45 : 1,
+                                transition: "opacity 0.2s",
+                              }}
+                            />
+                          ) : (
+                            <div
+                              style={{
+                                width: widthMm >= heightMm ? "48px" : "34px",
+                                height: widthMm >= heightMm ? "34px" : "48px",
+                                backgroundColor: "#f8fafc",
+                                borderRadius: "3px",
+                                boxShadow: "0 2px 6px rgba(0, 0, 0, 0.35)",
+                                border: "1px solid #cbd5e1",
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                opacity: isMismatch ? 0.45 : 0.85,
+                              }}
+                            >
+                              <span style={{ fontSize: "16px", color: "#64748b" }}>
+                                {plantilla.id === "vacia" ? "📄" : "🎴"}
+                              </span>
+                            </div>
+                          )}
+                          {isMismatch && (
+                            <div
+                              style={{
+                                position: "absolute",
+                                inset: 0,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                fontSize: "20px",
+                                pointerEvents: "none",
+                                textShadow: "0 1px 4px rgba(0,0,0,0.8)",
+                              }}
+                              title={`El tamaño de la plantilla (${widthMm}x${heightMm}mm) no coincide con el documento activo (${cardConfig.anchoMm}x${cardConfig.altoMm}mm)`}
+                            >
+                              ⚠️
+                            </div>
+                          )}
+                        </div>
+
                         <div className="template-details">
-                          <span className="template-name" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>{plantilla.nombre}</span>
+                          <span className="template-name" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>
+                            {plantilla.nombre}
+                          </span>
                           <span className="template-desc" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>
                             {widthMm} x {heightMm} mm ({plantilla.capas?.length || 0} capas)
                           </span>
                         </div>
-                        <button className="btn-add-template">Seleccionar</button>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
 
-              <div className="template-modal-group-title" style={{ marginTop: "16px" }}>Plantillas Importadas</div>
-              {importedTemplates.length === 0 ? (
-                <div className="template-modal-empty">
-                  No hay plantillas importadas en esta sesión.
-                </div>
-              ) : (
-                <div className="template-list">
-                  {importedTemplates.map((plantilla) => {
-                    const isMismatch = Math.abs(plantilla.anchoMm - cardConfig.anchoMm) > 0.1 || Math.abs(plantilla.altoMm - cardConfig.altoMm) > 0.1;
-                    return (
-                      <div
-                        key={plantilla.id}
-                        className="template-card-item"
-                        onClick={() => handleSelectTemplate(plantilla)}
-                        style={isMismatch ? { color: "var(--text-secondary)" } : undefined}
-                      >
-                        {isMismatch ? (
-                          <div
-                            className="template-icon"
-                            style={{ color: "#d97706", fontSize: "16px", cursor: "help" }}
-                            title={`El tamaño de la plantilla (${plantilla.anchoMm}x${plantilla.altoMm}mm) no coincide con las dimensiones de las cartas configuradas en el proyecto (${cardConfig.anchoMm}x${cardConfig.altoMm}mm)`}
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            className="btn-preview-template"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPreviewingTemplate(plantilla);
+                            }}
+                            title="Previsualizar plantilla"
                           >
-                            ⚠️
-                          </div>
-                        ) : (
-                          <div className="template-icon">📦</div>
-                        )}
-                        <div className="template-details">
-                          <span className="template-name" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>{plantilla.nombre}</span>
-                          <span className="template-desc" style={isMismatch ? { color: "var(--text-secondary)" } : undefined}>
-                            {plantilla.anchoMm} x {plantilla.altoMm} mm ({plantilla.capas?.length || 0} capas)
-                          </span>
+                            👁️
+                          </button>
+                          <button
+                            type="button"
+                            className="btn-add-template"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSelectTemplate(plantilla);
+                            }}
+                          >
+                            Seleccionar
+                          </button>
                         </div>
-                        <button className="btn-add-template">Seleccionar</button>
                       </div>
                     );
                   })}
@@ -5438,6 +5516,19 @@ function AppContent() {
             </footer>
           </div>
         </div>
+      )}
+      {previewingTemplate && (
+        <TemplatePreviewModal
+          isOpen={Boolean(previewingTemplate)}
+          onClose={() => setPreviewingTemplate(null)}
+          plantilla={previewingTemplate}
+          cardConfig={cardConfig}
+          projectSymbols={projectSymbols}
+          onSelectTemplate={(tpl) => {
+            handleSelectTemplate(tpl);
+            setPreviewingTemplate(null);
+          }}
+        />
       )}
       {showSymbolsGallery && (
         <SymbolsGalleryModal
