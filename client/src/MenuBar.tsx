@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import type { DocumentoCDC2 } from "shared";
+import type { DocumentoCDC2, UserStorageInfo } from "shared";
 import "./MenuBar.css";
 import { useAuth } from "./AuthContext";
 import { getAvatarInitials, getAvatarColor } from "./utils/avatarUtils";
@@ -8,6 +8,9 @@ interface MenuBarProps {
   onNuevoProyecto: () => void;
   onCargarProyectoClick: () => void;
   onGuardarProyecto: () => void;
+  storageInfo?: UserStorageInfo | null;
+  onOpenCloudProjects?: () => void;
+  onSaveCloudProject?: () => void;
   onImportarImagenesClick: () => void;
   onExportarPdf: () => void;
   exportandoPdf: boolean;
@@ -98,10 +101,14 @@ export default function MenuBar({
   onAddDocumento,
   onDeleteDocumento,
   onRenameDocumento,
+  storageInfo,
+  onOpenCloudProjects,
+  onSaveCloudProject,
 }: MenuBarProps) {
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>("");
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
 
   // Cerrar menú al hacer click fuera
@@ -109,6 +116,7 @@ export default function MenuBar({
     const handleClickOutside = (event: MouseEvent) => {
       if (menuBarRef.current && !menuBarRef.current.contains(event.target as Node)) {
         setActiveDropdown(null);
+        setActiveSubmenu(null);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -122,6 +130,7 @@ export default function MenuBar({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setActiveDropdown(null);
+        setActiveSubmenu(null);
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -132,16 +141,19 @@ export default function MenuBar({
 
   const handleMenuClick = (menuName: string) => {
     setActiveDropdown((prev) => (prev === menuName ? null : menuName));
+    setActiveSubmenu(null);
   };
 
   const handleMenuMouseEnter = (menuName: string) => {
     if (activeDropdown !== null) {
       setActiveDropdown(menuName);
+      setActiveSubmenu(null);
     }
   };
 
   const handleAction = (action: () => void) => {
     setActiveDropdown(null);
+    setActiveSubmenu(null);
     action();
   };
 
@@ -168,7 +180,7 @@ export default function MenuBar({
     <div className="menu-bar" ref={menuBarRef}>
       <div className="menu-bar-brand">
         <span className="brand-logo">🎴</span>
-        <span className="brand-text">Card Deck Crafter v2.261001.1</span>
+        <span className="brand-text">Card Deck Crafter v2.261001.2</span>
       </div>
 
 
@@ -185,24 +197,115 @@ export default function MenuBar({
           </button>
           {activeDropdown === "archivo" && (
             <div className="menu-dropdown">
-              <button className="menu-item" onClick={() => handleAction(onNuevoProyecto)}>
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onNuevoProyecto)}
+                onMouseEnter={() => setActiveSubmenu(null)}
+              >
                 <span className="menu-item-icon">📄</span> Nuevo Proyecto
-              </button>
-              <button className="menu-item" onClick={() => handleAction(onAddDocumento)}>
-                <span className="menu-item-icon">➕</span> Nueva Página
-              </button>
-              <button className="menu-item" onClick={() => handleAction(onCargarProyectoClick)}>
-                <span className="menu-item-icon">📂</span> Abrir Proyecto...
-              </button>
-              <button className="menu-item" onClick={() => handleAction(onImportarPlantillaClick)}>
-                <span className="menu-item-icon">📥</span> Importar Plantilla (.cdc2t)...
               </button>
               <button
                 className="menu-item"
-                onClick={() => handleAction(onGuardarProyecto)}
-                disabled={cartasCount === 0}
+                onClick={() => handleAction(onAddDocumento)}
+                onMouseEnter={() => setActiveSubmenu(null)}
               >
-                <span className="menu-item-icon">💾</span> Guardar Proyecto
+                <span className="menu-item-icon">➕</span> Nueva Página
+              </button>
+
+              <div className="menu-separator" />
+
+              {/* Submenú: Abrir Proyecto */}
+              <div
+                className="menu-item-submenu"
+                onMouseEnter={() => setActiveSubmenu("abrir")}
+                onMouseLeave={() => setActiveSubmenu(null)}
+              >
+                <div
+                  className={`menu-item ${activeSubmenu === "abrir" ? "hover" : ""}`}
+                  style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}
+                >
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <span className="menu-item-icon">📂</span> Abrir Proyecto
+                  </div>
+                  <span className="menu-item-arrow">▶</span>
+                </div>
+                {activeSubmenu === "abrir" && (
+                  <div className="menu-submenu">
+                    <button className="menu-item" onClick={() => handleAction(onCargarProyectoClick)}>
+                      <span className="menu-item-icon">💻</span> Importar desde PC (.cdc2)...
+                    </button>
+                    <button
+                      className="menu-item"
+                      style={{ opacity: user ? 1 : 0.6 }}
+                      onClick={() =>
+                        handleAction(() => {
+                          if (user && onOpenCloudProjects) {
+                            onOpenCloudProjects();
+                          } else {
+                            setShowLoginModal(true);
+                          }
+                        })
+                      }
+                    >
+                      <span className="menu-item-icon">☁️</span> Abrir desde la Nube... {!user && "🔒"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* Submenú: Guardar Proyecto */}
+              <div
+                className="menu-item-submenu"
+                onMouseEnter={() => setActiveSubmenu("guardar")}
+                onMouseLeave={() => setActiveSubmenu(null)}
+              >
+                <div
+                  className={`menu-item ${activeSubmenu === "guardar" ? "hover" : ""}`}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    opacity: cartasCount === 0 ? 0.35 : 1,
+                    cursor: cartasCount === 0 ? "not-allowed" : "pointer"
+                  }}
+                >
+                  <div style={{ display: "flex", alignItems: "center" }}>
+                    <span className="menu-item-icon">💾</span> Guardar Proyecto
+                  </div>
+                  <span className="menu-item-arrow">▶</span>
+                </div>
+                {activeSubmenu === "guardar" && cartasCount > 0 && (
+                  <div className="menu-submenu">
+                    <button className="menu-item" onClick={() => handleAction(onGuardarProyecto)}>
+                      <span className="menu-item-icon">💻</span> Exportar a PC (.cdc2)
+                    </button>
+                    <button
+                      className="menu-item"
+                      style={{ opacity: user ? 1 : 0.6 }}
+                      onClick={() =>
+                        handleAction(() => {
+                          if (user && onSaveCloudProject) {
+                            onSaveCloudProject();
+                          } else {
+                            setShowLoginModal(true);
+                          }
+                        })
+                      }
+                    >
+                      <span className="menu-item-icon">☁️</span> Guardar en la Nube... {!user && "🔒"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              <div className="menu-separator" />
+
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onImportarPlantillaClick)}
+                onMouseEnter={() => setActiveSubmenu(null)}
+              >
+                <span className="menu-item-icon">📥</span> Importar Plantilla (.cdc2t)...
               </button>
 
               <button
@@ -543,6 +646,60 @@ export default function MenuBar({
                     {user.role === "admin" ? "🛡️ Administrador" : "👤 Usuario"}
                   </div>
                 </div>
+
+                {/* Barra de Cuota de Almacenamiento (SRS-066) */}
+                {storageInfo && (
+                  <div style={{ padding: "6px 0", borderBottom: "1px solid var(--border-color, #333340)" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", marginBottom: "4px" }}>
+                      <span style={{ color: "#94a3b8" }}>Almacenamiento:</span>
+                      <span style={{ fontWeight: "600", color: "#cbd5e1" }}>
+                        {storageInfo.usedMb} MB / {storageInfo.quotaMb} MB
+                      </span>
+                    </div>
+                    <div style={{ height: "5px", backgroundColor: "#2b2b38", borderRadius: "3px", overflow: "hidden" }}>
+                      <div
+                        style={{
+                          height: "100%",
+                          width: `${Math.min(100, storageInfo.percentUsed)}%`,
+                          backgroundColor:
+                            storageInfo.percentUsed >= 95
+                              ? "#ef4444"
+                              : storageInfo.percentUsed >= 80
+                              ? "#f59e0b"
+                              : "#38bdf8",
+                          transition: "width 0.3s ease"
+                        }}
+                      />
+                    </div>
+                    <div style={{ fontSize: "10px", color: "#94a3b8", marginTop: "3px", textAlign: "right" }}>
+                      {storageInfo.percentUsed}% ocupado
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowUserMenu(false);
+                    if (onOpenCloudProjects) onOpenCloudProjects();
+                  }}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "6px 8px",
+                    borderRadius: "4px",
+                    backgroundColor: "transparent",
+                    border: "none",
+                    color: "#38bdf8",
+                    fontSize: "12px",
+                    fontWeight: "500",
+                    cursor: "pointer",
+                    textAlign: "left"
+                  }}
+                >
+                  <span>☁️</span> Gestionar mi almacenamiento
+                </button>
 
                 {user.role === "admin" && (
                   <a

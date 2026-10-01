@@ -17,11 +17,17 @@
 
 ### RF-1: Estructura de Directorios Personales de Usuario (`server`)
 - Cada usuario autenticado tendrá una carpeta privada en el servidor bajo la ruta:
-  `server/data/users/<userId>/projects/`
+  `<dataDir>/users/<userId>/projects/`
+- **Resolución de ruta y persistencia en despliegues**:
+  - `dataDir` se resuelve de forma prioritaria a partir de `path.dirname(process.env.CDC2_DB_PATH)` cuando esté definida (ej. en Docker `/app/server/data`), garantizando que los archivos `.cdc2` se almacenen en el mismo volumen persistente que la base de datos SQLite (`cdc2_data`). Si no está definida, se resuelve de forma relativa a la raíz del servidor (`data/` o `server/data/`).
 - El servicio de almacenamiento (`UserStorageService`) se asegurará mediante un proceso *lazy/on-demand* (`ensureUserStorageTree(userId)`) de que la estructura de carpetas exista antes de cualquier lectura o escritura.
 - Esta estructura queda aislada por identificador de usuario (`userId`) y será empaquetada de forma natural dentro de las copias de seguridad del sistema (SRS-064).
 
-### RF-2: Metadatos de Proyectos y Migración SQLite (Migración v3)
+### RF-2: Identificador Único de Proyecto (`id`) y Metadatos en SQLite (Migración v3)
+- **ID Único de Proyecto**:
+  - Todo proyecto dispone de un identificador único (`id` en `ProyectoCDC2` y en `project.json`) generado al crearlo (ej. `proj_<timestamp>_<random>`).
+  - **Retrocompatibilidad**: Si un archivo `.cdc2` importado carece de `id` (proyectos generados en versiones previas), se le genera y asigna una nueva ID en el momento de cargarlo en memoria.
+  - La persistencia y sobrescritura de proyectos en la nube se gestiona **exclusivamente por su ID única**, permitiendo que un usuario tenga múltiples proyectos con el mismo nombre (ej. "Mi Baraja") sin que se sobrescriban entre sí.
 - Para facilitar la búsqueda, ordenación por fecha y presentación de información detallada, se registrarán metadatos de los proyectos en una nueva tabla SQLite `user_projects` mediante la migración `v3`:
   ```sql
   CREATE TABLE IF NOT EXISTS user_projects (
@@ -41,7 +47,8 @@
   CREATE INDEX IF NOT EXISTS idx_user_projects_user_updated ON user_projects(user_id, updated_at DESC);
   ```
 - **Campos de metadatos**:
-  - `name`: Título del proyecto (por defecto el nombre de la baraja o asignado por el usuario).
+  - `id`: Identificador único del proyecto sincronizado con el cliente.
+  - `name`: Título del proyecto (permite duplicados con distinta ID).
   - `description`: Breve descripción o notas del proyecto (opcional, editable en cada guardado).
   - `card_count`: Total de cartas activas en el proyecto.
   - `document_count`: Total de documentos/páginas del proyecto.
@@ -52,61 +59,59 @@
 Todos los endpoints requieren autenticación activa mediante cookie de sesión (`cdc2_session`).
 
 1. `GET /api/user/storage`:
-   - Calcula el tamaño total en bytes de los proyectos del usuario en `server/data/users/<userId>/`.
+   - Calcula el tamaño total en bytes de los proyectos del usuario en `<dataDir>/users/<userId>/`.
    - Consulta la cuota asignada en `users.storage_quota_mb`.
-   - Devuelve:
-     ```json
-     {
-       "quotaMb": 100,
-       "quotaBytes": 104857600,
-       "usedBytes": 33554432,
-       "usedMb": 32.0,
-       "availableBytes": 71303168,
-       "availableMb": 68.0,
-       "percentUsed": 32
-     }
-     ```
+   - Devuelve cuota, usado, disponible y porcentaje.
 2. `GET /api/user/projects`:
    - Devuelve la lista de proyectos del usuario ordenados por `updated_at DESC`.
 3. `POST /api/user/projects`:
    - Recibe mediante `multipart/form-data`:
      - `file`: Archivo `.cdc2` binario.
+     - `id`: Identificador único del proyecto (requerido o autogenerado).
      - `name`: Nombre del proyecto.
      - `description`: Descripción corta (opcional).
      - `cardCount`: Número entero de cartas.
      - `documentCount`: Número entero de páginas.
-     - `projectId` o `filename` (opcional si es actualización de un proyecto previo).
+   - **Identificación y Sobrescritura Estricta por ID**:
+     - Se comprueba si existe un proyecto con la misma `id` para ese usuario.
+     - Si existe por ID: se sobrescribe el archivo físico y se actualiza el registro en `user_projects`.
+     - Si no existe: se crea un nuevo proyecto con esa ID (aunque coincida el nombre con otro proyecto existente).
    - **Validación de cuota**:
-     - Si el archivo sobrescribe uno existente del mismo usuario, el espacio disponible efectivo se calcula como:
-       $\text{EspacioDisponible} = \text{Cuota} - (\text{UsadoTotal} - \text{TamañoArchivoPrevio})$.
+     - Si el archivo sobrescribe uno existente (misma ID), el espacio disponible efectivo descuenta el peso anterior.
      - Si el tamaño del nuevo archivo supera el espacio disponible, rechaza la operación con `HTTP 413 Payload Too Large` y detalle de cuota.
-   - Si la cuota es suficiente: guarda el archivo en `users/<userId>/projects/`, actualiza el registro en `user_projects` y devuelve `HTTP 200`.
 4. `GET /api/user/projects/:id/download`:
    - Descarga el archivo `.cdc2` para abrirlo en el navegador o exportarlo.
 5. `DELETE /api/user/projects/:id`:
-   - Elimina el archivo físico del disco y el registro en la base de datos, liberando el espacio de la cuota inmediatamente.
+   - Elimina el archivo físico del disco y el registro en la base de datos, liberando el espacio de la cuota inmediatamente (si el archivo no existe en disco por anomalía previa, limpia el registro en la BD de forma segura).
 
-### RF-4: Menú "Archivo" Desplegable en Cascada (`MenuBar.tsx`)
-- **Guardar Proyecto**:
-  - Se despliega en dos opciones:
-    1. **Exportar a PC (.cdc2)**: Disponible para todos los usuarios. Descarga el archivo localmente como hasta ahora.
-    2. **Guardar en la Nube ☁️**:
-       - *Usuario anónimo*: Se muestra atenuado (50% opacidad) con icono de candado 🔒. Al hacer clic, abre el modal de inicio de sesión (`LoginModal`).
-       - *Usuario autenticado*: Abre el modal de **Guardar en la Nube**.
-- **Abrir Proyecto**:
-  - Se despliega en dos opciones:
-    1. **Importar desde PC (.cdc2)**: Disponible para todos los usuarios. Abre el selector de archivos local.
-    2. **Abrir desde la Nube ☁️**:
-       - *Usuario anónimo*: Se muestra atenuado con candado 🔒; al hacer clic abre el modal de inicio de sesión.
-       - *Usuario autenticado*: Abre el modal de **Gestión de Proyectos en la Nube**.
+### RF-4: Menú "Archivo" Desplegable en Cascada (Flyouts a la Derecha) (`MenuBar.tsx`)
+- **Acción "📄 Nuevo Proyecto"**: Al seleccionarse desde el menú superior del editor, solicita confirmación si hay cambios sin guardar, resetea el lienzo, genera una nueva ID de proyecto y **abre directamente el popup de configuración de dimensiones y hoja** (sin pasar por el Welcome Hub de bienvenida).
+- Para evitar saturar el menú verticalmente, las opciones complejas utilizan submenús desplegables a la derecha (*flyout submenus* al pasar el cursor o interactuar):
+  1. **📂 Abrir Proyecto ▶**:
+     - Despliega a la derecha:
+       - **💻 Importar desde PC (.cdc2)...**: Disponible para todos los usuarios. Abre el selector de archivos local.
+       - **☁️ Abrir desde la Nube...**:
+         - *Usuario anónimo*: Se muestra atenuado con icono de candado 🔒; al pulsar abre el modal de Login.
+         - *Usuario autenticado*: Abre el modal de **Gestión de Proyectos en la Nube**.
+  2. **💾 Guardar Proyecto ▶**:
+     - Despliega a la derecha:
+       - **💻 Exportar a PC (.cdc2)**: Disponible para todos los usuarios. Descarga el archivo localmente como hasta ahora.
+       - **☁️ Guardar en la Nube...**:
+         - *Usuario anónimo*: Atenuado con icono de candado 🔒; al pulsar abre el modal de Login.
+         - *Usuario autenticado*: Abre el modal de **Guardar en la Nube**.
 
-### RF-5: Pantalla de Bienvenida (Welcome Modal)
-- El botón existente "Abrir Proyecto Existente (.cdc2)" pasa a llamarse:
-  **📂 Abrir desde PC (.cdc2)**
-- Se incorpora un nuevo botón:
-  **☁️ Abrir desde la Nube**
-  - Si el usuario está identificado, abre directamente el modal de proyectos en la nube.
-  - Si no está identificado, abre el modal de Login.
+### RF-5: Pantalla de Bienvenida (Hub de Acceso Rápido con 4 Botones Cuadrados)
+- Al iniciar la aplicación sin un proyecto creado (`!projectCreated` y `!showCreateProjectForm`), se muestra un Hub de bienvenida con una cuadrícula 2x2 de botones grandes y cuadrados, con iconos representativos y descripciones claras:
+  1. **Botón Dinámico de Usuario / Administración**:
+     - **Usuario no autenticado (Anónimo)**: Botón **🔑 Iniciar Sesión** (abre modal de login/registro).
+     - **Usuario administrador autenticado**: Botón **⚙️ Panel de Administración** (redirige a `/admin`).
+     - **Usuario estándar autenticado**: Botón **👤 Hola, %Usuario%** (muestra porcentaje de uso de cuota y abre el modal de proyectos en la nube).
+  2. **Botón Abrir desde PC**:
+     - Icono 💻 / 📂: **Abrir desde PC**. Abre el selector de archivos locales `.cdc2`.
+  3. **Botón Abrir desde la Nube**:
+     - Icono ☁️: **Abrir desde la Nube**. Abre el modal de proyectos guardados si está autenticado, o el modal de login si es anónimo.
+  4. **Botón Crear Nuevo Proyecto**:
+     - Icono ✨: **Crear Nuevo Proyecto**. Al hacer clic, abre el popup secundario con el formulario completo de configuración de hoja, cartas y márgenes (permitiendo además regresar al menú inicial mediante un botón "← Volver").
 
 ### RF-6: Indicador de Capacidad y Menú de Usuario (`MenuBar.tsx`)
 - En el desplegable del perfil de usuario (esquina superior derecha):
@@ -141,6 +146,15 @@ Todos los endpoints requieren autenticación activa mediante cookie de sesión (
   - **Exportar a PC**: Descarga directa del `.cdc2` sin cargarlo en el editor.
   - **Eliminar 🗑️**: Solicita confirmación y elimina el archivo liberando espacio de la cuota en tiempo real.
 - Estado vacío amigable cuando el usuario aún no tiene proyectos guardados.
+
+### RF-9: Panel de Administración: Métrica de Uso / Cuota y Sincronización en Sesiones Activas
+- **Columna de Cuota en Tabla de Usuarios**:
+  - En el panel de administración (`AdminPanel.tsx`), la columna de cuota muestra el espacio en disco utilizado por el usuario junto a su cuota total configurada: `💾 <usadoMb> / <cuotaMb> MB` (ej. `💾 0 / 1000 MB` o `💾 7 / 100 MB`).
+  - La interfaz `UserSummary` en `shared/authTypes.ts` se extiende con `usedStorageMb?: number` y `usedStorageBytes?: number`.
+  - El endpoint `GET /api/admin/users` computa en tiempo real para cada usuario los bytes reales ocupados en su directorio mediante `storageService.getDiskUsedStorageBytes(user.id)`.
+- **Sincronización Dinámica en Sesiones Activas**:
+  - `findSession` en `SqliteUserRepository` selecciona y mapea explícitamente `storage_quota_mb` del usuario autenticado.
+  - Además, `GET /api/user/storage` y `POST /api/user/projects` consultan el usuario más reciente en la base de datos para garantizar que cualquier cambio realizado por un administrador en la cuota se refleje de manera inmediata en la interfaz y en los controles de guardado del usuario sin necesidad de reiniciar la sesión.
 
 ---
 

@@ -208,7 +208,7 @@ export class SqliteUserRepository implements IUserRepository {
     const row = this.db.prepare(`
       SELECT 
         s.id as s_id, s.user_id, s.expires_at, s.created_at as s_created,
-        u.id as u_id, u.email, u.password_hash, u.role, u.created_at as u_created, u.updated_at
+        u.id as u_id, u.email, u.password_hash, u.role, u.storage_quota_mb, u.created_at as u_created, u.updated_at
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.id = ?
@@ -234,6 +234,7 @@ export class SqliteUserRepository implements IUserRepository {
         email: row.email,
         passwordHash: row.password_hash,
         role: row.role as UserRole,
+        storageQuotaMb: row.storage_quota_mb !== undefined && row.storage_quota_mb !== null ? Number(row.storage_quota_mb) : 100,
         createdAt: row.u_created,
         updatedAt: row.updated_at
       }

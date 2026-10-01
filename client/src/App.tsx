@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { calcularDistribucion } from "shared";
-import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2 } from "shared";
+import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2, UserStorageInfo, CloudProjectMetadata } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
 import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla, obtenerRutaJerarquica, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
@@ -8,9 +8,12 @@ import { initAnalytics, trackEvent } from "./utils/analytics";
 import DetailModal from "./DetailModal";
 import EditCardModal from "./EditCardModal";
 import SymbolsGalleryModal from "./SymbolsGalleryModal";
-import { AuthProvider } from "./AuthContext";
+import { AuthProvider, useAuth } from "./AuthContext";
 import { AuthModals } from "./AuthModals";
 import { AdminPanel } from "./admin/AdminPanel";
+import { SaveCloudModal } from "./components/SaveCloudModal";
+import { CloudProjectsModal } from "./components/CloudProjectsModal";
+import { fetchUserStorage, uploadCloudProject, downloadCloudProjectBlob } from "./services/storageService";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -65,7 +68,34 @@ function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, 
 
 
 
-export default function App() {
+export const generateProjectId = () =>
+  "proj_" + (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function" ? crypto.randomUUID() : `${Date.now()}_${Math.random().toString(36).substring(2, 9)}`);
+
+function AppContent() {
+  const { user, setShowLoginModal } = useAuth();
+  const [storageInfo, setStorageInfo] = useState<UserStorageInfo | null>(null);
+  const [showSaveCloudModal, setShowSaveCloudModal] = useState(false);
+  const [showCloudProjectsModal, setShowCloudProjectsModal] = useState(false);
+  const [isSavingCloud, setIsSavingCloud] = useState(false);
+  const [currentProjectId, setCurrentProjectId] = useState<string>(() => generateProjectId());
+
+  const refreshStorage = async () => {
+    if (user) {
+      try {
+        const info = await fetchUserStorage();
+        setStorageInfo(info);
+      } catch (err) {
+        console.warn("[storage] Error al cargar cuota:", err);
+      }
+    } else {
+      setStorageInfo(null);
+    }
+  };
+
+  useEffect(() => {
+    refreshStorage();
+  }, [user]);
+
   // --- Refs para Enfoque y Triggers ---
   const sectionLienzoRef = useRef<HTMLDivElement>(null);
   const sectionCartaRef = useRef<HTMLDivElement>(null);
@@ -474,6 +504,7 @@ export default function App() {
   // --- Estados del Setup y Configuración del Proyecto (SRS-022) ---
   const [nombreProyecto, setNombreProyectoInternal] = useState<string>("Mi Baraja");
   const [projectCreated, setProjectCreated] = useState<boolean>(false);
+  const [showCreateProjectForm, setShowCreateProjectForm] = useState<boolean>(false);
 
   useEffect(() => {
     initAnalytics();
@@ -701,7 +732,11 @@ export default function App() {
     setCanvasConfig(tempCanvasConfig);
     setCardPreset(tempCardPreset);
     setCardConfig(tempCardConfig);
+    if (!currentProjectId) {
+      setCurrentProjectId(generateProjectId());
+    }
     setProjectCreated(true);
+    setShowCreateProjectForm(false);
     setShowProjectConfig(false);
   };
 
@@ -1321,7 +1356,9 @@ export default function App() {
 
     const proyecto = {
       version: "2.1.0" as const,
+      id: currentProjectId,
       meta: {
+        id: currentProjectId,
         nombre: nombreProyecto,
         fechaCreacion: new Date().toISOString(),
         fechaModificacion: new Date().toISOString(),
@@ -1861,7 +1898,10 @@ export default function App() {
       } else {
         setNombreProyectoInternal("Proyecto Importado");
       }
+      const loadedId = (proyecto as any).id || (proyecto as any).meta?.id || generateProjectId();
+      setCurrentProjectId(loadedId);
       setProjectCreated(true);
+      setShowCreateProjectForm(false);
 
       const activeDoc = proyecto.documentos.find((d: any) => d.id === proyecto.activeDocumentoId) || proyecto.documentos[0];
       setCanvasType(activeDoc.canvasConfig.tipo || "Custom");
@@ -1879,6 +1919,67 @@ export default function App() {
       handleCargarProyecto(e.target.files[0]);
     }
     e.target.value = "";
+  };
+
+  // --- Handlers de Proyectos en la Nube (SRS-066) ---
+  const handleTriggerSaveCloud = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    if (cartas.length === 0) return;
+    setShowSaveCloudModal(true);
+  };
+
+  const handleConfirmSaveCloud = async ({ name, description }: { name: string; description: string }) => {
+    try {
+      setIsSavingCloud(true);
+      const zipBlob = await generarProyectoZip();
+      const result = await uploadCloudProject(zipBlob, {
+        id: currentProjectId,
+        name,
+        description,
+        cardCount: cartas.length,
+        documentCount: documentos.length
+      });
+      setStorageInfo(result.storage);
+      setCurrentProjectId(result.project.id);
+      setShowSaveCloudModal(false);
+      setIsDirty(false);
+      alert(`¡Proyecto "${result.project.name}" guardado en la nube!`);
+    } catch (err: any) {
+      throw err;
+    } finally {
+      setIsSavingCloud(false);
+    }
+  };
+
+  const handleOpenCloudProject = async (project: CloudProjectMetadata) => {
+    try {
+      const blob = await downloadCloudProjectBlob(project.id);
+      const file = new File([blob], `${project.name}.cdc2`, { type: "application/octet-stream" });
+      await handleCargarProyecto(file);
+      setCurrentProjectId(project.id);
+      setShowCloudProjectsModal(false);
+    } catch (err: any) {
+      alert(`Error al cargar el proyecto desde la nube: ${err.message || err}`);
+    }
+  };
+
+  const handleExportCloudProject = async (project: CloudProjectMetadata) => {
+    try {
+      const blob = await downloadCloudProjectBlob(project.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${project.name.replace(/[^a-zA-Z0-9_\-\.]/g, "_")}.cdc2`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Error al exportar el proyecto: ${err.message || err}`);
+    }
   };
 
   const handleCargarPlantillaFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -2236,7 +2337,10 @@ export default function App() {
         reducirArteAlBorde: false,
       });
       setNombreProyectoInternal("Mi Baraja");
+      setTempNombreProyecto("Mi Baraja");
+      setCurrentProjectId(generateProjectId());
       setProjectCreated(false);
+      setShowCreateProjectForm(true);
       setIsDirty(false);
     }
   };
@@ -2552,17 +2656,11 @@ export default function App() {
   });
 
   if (isAdminPath) {
-    return (
-      <AuthProvider>
-        <AdminPanel />
-        <AuthModals />
-      </AuthProvider>
-    );
+    return <AdminPanel />;
   }
 
   return (
-    <AuthProvider>
-      <div className="app-layout">
+    <div className="app-layout">
       <style>
         {projectFonts.map((font: any) => `
           @font-face {
@@ -2576,6 +2674,15 @@ export default function App() {
         onCargarProyectoClick={() => fileInputProyectoRef.current?.click()}
         onImportarPlantillaClick={() => fileInputTemplateRef.current?.click()}
         onGuardarProyecto={handleGuardarProyecto}
+        storageInfo={storageInfo}
+        onOpenCloudProjects={() => {
+          if (user) {
+            setShowCloudProjectsModal(true);
+          } else {
+            setShowLoginModal(true);
+          }
+        }}
+        onSaveCloudProject={handleTriggerSaveCloud}
         onShowProjectGallery={() => setShowProjectGallery(true)}
         onShowProjectFonts={() => setShowProjectFonts(true)}
         onShowTemplatesManager={() => setShowTemplatesManager(true)}
@@ -5959,11 +6066,110 @@ export default function App() {
         </div>
       )}
 
-      {!projectCreated && (
+      {/* Modal de Bienvenida Hub (SRS-066) */}
+      {!projectCreated && !showCreateProjectForm && (
+        <div className="template-modal-backdrop" style={{ zIndex: 4000 }}>
+          <div className="welcome-hub-modal" onClick={(e) => e.stopPropagation()}>
+            <header className="welcome-hub-header">
+              <h2 className="welcome-hub-title">Card Deck Crafter</h2>
+              <p className="welcome-hub-subtitle">Selecciona una opción para comenzar a trabajar en tus cartas</p>
+            </header>
+
+            <div className="welcome-hub-grid">
+              {/* Opción 1: Login / Hola %Usuario% / Panel de Administración */}
+              {!user ? (
+                <button
+                  type="button"
+                  className="welcome-hub-card"
+                  onClick={() => setShowLoginModal(true)}
+                >
+                  <span className="welcome-hub-card-icon">🔑</span>
+                  <div className="welcome-hub-card-title">Iniciar Sesión</div>
+                  <p className="welcome-hub-card-desc">Identifícate para sincronizar y gestionar tus proyectos en la nube</p>
+                </button>
+              ) : user.role === "admin" ? (
+                <button
+                  type="button"
+                  className="welcome-hub-card"
+                  onClick={() => { window.location.href = "/admin"; }}
+                >
+                  <span className="welcome-hub-card-icon">⚙️</span>
+                  <div className="welcome-hub-card-title">Panel de Administración</div>
+                  <p className="welcome-hub-card-desc">Gestionar usuarios, cuotas de almacenamiento y configuración</p>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="welcome-hub-card"
+                  onClick={() => setShowCloudProjectsModal(true)}
+                >
+                  <span className="welcome-hub-card-icon">👤</span>
+                  <div className="welcome-hub-card-title">Hola, {(user as any).username || (user.email ? user.email.split('@')[0] : 'Usuario')}</div>
+                  <p className="welcome-hub-card-desc">
+                    Ver y gestionar tus proyectos en la nube
+                    {storageInfo ? ` (${((storageInfo.usedBytes / (storageInfo.quotaMb * 1024 * 1024)) * 100).toFixed(0)}% ocupado)` : ""}
+                  </p>
+                </button>
+              )}
+
+              {/* Opción 2: Abrir desde PC */}
+              <button
+                type="button"
+                className="welcome-hub-card"
+                onClick={() => fileInputProyectoRef.current?.click()}
+              >
+                <span className="welcome-hub-card-icon">💻</span>
+                <div className="welcome-hub-card-title">Abrir desde PC</div>
+                <p className="welcome-hub-card-desc">Cargar un archivo de proyecto (.cdc2) desde tu almacenamiento local</p>
+              </button>
+
+              {/* Opción 3: Abrir desde la Nube */}
+              <button
+                type="button"
+                className="welcome-hub-card"
+                onClick={() => {
+                  if (user) {
+                    setShowCloudProjectsModal(true);
+                  } else {
+                    setShowLoginModal(true);
+                  }
+                }}
+              >
+                {!user && <span className="welcome-hub-card-badge">🔒 Requiere Login</span>}
+                <span className="welcome-hub-card-icon">☁️</span>
+                <div className="welcome-hub-card-title">Abrir desde la Nube</div>
+                <p className="welcome-hub-card-desc">Acceder a los proyectos guardados en tu espacio privado en el servidor</p>
+              </button>
+
+              {/* Opción 4: Crear Nuevo Proyecto */}
+              <button
+                type="button"
+                className="welcome-hub-card primary"
+                onClick={() => setShowCreateProjectForm(true)}
+              >
+                <span className="welcome-hub-card-icon">✨</span>
+                <div className="welcome-hub-card-title">Crear Nuevo Proyecto</div>
+                <p className="welcome-hub-card-desc">Configurar dimensiones de hoja, cartas, sangrado y comenzar desde cero</p>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Secundario de Formulario de Creación de Proyecto (SRS-066) */}
+      {!projectCreated && showCreateProjectForm && (
         <div className="template-modal-backdrop" style={{ zIndex: 4000 }}>
           <div className="template-modal-container" style={{ maxWidth: "700px", padding: "24px" }} onClick={(e) => e.stopPropagation()}>
-            <header className="template-modal-header" style={{ marginBottom: "16px" }}>
-              <h2 style={{ margin: 0, fontSize: "20px" }}>Crear o Cargar Proyecto</h2>
+            <header className="template-modal-header" style={{ marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <h2 style={{ margin: 0, fontSize: "20px" }}>Crear Nuevo Proyecto</h2>
+              <button
+                type="button"
+                className="template-modal-close"
+                onClick={() => setShowCreateProjectForm(false)}
+                title="Volver al menú inicial"
+              >
+                ✕
+              </button>
             </header>
             
             <div className="template-modal-body" style={{ maxHeight: "70vh", overflowY: "auto", paddingRight: "8px" }}>
@@ -6162,21 +6368,20 @@ export default function App() {
               </div>
             </div>
 
-            <footer className="template-modal-footer" style={{ display: "flex", gap: "12px", justifyContent: "flex-end", marginTop: "20px" }}>
+            <footer className="template-modal-footer" style={{ display: "flex", gap: "12px", justifyContent: "space-between", marginTop: "20px" }}>
               <button
                 type="button"
                 className="btn-secondary"
-                onClick={() => fileInputProyectoRef.current?.click()}
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                onClick={() => setShowCreateProjectForm(false)}
               >
-                📂 Abrir Proyecto Existente (.cdc2)
+                ← Volver
               </button>
               <button
                 type="button"
                 className="btn-primary"
                 onClick={handleApplyProjectConfig}
               >
-                ✨ Crear Nuevo Proyecto
+                ✨ Crear Proyecto
               </button>
             </footer>
           </div>
@@ -6423,9 +6628,38 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Modales de Almacenamiento en la Nube (SRS-066) */}
+      <SaveCloudModal
+        isOpen={showSaveCloudModal}
+        onClose={() => setShowSaveCloudModal(false)}
+        initialName={tempNombreProyecto || "Mi Baraja"}
+        cardCount={cartas.length}
+        documentCount={documentos.length}
+        storageInfo={storageInfo}
+        isSaving={isSavingCloud}
+        onConfirmSave={handleConfirmSaveCloud}
+        onExportLocal={handleGuardarProyecto}
+      />
+
+      <CloudProjectsModal
+        isOpen={showCloudProjectsModal}
+        onClose={() => setShowCloudProjectsModal(false)}
+        storageInfo={storageInfo}
+        onOpenProject={handleOpenCloudProject}
+        onExportProject={handleExportCloudProject}
+        onStorageUpdated={refreshStorage}
+      />
     </div>
     </div>
-    <AuthModals />
+  );
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppContent />
+      <AuthModals />
     </AuthProvider>
   );
 }

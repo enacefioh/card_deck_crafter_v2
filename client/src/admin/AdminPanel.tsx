@@ -39,7 +39,7 @@ export const AdminPanel: React.FC = () => {
 
   // Estado para modificación de cuota de almacenamiento (SRS-065)
   const [userToEditQuota, setUserToEditQuota] = useState<UserSummary | null>(null);
-  const [quotaInputMb, setQuotaInputMb] = useState<number>(100);
+  const [quotaInputMb, setQuotaInputMb] = useState<number | "">(100);
   const [quotaLoading, setQuotaLoading] = useState(false);
 
   // Carga de datos
@@ -677,7 +677,7 @@ export const AdminPanel: React.FC = () => {
                       <th style={{ padding: "12px 16px" }}>Email</th>
                       <th style={{ padding: "12px 16px" }}>Rol</th>
                       <th style={{ padding: "12px 16px" }}>Estado Clave</th>
-                      <th style={{ padding: "12px 16px" }}>Cuota</th>
+                      <th style={{ padding: "12px 16px" }}>Cuota (Uso / Límite)</th>
                       <th style={{ padding: "12px 16px" }}>Fecha Registro</th>
                       <th style={{ padding: "12px 16px", textAlign: "right" }}>Acciones</th>
                     </tr>
@@ -776,7 +776,7 @@ export const AdminPanel: React.FC = () => {
                                   border: "1px solid #38384d"
                                 }}
                               >
-                                💾 {u.storageQuotaMb || 100} MB
+                                💾 {u.usedStorageMb !== undefined ? `${u.usedStorageMb} / ${u.storageQuotaMb || 100} MB` : `${u.storageQuotaMb || 100} MB`}
                               </span>
                             </td>
 

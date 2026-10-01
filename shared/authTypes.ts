@@ -16,6 +16,8 @@ export interface UserSummary {
   role: UserRole;
   hasPassword: boolean;
   storageQuotaMb: number;
+  usedStorageMb?: number;
+  usedStorageBytes?: number;
   createdAt: string;
 }
 

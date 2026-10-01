@@ -119,7 +119,9 @@ export interface DocumentoCDC2 {
 
 export interface ProyectoCDC2 {
   version: "2.0.0" | "2.1.0";
+  id?: string;
   meta: {
+    id?: string;
     nombre: string;
     fechaCreacion: string;
     fechaModificacion: string;

@@ -12,6 +12,8 @@ import type { CanvasConfig, ProyectoCDC2, Carta } from "shared";
 
 import cookieParser from "cookie-parser";
 import { AuthService, SESSION_COOKIE_NAME, SESSION_DURATION_MS } from "./auth/authService.js";
+import { SqliteUserRepository } from "./auth/sqliteUserRepository.js";
+import { UserStorageService } from "./storage/userStorageService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -172,7 +174,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261001.1",
+      version: "v2.261001.2",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -183,7 +185,19 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
 app.get("/api/admin/users", requireAdmin, async (_req, res) => {
   try {
     const users = await authService.getRepository().listUsers();
-    res.json(users);
+    const storageService = getStorageService();
+    const enrichedUsers = await Promise.all(
+      users.map(async (u) => {
+        const usedBytes = await storageService.getDiskUsedStorageBytes(u.id);
+        const usedMb = parseFloat((usedBytes / (1024 * 1024)).toFixed(2));
+        return {
+          ...u,
+          usedStorageBytes: usedBytes,
+          usedStorageMb: usedMb
+        };
+      })
+    );
+    res.json(enrichedUsers);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
@@ -460,6 +474,141 @@ app.post("/api/admin/backup/import", requireAdmin, multer({ storage: multer.memo
       repo.reopen();
     } catch (_) {}
     res.status(500).json({ error: err.message || "Error al restaurar la copia de seguridad." });
+  }
+});
+
+// ==================== ALMACENAMIENTO DE PROYECTOS EN LA NUBE Y CUOTA (SRS-066) ====================
+
+const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
+    if (!sessionId) {
+      return res.status(401).json({ error: "No autenticado. Por favor inicia sesión." });
+    }
+    const user = await authService.getSessionUser(sessionId);
+    if (!user) {
+      res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+      return res.status(401).json({ error: "Sesión inválida o expirada." });
+    }
+    (req as any).currentUser = user;
+    next();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+const getStorageService = () => {
+  const repo = authService.getRepository() as SqliteUserRepository;
+  const dataDir = process.env.CDC2_DB_PATH
+    ? path.dirname(process.env.CDC2_DB_PATH)
+    : path.resolve(process.cwd(), process.cwd().endsWith("server") ? "data" : "server/data");
+  return new UserStorageService(repo.getDatabase(), dataDir);
+};
+
+const projectUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 100 * 1024 * 1024 // 100MB límite máximo de subida
+  }
+});
+
+// Consultar cuota y uso de almacenamiento
+app.get("/api/user/storage", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const freshUser = await authService.getRepository().findById(user.id);
+    const quota = freshUser?.storageQuotaMb ?? user.storageQuotaMb ?? 100;
+    const storageService = getStorageService();
+    const storage = await storageService.getUserStorageInfo(user.id, quota);
+    res.json(storage);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Listar proyectos del usuario en la nube
+app.get("/api/user/projects", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const storageService = getStorageService();
+    const projects = storageService.listProjects(user.id);
+    res.json({ projects });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Guardar o actualizar proyecto en la nube
+app.post("/api/user/projects", requireAuth, projectUpload.single("file"), async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    if (!req.file) {
+      return res.status(400).json({ error: "No se ha recibido ningún archivo de proyecto (.cdc2)." });
+    }
+
+    const { name, description, cardCount, documentCount, id } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "El nombre del proyecto es obligatorio." });
+    }
+
+    const storageService = getStorageService();
+    const freshUser = await authService.getRepository().findById(user.id);
+    const quota = freshUser?.storageQuotaMb ?? user.storageQuotaMb ?? 100;
+    const result = await storageService.saveProject(user.id, quota, {
+      id: id || undefined,
+      name: name.trim(),
+      description: description || "",
+      cardCount: cardCount ? parseInt(cardCount, 10) : 0,
+      documentCount: documentCount ? parseInt(documentCount, 10) : 0,
+      buffer: req.file.buffer
+    });
+
+    res.json({ status: "OK", ...result });
+  } catch (err: any) {
+    if (err.code === "QUOTA_EXCEEDED") {
+      return res.status(413).json({
+        error: err.message,
+        code: "QUOTA_EXCEEDED",
+        details: err.details
+      });
+    }
+    res.status(500).json({ error: err.message || "Error al guardar el proyecto en la nube." });
+  }
+});
+
+// Descargar proyecto de la nube para abrirlo o exportarlo
+app.get("/api/user/projects/:id/download", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const { id } = req.params;
+    const storageService = getStorageService();
+    const { filePath, project } = await storageService.getProjectFilePath(user.id, id);
+
+    const safeFilename = encodeURIComponent(project.name.replace(/[^a-zA-Z0-9_\-\.]/g, "_")) + ".cdc2";
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.sendFile(filePath);
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND" || err.code === "FILE_MISSING") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Eliminar proyecto de la nube
+app.delete("/api/user/projects/:id", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const { id } = req.params;
+    const storageService = getStorageService();
+    const result = await storageService.deleteProject(user.id, user.storageQuotaMb || 100, id);
+    res.json({ status: "OK", ...result });
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
   }
 });
 

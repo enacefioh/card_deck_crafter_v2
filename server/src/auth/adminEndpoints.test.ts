@@ -170,6 +170,12 @@ describe("Panel de Administración y Métricas - SRS-063", () => {
     const updatedList = await repo.listUsers();
     const updatedSummary = updatedList.find(u => u.id === user.id);
     expect(updatedSummary?.storageQuotaMb).toBe(500);
+
+    // 4. Comprobar que findSession retorna la cuota de almacenamiento actualizada
+    const session = await repo.createSession("sess_test_quota", user.id, new Date(Date.now() + 100000).toISOString());
+    const sessionData = await repo.findSession(session.id);
+    expect(sessionData).not.toBeNull();
+    expect(sessionData?.user.storageQuotaMb).toBe(500);
   });
 });
 

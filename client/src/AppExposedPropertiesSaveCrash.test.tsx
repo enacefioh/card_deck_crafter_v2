@@ -49,8 +49,12 @@ describe("App Component - No Black Screen On Exposed Field Render After Save", (
 
     const { container } = render(<App />);
 
-    // 2. Crear proyecto en el wizard inicial
-    const createProjectBtn = screen.getByText("✨ Crear Nuevo Proyecto");
+    // 2. Crear proyecto en el wizard inicial (Hub de bienvenida -> Formulario)
+    const openCreateBtn = screen.getByText("Crear Nuevo Proyecto");
+    expect(openCreateBtn).toBeTruthy();
+    fireEvent.click(openCreateBtn);
+
+    const createProjectBtn = screen.getByText("✨ Crear Proyecto");
     expect(createProjectBtn).toBeTruthy();
     fireEvent.click(createProjectBtn);
 
