@@ -100,6 +100,7 @@ function AppContent() {
   const sectionLienzoRef = useRef<HTMLDivElement>(null);
   const sectionCartaRef = useRef<HTMLDivElement>(null);
   const fileInputProyectoRef = useRef<HTMLInputElement>(null);
+  const fileInputPlantillaProyectoRef = useRef<HTMLInputElement>(null);
   const fileInputImagenesRef = useRef<HTMLInputElement>(null);
   const fileInputTemplateRef = useRef<HTMLInputElement>(null);
 
@@ -1036,7 +1037,12 @@ function AppContent() {
   };
 
   // --- Generar ZIP del Proyecto (CDC2) ---
-  const generarProyectoZip = async (): Promise<Blob> => {
+  const generarProyectoZip = async (options?: {
+    asTemplate?: boolean;
+    newId?: string;
+    newName?: string;
+  }): Promise<Blob> => {
+    const isTemplate = options?.asTemplate === true;
     const zip = new JSZip();
     const assetsFolder = zip.folder("assets")!;
     const projectAssetsFolder = zip.folder("project_assets")!;
@@ -1082,34 +1088,36 @@ function AppContent() {
       }
     }
 
-    // Procesar recursos de la galería de usuario (SRS-045)
-    for (const asset of userAssets) {
-      if (asset.src && !asset.src.startsWith("user_asset://")) {
-        try {
-          const res = await fetch(asset.src);
-          const blob = await res.blob();
-          
-          let extension = "png";
-          if (blob.type === "image/jpeg") extension = "jpg";
-          else if (blob.type === "image/webp") extension = "webp";
-          else if (blob.type === "image/gif") extension = "gif";
-          
-          const filename = `${asset.id}.${extension}`;
-          userAssetsFolder.file(filename, blob);
-          
-          const assetPath = `user_asset://${filename}`;
-          userAssetMap.set(asset.src, assetPath);
-          processedUserAssets.push({
-            id: asset.id,
-            nombre: asset.nombre,
-            src: assetPath,
-          });
-        } catch (err) {
-          console.error("Error al procesar recurso de la galería de usuario:", asset, err);
+    // Procesar recursos de la galería de usuario (SRS-045) - Se omiten si se exporta como plantilla (SRS-067)
+    if (!isTemplate) {
+      for (const asset of userAssets) {
+        if (asset.src && !asset.src.startsWith("user_asset://")) {
+          try {
+            const res = await fetch(asset.src);
+            const blob = await res.blob();
+            
+            let extension = "png";
+            if (blob.type === "image/jpeg") extension = "jpg";
+            else if (blob.type === "image/webp") extension = "webp";
+            else if (blob.type === "image/gif") extension = "gif";
+            
+            const filename = `${asset.id}.${extension}`;
+            userAssetsFolder.file(filename, blob);
+            
+            const assetPath = `user_asset://${filename}`;
+            userAssetMap.set(asset.src, assetPath);
+            processedUserAssets.push({
+              id: asset.id,
+              nombre: asset.nombre,
+              src: assetPath,
+            });
+          } catch (err) {
+            console.error("Error al procesar recurso de la galería de usuario:", asset, err);
+          }
+        } else if (asset.src && asset.src.startsWith("user_asset://")) {
+          userAssetMap.set(asset.src, asset.src);
+          processedUserAssets.push(asset);
         }
-      } else if (asset.src && asset.src.startsWith("user_asset://")) {
-        userAssetMap.set(asset.src, asset.src);
-        processedUserAssets.push(asset);
       }
     }
 
@@ -1188,103 +1196,105 @@ function AppContent() {
     const processedDocumentos: DocumentoCDC2[] = [];
     for (const doc of documentos) {
       const processedCards = [];
-      for (const card of doc.cards) {
-        let imagenFrontalPath = undefined;
-        if (card.imagenFrontal) {
-          imagenFrontalPath = await addBlobToZip(card.imagenFrontal, "frontal");
-        }
-        let imagenTraseraPath = null;
-        if (card.imagenTrasera) {
-          imagenTraseraPath = await addBlobToZip(card.imagenTrasera, "trasera");
-        }
+      if (!isTemplate) {
+        for (const card of doc.cards) {
+          let imagenFrontalPath = undefined;
+          if (card.imagenFrontal) {
+            imagenFrontalPath = await addBlobToZip(card.imagenFrontal, "frontal");
+          }
+          let imagenTraseraPath = null;
+          if (card.imagenTrasera) {
+            imagenTraseraPath = await addBlobToZip(card.imagenTrasera, "trasera");
+          }
 
-        // Procesar overrides frontal
-        const processedOverrides: Record<string, any> = {};
-        if (card.capasOverrides) {
-          for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
-            if (overrideVal && typeof overrideVal === "object") {
-              const nextOverride = { ...overrideVal };
-              if (nextOverride.src && (nextOverride.src.startsWith("blob:") || nextOverride.src.startsWith("data:"))) {
-                nextOverride.src = await addBlobToZip(nextOverride.src, `override_${capaId}`);
+          // Procesar overrides frontal
+          const processedOverrides: Record<string, any> = {};
+          if (card.capasOverrides) {
+            for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
+              if (overrideVal && typeof overrideVal === "object") {
+                const nextOverride = { ...overrideVal };
+                if (nextOverride.src && (nextOverride.src.startsWith("blob:") || nextOverride.src.startsWith("data:"))) {
+                  nextOverride.src = await addBlobToZip(nextOverride.src, `override_${capaId}`);
+                }
+                processedOverrides[capaId] = nextOverride;
               }
-              processedOverrides[capaId] = nextOverride;
             }
           }
-        }
 
-        // Procesar overrides trasera
-        const processedOverridesTrasera: Record<string, any> = {};
-        if (card.capasOverridesTrasera) {
-          for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
-            if (overrideVal && typeof overrideVal === "object") {
-              const nextOverride = { ...overrideVal };
-              if (nextOverride.src && (nextOverride.src.startsWith("blob:") || nextOverride.src.startsWith("data:"))) {
-                nextOverride.src = await addBlobToZip(nextOverride.src, `override_trasera_${capaId}`);
+          // Procesar overrides trasera
+          const processedOverridesTrasera: Record<string, any> = {};
+          if (card.capasOverridesTrasera) {
+            for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
+              if (overrideVal && typeof overrideVal === "object") {
+                const nextOverride = { ...overrideVal };
+                if (nextOverride.src && (nextOverride.src.startsWith("blob:") || nextOverride.src.startsWith("data:"))) {
+                  nextOverride.src = await addBlobToZip(nextOverride.src, `override_trasera_${capaId}`);
+                }
+                processedOverridesTrasera[capaId] = nextOverride;
               }
-              processedOverridesTrasera[capaId] = nextOverride;
             }
           }
-        }
 
-        let processedPlantilla = undefined;
-        if (card.plantilla) {
-          const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
-          if (clonedPlantilla.capas) {
-            for (let i = 0; i < clonedPlantilla.capas.length; i++) {
-              const capa = clonedPlantilla.capas[i];
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
-                capa.src = await addBlobToZip(capa.src, `card_${card.id}_template_image_${i}`);
-              }
-              if (capa.tipo === "image-switch" && capa.options) {
-                for (let o = 0; o < capa.options.length; o++) {
-                  const opt = capa.options[o];
-                  if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
-                    opt.src = await addBlobToZip(opt.src, `card_${card.id}_template_image_switch_option_${i}_${o}`);
+          let processedPlantilla = undefined;
+          if (card.plantilla) {
+            const clonedPlantilla = JSON.parse(JSON.stringify(card.plantilla));
+            if (clonedPlantilla.capas) {
+              for (let i = 0; i < clonedPlantilla.capas.length; i++) {
+                const capa = clonedPlantilla.capas[i];
+                if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
+                  capa.src = await addBlobToZip(capa.src, `card_${card.id}_template_image_${i}`);
+                }
+                if (capa.tipo === "image-switch" && capa.options) {
+                  for (let o = 0; o < capa.options.length; o++) {
+                    const opt = capa.options[o];
+                    if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
+                      opt.src = await addBlobToZip(opt.src, `card_${card.id}_template_image_switch_option_${i}_${o}`);
+                    }
                   }
                 }
               }
+              processedPlantilla = clonedPlantilla;
             }
-            processedPlantilla = clonedPlantilla;
           }
-        }
 
-        let processedPlantillaTrasera = undefined;
-        if (card.plantillaTrasera) {
-          const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
-          if (clonedPlantillaTrasera.capas) {
-            for (let i = 0; i < clonedPlantillaTrasera.capas.length; i++) {
-              const capa = clonedPlantillaTrasera.capas[i];
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
-                capa.src = await addBlobToZip(capa.src, `card_${card.id}_back_template_image_${i}`);
-              }
-              if (capa.tipo === "image-switch" && capa.options) {
-                for (let o = 0; o < clonedPlantillaTrasera.capas[i].options.length; o++) {
-                  const opt = clonedPlantillaTrasera.capas[i].options[o];
-                  if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
-                    opt.src = await addBlobToZip(opt.src, `card_${card.id}_back_template_image_switch_option_${i}_${o}`);
+          let processedPlantillaTrasera = undefined;
+          if (card.plantillaTrasera) {
+            const clonedPlantillaTrasera = JSON.parse(JSON.stringify(card.plantillaTrasera));
+            if (clonedPlantillaTrasera.capas) {
+              for (let i = 0; i < clonedPlantillaTrasera.capas.length; i++) {
+                const capa = clonedPlantillaTrasera.capas[i];
+                if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
+                  capa.src = await addBlobToZip(capa.src, `card_${card.id}_back_template_image_${i}`);
+                }
+                if (capa.tipo === "image-switch" && capa.options) {
+                  for (let o = 0; o < clonedPlantillaTrasera.capas[i].options.length; o++) {
+                    const opt = clonedPlantillaTrasera.capas[i].options[o];
+                    if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
+                      opt.src = await addBlobToZip(opt.src, `card_${card.id}_back_template_image_switch_option_${i}_${o}`);
+                    }
                   }
                 }
               }
+              processedPlantillaTrasera = clonedPlantillaTrasera;
             }
-            processedPlantillaTrasera = clonedPlantillaTrasera;
           }
-        }
 
-        processedCards.push({
-          id: card.id,
-          nombre: card.nombre,
-          imagenFrontal: imagenFrontalPath,
-          imagenTrasera: imagenTraseraPath,
-          cantidad: card.cantidad,
-          plantillaId: card.plantillaId,
-          valoresCampos: card.valoresCampos,
-          capasOverrides: processedOverrides,
-          plantillaTraseraId: card.plantillaTraseraId,
-          valoresCamposTrasera: card.valoresCamposTrasera,
-          capasOverridesTrasera: processedOverridesTrasera,
-          plantilla: processedPlantilla,
-          plantillaTrasera: processedPlantillaTrasera,
-        });
+          processedCards.push({
+            id: card.id,
+            nombre: card.nombre,
+            imagenFrontal: imagenFrontalPath,
+            imagenTrasera: imagenTraseraPath,
+            cantidad: card.cantidad,
+            plantillaId: card.plantillaId,
+            valoresCampos: card.valoresCampos,
+            capasOverrides: processedOverrides,
+            plantillaTraseraId: card.plantillaTraseraId,
+            valoresCamposTrasera: card.valoresCamposTrasera,
+            capasOverridesTrasera: processedOverridesTrasera,
+            plantilla: processedPlantilla,
+            plantillaTrasera: processedPlantillaTrasera,
+          });
+        }
       }
 
       let commonBackPath = null;
@@ -1354,14 +1364,19 @@ function AppContent() {
       processedTemplatesMap[id] = clonedTemplate;
     }
 
+    const targetId = options?.newId || (isTemplate ? `tmpl_${Date.now()}_${Math.random().toString(36).substring(2, 9)}` : currentProjectId);
+    const targetNombre = options?.newName || nombreProyecto;
+
     const proyecto = {
       version: "2.1.0" as const,
-      id: currentProjectId,
+      id: targetId,
+      ...(isTemplate ? { isTemplate: true, type: "template" as const } : { type: "project" as const }),
       meta: {
-        id: currentProjectId,
-        nombre: nombreProyecto,
+        id: targetId,
+        nombre: targetNombre,
         fechaCreacion: new Date().toISOString(),
         fechaModificacion: new Date().toISOString(),
+        ...(isTemplate ? { isTemplate: true, type: "template" as const } : { type: "project" as const }),
       },
       documentos: processedDocumentos,
       activeDocumentoId,
@@ -1477,7 +1492,6 @@ function AppContent() {
 
   // --- Guardar Proyecto Localmente (.cdc2) ---
   const handleGuardarProyecto = async () => {
-    if (cartas.length === 0) return;
     try {
       const zipContentBlob = await generarProyectoZip();
       const downloadUrl = URL.createObjectURL(zipContentBlob);
@@ -1494,8 +1508,63 @@ function AppContent() {
     }
   };
 
+  // --- Guardar Proyecto Como... (.cdc2) (SRS-067) ---
+  const handleGuardarProyectoComo = async () => {
+    const sugerido = `${nombreProyecto} (Copia)`;
+    const nuevoNombre = window.prompt("Introduce el nombre para la nueva copia del proyecto:", sugerido);
+    if (nuevoNombre === null) return;
+    const nombreFinal = nuevoNombre.trim() || sugerido;
+    const nuevaId = generateProjectId();
+
+    try {
+      const zipContentBlob = await generarProyectoZip({ newId: nuevaId, newName: nombreFinal });
+      const downloadUrl = URL.createObjectURL(zipContentBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      const cleanName = nombreFinal
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+      link.download = `${cleanName || "proyecto"}_${Date.now()}.cdc2`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+      setCurrentProjectId(nuevaId);
+      setNombreProyectoInternal(nombreFinal);
+      setIsDirty(false);
+    } catch (error: any) {
+      alert(`Error al guardar copia del proyecto: ${error.message || error}`);
+    }
+  };
+
+  // --- Exportar Plantilla de Proyecto (.cdc2) (SRS-067) ---
+  const handleExportarPlantillaProyecto = async () => {
+    try {
+      const templateId = `tmpl_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+      const zipContentBlob = await generarProyectoZip({ asTemplate: true, newId: templateId });
+      const downloadUrl = URL.createObjectURL(zipContentBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      const cleanName = nombreProyecto
+        .toLowerCase()
+        .trim()
+        .replace(/[^a-z0-9]+/g, "_")
+        .replace(/^_+|_+$/g, "");
+      link.download = `plantilla_${cleanName || "proyecto"}_${Date.now()}.cdc2`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+    } catch (error: any) {
+      alert(`Error al exportar plantilla de proyecto: ${error.message || error}`);
+    }
+  };
+
   // --- Cargar Proyecto Local (.cdc2) ---
-  const handleCargarProyecto = async (file: File) => {
+  const handleCargarProyecto = async (file: File, options?: { asTemplate?: boolean }) => {
     try {
       const zip = await JSZip.loadAsync(file);
       
@@ -1506,6 +1575,7 @@ function AppContent() {
       
       const projectJsonText = await projectFile.async("text");
       const proyecto = validarYParsearProyecto(projectJsonText);
+      const isOpeningAsTemplate = Boolean(options?.asTemplate || proyecto.isTemplate || (proyecto as any).meta?.isTemplate);
 
       // Limpiar URLs de objeto anteriores
       cartas.forEach((c) => {
@@ -1591,7 +1661,8 @@ function AppContent() {
       // Cargar todos los documentos
       for (const doc of proyecto.documentos) {
         const nuevasCartas: Carta[] = [];
-        for (const card of doc.cards) {
+        if (!isOpeningAsTemplate) {
+          for (const card of doc.cards) {
           let frontalUrl: string | undefined = undefined;
           if (card.imagenFrontal) {
             const res = await resolverAssetBlob(card.imagenFrontal);
@@ -1692,6 +1763,7 @@ function AppContent() {
             plantilla: processedPlantilla,
             plantillaTrasera: processedPlantillaTrasera,
           });
+        }
         }
         doc.cards = nuevasCartas;
         doc.imagenTraseraComun = await resolverAssetBlob(doc.imagenTraseraComun);
@@ -1898,8 +1970,13 @@ function AppContent() {
       } else {
         setNombreProyectoInternal("Proyecto Importado");
       }
-      const loadedId = (proyecto as any).id || (proyecto as any).meta?.id || generateProjectId();
-      setCurrentProjectId(loadedId);
+      if (isOpeningAsTemplate) {
+        setCurrentProjectId(generateProjectId());
+      } else {
+        const loadedId = (proyecto as any).id || (proyecto as any).meta?.id || generateProjectId();
+        setCurrentProjectId(loadedId);
+      }
+      setSelectedCardIds([]);
       setProjectCreated(true);
       setShowCreateProjectForm(false);
 
@@ -1908,7 +1985,11 @@ function AppContent() {
       setCardPreset("custom");
 
       setIsDirty(false);
-      alert("Proyecto cargado correctamente.");
+      if (isOpeningAsTemplate) {
+        alert("Plantilla de proyecto cargada correctamente.");
+      } else {
+        alert("Proyecto cargado correctamente.");
+      }
     } catch (err: any) {
       alert(`Error al cargar el proyecto: ${err.message || err}`);
     }
@@ -1917,6 +1998,13 @@ function AppContent() {
   const handleCargarProyectoFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       handleCargarProyecto(e.target.files[0]);
+    }
+    e.target.value = "";
+  };
+
+  const handleAbrirComoPlantillaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      handleCargarProyecto(e.target.files[0], { asTemplate: true });
     }
     e.target.value = "";
   };
@@ -2672,8 +2760,11 @@ function AppContent() {
       <MenuBar
         onNuevoProyecto={handleNuevoProyecto}
         onCargarProyectoClick={() => fileInputProyectoRef.current?.click()}
+        onAbrirComoPlantillaClick={() => fileInputPlantillaProyectoRef.current?.click()}
         onImportarPlantillaClick={() => fileInputTemplateRef.current?.click()}
         onGuardarProyecto={handleGuardarProyecto}
+        onGuardarProyectoComo={handleGuardarProyectoComo}
+        onExportarPlantillaProyecto={handleExportarPlantillaProyecto}
         storageInfo={storageInfo}
         onOpenCloudProjects={() => {
           if (user) {
@@ -5039,6 +5130,13 @@ function AppContent() {
         type="file"
         accept=".cdc2"
         onChange={handleCargarProyectoFileChange}
+        style={{ display: "none" }}
+      />
+      <input
+        ref={fileInputPlantillaProyectoRef}
+        type="file"
+        accept=".cdc2"
+        onChange={handleAbrirComoPlantillaFileChange}
         style={{ display: "none" }}
       />
       <input

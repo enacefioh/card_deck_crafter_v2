@@ -61,7 +61,8 @@ RUN npm install
 
 COPY . .
 
-ENV VITE_ALLOWED_HOSTS=all
+ENV VITE_ALLOWED_HOSTS=all \
+    CDC2_DB_PATH=/app/server/data/users.db
 
 # Exponemos el frontend (5173) y el backend (3000)
 EXPOSE 5173 3000

@@ -8,6 +8,9 @@ interface MenuBarProps {
   onNuevoProyecto: () => void;
   onCargarProyectoClick: () => void;
   onGuardarProyecto: () => void;
+  onAbrirComoPlantillaClick?: () => void;
+  onGuardarProyectoComo?: () => void;
+  onExportarPlantillaProyecto?: () => void;
   storageInfo?: UserStorageInfo | null;
   onOpenCloudProjects?: () => void;
   onSaveCloudProject?: () => void;
@@ -61,6 +64,9 @@ export default function MenuBar({
   onNuevoProyecto,
   onCargarProyectoClick,
   onGuardarProyecto,
+  onAbrirComoPlantillaClick,
+  onGuardarProyectoComo,
+  onExportarPlantillaProyecto,
   onImportarImagenesClick,
   onExportarPdf,
   exportandoPdf,
@@ -180,7 +186,7 @@ export default function MenuBar({
     <div className="menu-bar" ref={menuBarRef}>
       <div className="menu-bar-brand">
         <span className="brand-logo">🎴</span>
-        <span className="brand-text">Card Deck Crafter v2.261001.4</span>
+        <span className="brand-text">Card Deck Crafter v2.261001.5</span>
       </div>
 
 
@@ -236,6 +242,12 @@ export default function MenuBar({
                     </button>
                     <button
                       className="menu-item"
+                      onClick={() => handleAction(onAbrirComoPlantillaClick || (() => {}))}
+                    >
+                      <span className="menu-item-icon">📐</span> Abrir desde PC como Plantilla (.cdc2)...
+                    </button>
+                    <button
+                      className="menu-item"
                       style={{ opacity: user ? 1 : 0.6 }}
                       onClick={() =>
                         handleAction(() => {
@@ -264,9 +276,7 @@ export default function MenuBar({
                   style={{
                     display: "flex",
                     justifyContent: "space-between",
-                    alignItems: "center",
-                    opacity: cartasCount === 0 ? 0.35 : 1,
-                    cursor: cartasCount === 0 ? "not-allowed" : "pointer"
+                    alignItems: "center"
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center" }}>
@@ -274,10 +284,22 @@ export default function MenuBar({
                   </div>
                   <span className="menu-item-arrow">▶</span>
                 </div>
-                {activeSubmenu === "guardar" && cartasCount > 0 && (
+                {activeSubmenu === "guardar" && (
                   <div className="menu-submenu">
                     <button className="menu-item" onClick={() => handleAction(onGuardarProyecto)}>
                       <span className="menu-item-icon">💻</span> Exportar a PC (.cdc2)
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => handleAction(onGuardarProyectoComo || (() => {}))}
+                    >
+                      <span className="menu-item-icon">📑</span> Exportar Proyecto Como... (.cdc2)
+                    </button>
+                    <button
+                      className="menu-item"
+                      onClick={() => handleAction(onExportarPlantillaProyecto || (() => {}))}
+                    >
+                      <span className="menu-item-icon">📐</span> Exportar Plantilla de Proyecto (.cdc2)
                     </button>
                     <button
                       className="menu-item"
@@ -299,14 +321,6 @@ export default function MenuBar({
               </div>
 
               <div className="menu-separator" />
-
-              <button
-                className="menu-item"
-                onClick={() => handleAction(onImportarPlantillaClick)}
-                onMouseEnter={() => setActiveSubmenu(null)}
-              >
-                <span className="menu-item-icon">📥</span> Importar Plantilla (.cdc2t)...
-              </button>
 
               <button
                 className="menu-item"
@@ -416,6 +430,12 @@ export default function MenuBar({
                 onClick={() => handleAction(onShowTemplatesManager || (() => {}))}
               >
                 <span className="menu-item-icon">📋</span> Gestor de Plantillas...
+              </button>
+              <button
+                className="menu-item"
+                onClick={() => handleAction(onImportarPlantillaClick)}
+              >
+                <span className="menu-item-icon">📥</span> Importar Plantilla (.cdc2t)...
               </button>
               <button
                 className="menu-item"

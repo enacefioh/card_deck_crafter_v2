@@ -14,7 +14,15 @@ export class SqliteUserRepository implements IUserRepository {
     if (typeof dbOrPath === "object" && dbOrPath !== null) {
       this.db = dbOrPath;
     } else {
-      this.dbPath = dbOrPath || process.env.CDC2_DB_PATH || path.join(process.cwd(), "server/data/users.db");
+      if (dbOrPath) {
+        this.dbPath = dbOrPath;
+      } else if (process.env.CDC2_DB_PATH) {
+        this.dbPath = process.env.CDC2_DB_PATH;
+      } else if (process.cwd().endsWith("server")) {
+        this.dbPath = path.resolve(process.cwd(), "data/users.db");
+      } else {
+        this.dbPath = path.resolve(process.cwd(), "server/data/users.db");
+      }
       const baseDir = path.dirname(this.dbPath);
       fs.ensureDirSync(baseDir);
       fs.ensureDirSync(path.join(baseDir, "backups"));
