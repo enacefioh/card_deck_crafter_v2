@@ -5,6 +5,7 @@ export interface User {
   email: string;
   passwordHash: string | null;
   role: UserRole;
+  storageQuotaMb: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -14,6 +15,7 @@ export interface UserSummary {
   email: string;
   role: UserRole;
   hasPassword: boolean;
+  storageQuotaMb: number;
   createdAt: string;
 }
 
@@ -57,12 +59,36 @@ export interface DashboardMetrics {
 export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   findById(id: string): Promise<User | null>;
-  createUser(email: string, role?: UserRole, passwordHash?: string | null): Promise<User>;
+  createUser(email: string, role?: UserRole, passwordHash?: string | null, storageQuotaMb?: number): Promise<User>;
   setPassword(userId: string, passwordHash: string): Promise<void>;
   resetPassword(userId: string): Promise<void>;
   updateRole(userId: string, role: UserRole): Promise<void>;
+  updateStorageQuota(userId: string, quotaMb: number): Promise<void>;
   deleteUser(userId: string): Promise<void>;
   countUsers(): Promise<number>;
   listUsers(): Promise<UserSummary[]>;
   getDashboardMetrics(): Promise<DashboardMetrics>;
+}
+
+export interface CloudProjectMetadata {
+  id: string;
+  userId: string;
+  filename: string;
+  name: string;
+  description: string;
+  cardCount: number;
+  documentCount: number;
+  fileSizeBytes: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UserStorageInfo {
+  quotaMb: number;
+  quotaBytes: number;
+  usedBytes: number;
+  usedMb: number;
+  availableBytes: number;
+  availableMb: number;
+  percentUsed: number;
 }

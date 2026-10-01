@@ -37,6 +37,11 @@ export const AdminPanel: React.FC = () => {
   const [restoreConfirmFile, setRestoreConfirmFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Estado para modificación de cuota de almacenamiento (SRS-065)
+  const [userToEditQuota, setUserToEditQuota] = useState<UserSummary | null>(null);
+  const [quotaInputMb, setQuotaInputMb] = useState<number>(100);
+  const [quotaLoading, setQuotaLoading] = useState(false);
+
   // Carga de datos
   const loadDashboard = async () => {
     try {
@@ -161,6 +166,36 @@ export const AdminPanel: React.FC = () => {
       loadDashboard();
     } catch (err: any) {
       showFeedback(err.message, "error");
+    }
+  };
+
+  // Modificar Cuota de Espacio (SRS-065)
+  const handleUpdateQuota = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userToEditQuota) return;
+    const numericQuota = Number(quotaInputMb);
+    if (!Number.isInteger(numericQuota) || numericQuota < 1) {
+      showFeedback("La cuota debe ser un número entero mayor o igual a 1 MB.", "error");
+      return;
+    }
+    try {
+      setQuotaLoading(true);
+      const res = await fetch(`/api/admin/users/${userToEditQuota.id}/quota`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quotaMb: numericQuota })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al actualizar la cuota.");
+      }
+      showFeedback(`Cuota de ${userToEditQuota.email} actualizada a ${numericQuota} MB.`);
+      setUserToEditQuota(null);
+      loadUsers();
+    } catch (err: any) {
+      showFeedback(err.message, "error");
+    } finally {
+      setQuotaLoading(false);
     }
   };
 
@@ -642,6 +677,7 @@ export const AdminPanel: React.FC = () => {
                       <th style={{ padding: "12px 16px" }}>Email</th>
                       <th style={{ padding: "12px 16px" }}>Rol</th>
                       <th style={{ padding: "12px 16px" }}>Estado Clave</th>
+                      <th style={{ padding: "12px 16px" }}>Cuota</th>
                       <th style={{ padding: "12px 16px" }}>Fecha Registro</th>
                       <th style={{ padding: "12px 16px", textAlign: "right" }}>Acciones</th>
                     </tr>
@@ -649,13 +685,13 @@ export const AdminPanel: React.FC = () => {
                   <tbody>
                     {loadingData ? (
                       <tr>
-                        <td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
+                        <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
                           Cargando usuarios...
                         </td>
                       </tr>
                     ) : filteredUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={6} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
+                        <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
                           {searchQuery ? "No se encontraron usuarios coincidentes." : "No hay usuarios registrados."}
                         </td>
                       </tr>
@@ -725,12 +761,51 @@ export const AdminPanel: React.FC = () => {
                               </span>
                             </td>
 
+                            <td style={{ padding: "12px 16px" }}>
+                              <span
+                                style={{
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: "4px",
+                                  padding: "3px 8px",
+                                  borderRadius: "4px",
+                                  fontSize: "12px",
+                                  fontWeight: "500",
+                                  backgroundColor: "#272733",
+                                  color: "#38bdf8",
+                                  border: "1px solid #38384d"
+                                }}
+                              >
+                                💾 {u.storageQuotaMb || 100} MB
+                              </span>
+                            </td>
+
                             <td style={{ padding: "12px 16px", color: "#94a3b8" }}>
                               {new Date(u.createdAt).toLocaleDateString()}
                             </td>
 
                             <td style={{ padding: "12px 16px", textAlign: "right" }}>
                               <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end" }}>
+                                <button
+                                  type="button"
+                                  title="Modificar Cuota de Espacio"
+                                  onClick={() => {
+                                    setUserToEditQuota(u);
+                                    setQuotaInputMb(u.storageQuotaMb || 100);
+                                  }}
+                                  style={{
+                                    padding: "5px 9px",
+                                    borderRadius: "4px",
+                                    border: "1px solid #3f3f4e",
+                                    backgroundColor: "#2b2b36",
+                                    color: "#38bdf8",
+                                    fontSize: "12px",
+                                    cursor: "pointer"
+                                  }}
+                                >
+                                  💾 Cuota
+                                </button>
+
                                 <button
                                   type="button"
                                   title="Resetear Contraseña"
@@ -968,6 +1043,142 @@ export const AdminPanel: React.FC = () => {
                 Confirmar Reseteo
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: MODIFICAR CUOTA DE ESPACIO (SRS-065) */}
+      {userToEditQuota && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+          onClick={() => !quotaLoading && setUserToEditQuota(null)}
+        >
+          <div
+            style={{
+              backgroundColor: "#1e1e24",
+              border: "1px solid #333340",
+              borderRadius: "10px",
+              padding: "24px 28px",
+              width: "100%",
+              maxWidth: "420px",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.5)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+              <span style={{ fontSize: "24px" }}>💾</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "17px", color: "#38bdf8" }}>Modificar Cuota de Espacio</h3>
+                <span style={{ fontSize: "12px", color: "#94a3b8" }}>{userToEditQuota.email}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleUpdateQuota}>
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", fontSize: "13px", color: "#cbd5e1", marginBottom: "6px", fontWeight: "500" }}>
+                  Límite de Almacenamiento (MB)
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <input
+                    type="number"
+                    min={1}
+                    max={1000000}
+                    step={1}
+                    value={quotaInputMb}
+                    onChange={(e) => setQuotaInputMb(e.target.value === "" ? "" : Number(e.target.value))}
+                    disabled={quotaLoading}
+                    required
+                    style={{
+                      flex: 1,
+                      padding: "9px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid #3f3f4e",
+                      backgroundColor: "#141418",
+                      color: "#fff",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      outline: "none"
+                    }}
+                  />
+                  <span style={{ fontSize: "13px", color: "#94a3b8", fontWeight: "600" }}>MB</span>
+                </div>
+              </div>
+
+              {/* Botones de preajuste rápido */}
+              <div style={{ marginBottom: "18px" }}>
+                <div style={{ fontSize: "11px", color: "#94a3b8", marginBottom: "6px" }}>Preajustes rápidos:</div>
+                <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                  {[100, 250, 500, 1000, 2000].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setQuotaInputMb(preset)}
+                      disabled={quotaLoading}
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: "11px",
+                        fontWeight: Number(quotaInputMb) === preset ? "700" : "500",
+                        backgroundColor: Number(quotaInputMb) === preset ? "#0284c7" : "#2b2b36",
+                        color: Number(quotaInputMb) === preset ? "#fff" : "#cbd5e1",
+                        border: Number(quotaInputMb) === preset ? "1px solid #38bdf8" : "1px solid #3f3f4e",
+                        borderRadius: "4px",
+                        cursor: "pointer"
+                      }}
+                    >
+                      {preset >= 1000 ? `${preset / 1000} GB` : `${preset} MB`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <p style={{ fontSize: "12px", color: "#94a3b8", lineHeight: "1.4", margin: "0 0 20px 0" }}>
+                Esta cuota define el espacio máximo que el usuario podrá consumir almacenando barajas, plantillas y assets. El valor por defecto del sistema es 100 MB.
+              </p>
+
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  disabled={quotaLoading}
+                  onClick={() => setUserToEditQuota(null)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "6px",
+                    border: "1px solid #3f3f4e",
+                    backgroundColor: "transparent",
+                    color: "#cbd5e1",
+                    fontSize: "13px",
+                    cursor: quotaLoading ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={quotaLoading}
+                  style={{
+                    padding: "8px 18px",
+                    borderRadius: "6px",
+                    border: "none",
+                    backgroundColor: quotaLoading ? "#0369a1" : "#0284c7",
+                    color: "#fff",
+                    fontWeight: "600",
+                    fontSize: "13px",
+                    cursor: quotaLoading ? "wait" : "pointer"
+                  }}
+                >
+                  {quotaLoading ? "Guardando..." : "Guardar Cuota"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

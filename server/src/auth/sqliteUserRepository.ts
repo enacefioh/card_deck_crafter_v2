@@ -67,7 +67,7 @@ export class SqliteUserRepository implements IUserRepository {
   public async findByEmail(email: string): Promise<User | null> {
     const cleanEmail = email.trim().toLowerCase();
     const row = this.db.prepare(
-      "SELECT id, email, password_hash, role, created_at, updated_at FROM users WHERE email = ?"
+      "SELECT id, email, password_hash, role, storage_quota_mb, created_at, updated_at FROM users WHERE email = ?"
     ).get(cleanEmail) as any;
 
     if (!row) return null;
@@ -76,6 +76,7 @@ export class SqliteUserRepository implements IUserRepository {
       email: row.email,
       passwordHash: row.password_hash,
       role: row.role as UserRole,
+      storageQuotaMb: row.storage_quota_mb !== undefined && row.storage_quota_mb !== null ? Number(row.storage_quota_mb) : 100,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
@@ -83,7 +84,7 @@ export class SqliteUserRepository implements IUserRepository {
 
   public async findById(id: string): Promise<User | null> {
     const row = this.db.prepare(
-      "SELECT id, email, password_hash, role, created_at, updated_at FROM users WHERE id = ?"
+      "SELECT id, email, password_hash, role, storage_quota_mb, created_at, updated_at FROM users WHERE id = ?"
     ).get(id) as any;
 
     if (!row) return null;
@@ -92,25 +93,32 @@ export class SqliteUserRepository implements IUserRepository {
       email: row.email,
       passwordHash: row.password_hash,
       role: row.role as UserRole,
+      storageQuotaMb: row.storage_quota_mb !== undefined && row.storage_quota_mb !== null ? Number(row.storage_quota_mb) : 100,
       createdAt: row.created_at,
       updatedAt: row.updated_at
     };
   }
 
-  public async createUser(email: string, role: UserRole = "user", passwordHash: string | null = null): Promise<User> {
+  public async createUser(
+    email: string,
+    role: UserRole = "user",
+    passwordHash: string | null = null,
+    storageQuotaMb: number = 100
+  ): Promise<User> {
     const cleanEmail = email.trim().toLowerCase();
     const id = randomUUID();
     const now = new Date().toISOString();
 
     this.db.prepare(
-      "INSERT INTO users (id, email, password_hash, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)"
-    ).run(id, cleanEmail, passwordHash, role, now, now);
+      "INSERT INTO users (id, email, password_hash, role, storage_quota_mb, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    ).run(id, cleanEmail, passwordHash, role, storageQuotaMb, now, now);
 
     return {
       id,
       email: cleanEmail,
       passwordHash,
       role,
+      storageQuotaMb,
       createdAt: now,
       updatedAt: now
     };
@@ -137,6 +145,11 @@ export class SqliteUserRepository implements IUserRepository {
     this.db.prepare("UPDATE users SET role = ?, updated_at = ? WHERE id = ?").run(role, now, userId);
   }
 
+  public async updateStorageQuota(userId: string, quotaMb: number): Promise<void> {
+    const now = new Date().toISOString();
+    this.db.prepare("UPDATE users SET storage_quota_mb = ?, updated_at = ? WHERE id = ?").run(quotaMb, now, userId);
+  }
+
   public async deleteUser(userId: string): Promise<void> {
     this.db.prepare("DELETE FROM users WHERE id = ?").run(userId);
   }
@@ -148,7 +161,7 @@ export class SqliteUserRepository implements IUserRepository {
 
   public async listUsers(): Promise<UserSummary[]> {
     const rows = this.db.prepare(
-      "SELECT id, email, role, password_hash, created_at FROM users ORDER BY created_at ASC"
+      "SELECT id, email, role, password_hash, storage_quota_mb, created_at FROM users ORDER BY created_at ASC"
     ).all() as any[];
 
     return rows.map(r => ({
@@ -156,6 +169,7 @@ export class SqliteUserRepository implements IUserRepository {
       email: r.email,
       role: r.role as UserRole,
       hasPassword: r.password_hash !== null && r.password_hash !== "",
+      storageQuotaMb: r.storage_quota_mb !== undefined && r.storage_quota_mb !== null ? Number(r.storage_quota_mb) : 100,
       createdAt: r.created_at
     }));
   }

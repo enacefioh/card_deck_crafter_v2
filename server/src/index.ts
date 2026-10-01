@@ -172,7 +172,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.260929.1",
+      version: "v2.261001.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -211,9 +211,36 @@ app.post("/api/admin/users", requireAdmin, async (req, res) => {
         email: user.email,
         role: user.role,
         hasPassword: false,
+        storageQuotaMb: user.storageQuotaMb,
         createdAt: user.createdAt
       }
     });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.patch("/api/admin/users/:id/quota", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { quotaMb } = req.body;
+
+    const numericQuota = Number(quotaMb);
+    if (!Number.isInteger(numericQuota) || numericQuota < 1) {
+      return res.status(400).json({ error: "La cuota de almacenamiento debe ser un número entero mayor o igual a 1 MB." });
+    }
+
+    if (numericQuota > 1000000) {
+      return res.status(400).json({ error: "La cuota de almacenamiento no puede superar 1.000.000 MB." });
+    }
+
+    const user = await authService.getRepository().findById(id);
+    if (!user) {
+      return res.status(404).json({ error: "Usuario no encontrado." });
+    }
+
+    await authService.getRepository().updateStorageQuota(id, numericQuota);
+    res.json({ status: "OK", quotaMb: numericQuota });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

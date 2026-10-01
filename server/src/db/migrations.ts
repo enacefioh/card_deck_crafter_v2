@@ -32,6 +32,38 @@ export const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
       `);
     }
+  },
+  {
+    version: 2,
+    description: "Añadir columna storage_quota_mb a la tabla users con valor por defecto 100",
+    up: (db: DatabaseType) => {
+      db.exec(`
+        ALTER TABLE users ADD COLUMN storage_quota_mb INTEGER NOT NULL DEFAULT 100;
+      `);
+    }
+  },
+  {
+    version: 3,
+    description: "Crear tabla user_projects para registrar metadatos de proyectos guardados en la nube",
+    up: (db: DatabaseType) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_projects (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          filename TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT DEFAULT '',
+          card_count INTEGER NOT NULL DEFAULT 0,
+          document_count INTEGER NOT NULL DEFAULT 0,
+          file_size_bytes INTEGER NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(user_id, filename)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_user_projects_user_updated ON user_projects(user_id, updated_at DESC);
+      `);
+    }
   }
 ];
 

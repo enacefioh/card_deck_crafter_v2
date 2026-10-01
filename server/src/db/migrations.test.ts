@@ -14,18 +14,30 @@ describe("Motor de Migraciones SQLite - SRS-064", () => {
     expect(manager.getCurrentVersion()).toBe(0);
   });
 
-  it("debe aplicar la migración base v1 y actualizar user_version a 1", () => {
+  it("debe aplicar las migraciones base (v1, v2 y v3) y actualizar user_version a 3", () => {
     const manager = new MigrationManager(db);
     const result = manager.runMigrations();
 
-    expect(result.applied).toBe(1);
-    expect(result.currentVersion).toBe(1);
-    expect(manager.getCurrentVersion()).toBe(1);
+    expect(result.applied).toBe(3);
+    expect(result.currentVersion).toBe(3);
+    expect(manager.getCurrentVersion()).toBe(3);
 
     // Comprobar que las tablas existen
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r: any) => r.name);
     expect(tables).toContain("users");
     expect(tables).toContain("sessions");
+    expect(tables).toContain("user_projects");
+
+    // Comprobar que la columna storage_quota_mb existe en users
+    const columns = db.prepare("PRAGMA table_info(users)").all().map((c: any) => c.name);
+    expect(columns).toContain("storage_quota_mb");
+
+    // Comprobar columnas de user_projects
+    const projColumns = db.prepare("PRAGMA table_info(user_projects)").all().map((c: any) => c.name);
+    expect(projColumns).toContain("card_count");
+    expect(projColumns).toContain("document_count");
+    expect(projColumns).toContain("file_size_bytes");
+    expect(projColumns).toContain("description");
   });
 
   it("debe ser idempotente si se vuelve a ejecutar sin cambios", () => {
@@ -34,7 +46,7 @@ describe("Motor de Migraciones SQLite - SRS-064", () => {
 
     const secondRun = manager.runMigrations();
     expect(secondRun.applied).toBe(0);
-    expect(secondRun.currentVersion).toBe(1);
+    expect(secondRun.currentVersion).toBe(3);
   });
 
   it("debe aplicar migraciones incrementales secuencialmente (v1 -> v2) sin perder datos", () => {

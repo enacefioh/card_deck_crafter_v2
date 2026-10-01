@@ -34,3 +34,7 @@ server/data/
 *.db
 *.db-wal
 *.db-shm
+
+# Skills locales y privadas de automatización
+.agents/skills/
+

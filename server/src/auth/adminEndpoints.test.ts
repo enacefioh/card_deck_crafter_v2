@@ -147,5 +147,29 @@ describe("Panel de Administración y Métricas - SRS-063", () => {
     repo.close();
     await fs.remove(testDbDir);
   });
+
+  it("debe gestionar la cuota de almacenamiento por usuario (SRS-065)", async () => {
+    // 1. Al crear un usuario, recibe por defecto 100 MB
+    const user = await repo.createUser("quota_test@cdc2.local", "user", null);
+    expect(user.storageQuotaMb).toBe(100);
+
+    const found = await repo.findById(user.id);
+    expect(found?.storageQuotaMb).toBe(100);
+
+    // 2. Comprobar que en listUsers aparece la cuota
+    const list = await repo.listUsers();
+    const userSummary = list.find(u => u.id === user.id);
+    expect(userSummary?.storageQuotaMb).toBe(100);
+
+    // 3. Modificar la cuota a 500 MB
+    await repo.updateStorageQuota(user.id, 500);
+
+    const updated = await repo.findById(user.id);
+    expect(updated?.storageQuotaMb).toBe(500);
+
+    const updatedList = await repo.listUsers();
+    const updatedSummary = updatedList.find(u => u.id === user.id);
+    expect(updatedSummary?.storageQuotaMb).toBe(500);
+  });
 });
 
