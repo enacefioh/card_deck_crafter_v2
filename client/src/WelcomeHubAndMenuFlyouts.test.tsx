@@ -141,12 +141,12 @@ describe("SRS-066: Welcome Hub and MenuBar Flyouts", () => {
     // Pasar el ratón por Abrir Proyecto debe activar el flyout submenu
     fireEvent.mouseEnter(abrirProyectoItem.parentElement!);
     expect(screen.getByText("Importar desde PC (.cdc2)...")).toBeTruthy();
-    expect(screen.getByText("Abrir desde la Nube...")).toBeTruthy();
+    expect(screen.getAllByText(/Abrir .*desde la Nube/i)[0]).toBeTruthy();
 
     // Pasar el ratón por Guardar Proyecto debe activar su submenu
     fireEvent.mouseEnter(guardarProyectoItem.parentElement!);
     expect(screen.getByText("Exportar a PC (.cdc2)")).toBeTruthy();
-    expect(screen.getByText("Guardar en la Nube...")).toBeTruthy();
+    expect(screen.getAllByText(/Guardar .*en la Nube/i)[0]).toBeTruthy();
   });
 
   it("renderiza 'Hola, usuario' cuando el usuario está logueado y no es admin", async () => {

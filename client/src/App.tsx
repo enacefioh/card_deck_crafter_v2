@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
 import { calcularDistribucion } from "shared";
-import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2, UserStorageInfo, CloudProjectMetadata } from "shared";
+import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2, UserStorageInfo, CloudProjectMetadata, CloudTemplateMetadata } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
 import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla, obtenerRutaJerarquica, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
@@ -13,7 +13,13 @@ import { AuthModals } from "./AuthModals";
 import { AdminPanel } from "./admin/AdminPanel";
 import { SaveCloudModal } from "./components/SaveCloudModal";
 import { CloudProjectsModal } from "./components/CloudProjectsModal";
-import { fetchUserStorage, uploadCloudProject, downloadCloudProjectBlob } from "./services/storageService";
+import {
+  fetchUserStorage,
+  uploadCloudProject,
+  downloadCloudProjectBlob,
+  uploadCloudTemplate,
+  downloadCloudTemplateBlob
+} from "./services/storageService";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -76,7 +82,13 @@ function AppContent() {
   const [storageInfo, setStorageInfo] = useState<UserStorageInfo | null>(null);
   const [showSaveCloudModal, setShowSaveCloudModal] = useState(false);
   const [showCloudProjectsModal, setShowCloudProjectsModal] = useState(false);
+  const [cloudProjectsModalInitialTab, setCloudProjectsModalInitialTab] = useState<"projects" | "templates">("projects");
+  const [saveCloudMode, setSaveCloudMode] = useState<"project" | "template">("project");
+  const [saveCloudAsNew, setSaveCloudAsNew] = useState<boolean>(false);
+  const [currentCloudTemplateId, setCurrentCloudTemplateId] = useState<string | null>(null);
   const [isSavingCloud, setIsSavingCloud] = useState(false);
+  const [estimatedCloudSizeBytes, setEstimatedCloudSizeBytes] = useState<number | undefined>(undefined);
+  const [isCalculatingCloudSize, setIsCalculatingCloudSize] = useState<boolean>(false);
   const [currentProjectId, setCurrentProjectId] = useState<string>(() => generateProjectId());
 
   const refreshStorage = async () => {
@@ -2009,32 +2021,111 @@ function AppContent() {
     e.target.value = "";
   };
 
-  // --- Handlers de Proyectos en la Nube (SRS-066) ---
+  // --- Handlers de Proyectos y Plantillas en la Nube (SRS-066 / SRS-068) ---
   const handleTriggerSaveCloud = () => {
     if (!user) {
       setShowLoginModal(true);
       return;
     }
-    if (cartas.length === 0) return;
+    setSaveCloudMode("project");
+    setSaveCloudAsNew(false);
     setShowSaveCloudModal(true);
   };
+
+  const handleTriggerSaveCloudProjectAs = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    setSaveCloudMode("project");
+    setSaveCloudAsNew(true);
+    setShowSaveCloudModal(true);
+  };
+
+  const handleTriggerSaveCloudTemplate = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    setSaveCloudMode("template");
+    setSaveCloudAsNew(false);
+    setShowSaveCloudModal(true);
+  };
+
+  const handleTriggerSaveCloudTemplateAs = () => {
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+    setSaveCloudMode("template");
+    setSaveCloudAsNew(true);
+    setShowSaveCloudModal(true);
+  };
+
+  useEffect(() => {
+    if (showSaveCloudModal) {
+      let isCancelled = false;
+      setIsCalculatingCloudSize(true);
+      setEstimatedCloudSizeBytes(undefined);
+
+      generarProyectoZip({ asTemplate: saveCloudMode === "template" })
+        .then((blob) => {
+          if (!isCancelled) {
+            setEstimatedCloudSizeBytes(blob.size);
+            setIsCalculatingCloudSize(false);
+          }
+        })
+        .catch((err) => {
+          console.warn("[cloud save] Error al calcular tamaño real:", err);
+          if (!isCancelled) {
+            setIsCalculatingCloudSize(false);
+          }
+        });
+
+      return () => {
+        isCancelled = true;
+      };
+    } else {
+      setEstimatedCloudSizeBytes(undefined);
+      setIsCalculatingCloudSize(false);
+    }
+  }, [showSaveCloudModal, saveCloudMode]);
 
   const handleConfirmSaveCloud = async ({ name, description }: { name: string; description: string }) => {
     try {
       setIsSavingCloud(true);
-      const zipBlob = await generarProyectoZip();
-      const result = await uploadCloudProject(zipBlob, {
-        id: currentProjectId,
-        name,
-        description,
-        cardCount: cartas.length,
-        documentCount: documentos.length
-      });
-      setStorageInfo(result.storage);
-      setCurrentProjectId(result.project.id);
-      setShowSaveCloudModal(false);
-      setIsDirty(false);
-      alert(`¡Proyecto "${result.project.name}" guardado en la nube!`);
+      if (saveCloudMode === "template") {
+        const targetId = (saveCloudAsNew || !currentCloudTemplateId)
+          ? `tmpl_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
+          : currentCloudTemplateId;
+        const zipBlob = await generarProyectoZip({ asTemplate: true, newId: targetId, newName: name });
+        const result = await uploadCloudTemplate(zipBlob, {
+          id: targetId,
+          name,
+          description,
+          documentCount: documentos.length,
+          templateCount: Object.keys(templatesMap).length
+        });
+        setStorageInfo(result.storage);
+        setCurrentCloudTemplateId(result.template.id);
+        setShowSaveCloudModal(false);
+        alert(`¡Plantilla "${result.template.name}" guardada en la nube!`);
+      } else {
+        const targetId = saveCloudAsNew ? generateProjectId() : currentProjectId;
+        const zipBlob = await generarProyectoZip({ newId: targetId, newName: name });
+        const result = await uploadCloudProject(zipBlob, {
+          id: targetId,
+          name,
+          description,
+          cardCount: cartas.length,
+          documentCount: documentos.length
+        });
+        setStorageInfo(result.storage);
+        setCurrentProjectId(result.project.id);
+        setShowSaveCloudModal(false);
+        setIsDirty(false);
+        alert(`¡Proyecto "${result.project.name}" guardado en la nube!`);
+      }
     } catch (err: any) {
       throw err;
     } finally {
@@ -2067,6 +2158,34 @@ function AppContent() {
       URL.revokeObjectURL(url);
     } catch (err: any) {
       alert(`Error al exportar el proyecto: ${err.message || err}`);
+    }
+  };
+
+  const handleUseCloudTemplate = async (template: CloudTemplateMetadata) => {
+    try {
+      const blob = await downloadCloudTemplateBlob(template.id);
+      const file = new File([blob], `${template.name}.cdc2`, { type: "application/octet-stream" });
+      await handleCargarProyecto(file, { asTemplate: true });
+      setCurrentCloudTemplateId(template.id);
+      setShowCloudProjectsModal(false);
+    } catch (err: any) {
+      alert(`Error al instanciar plantilla desde la nube: ${err.message || err}`);
+    }
+  };
+
+  const handleExportCloudTemplate = async (template: CloudTemplateMetadata) => {
+    try {
+      const blob = await downloadCloudTemplateBlob(template.id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `plantilla_${template.name.replace(/[^a-zA-Z0-9_\-\.]/g, "_")}.cdc2`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err: any) {
+      alert(`Error al exportar la plantilla: ${err.message || err}`);
     }
   };
 
@@ -2768,12 +2887,24 @@ function AppContent() {
         storageInfo={storageInfo}
         onOpenCloudProjects={() => {
           if (user) {
+            setCloudProjectsModalInitialTab("projects");
+            setShowCloudProjectsModal(true);
+          } else {
+            setShowLoginModal(true);
+          }
+        }}
+        onOpenCloudTemplates={() => {
+          if (user) {
+            setCloudProjectsModalInitialTab("templates");
             setShowCloudProjectsModal(true);
           } else {
             setShowLoginModal(true);
           }
         }}
         onSaveCloudProject={handleTriggerSaveCloud}
+        onSaveCloudProjectAs={handleTriggerSaveCloudProjectAs}
+        onSaveCloudTemplate={handleTriggerSaveCloudTemplate}
+        onSaveCloudTemplateAs={handleTriggerSaveCloudTemplateAs}
         onShowProjectGallery={() => setShowProjectGallery(true)}
         onShowProjectFonts={() => setShowProjectFonts(true)}
         onShowTemplatesManager={() => setShowTemplatesManager(true)}
@@ -6727,25 +6858,36 @@ function AppContent() {
         </div>
       )}
 
-      {/* Modales de Almacenamiento en la Nube (SRS-066) */}
+      {/* Modales de Almacenamiento en la Nube (SRS-066 / SRS-068) */}
       <SaveCloudModal
         isOpen={showSaveCloudModal}
         onClose={() => setShowSaveCloudModal(false)}
-        initialName={tempNombreProyecto || "Mi Baraja"}
+        initialName={
+          saveCloudMode === "template"
+            ? (nombreProyecto ? `Plantilla ${nombreProyecto}` : "Mi Plantilla")
+            : (tempNombreProyecto || "Mi Baraja")
+        }
         cardCount={cartas.length}
         documentCount={documentos.length}
+        templateCount={Object.keys(templatesMap).length}
+        isTemplateMode={saveCloudMode === "template"}
         storageInfo={storageInfo}
         isSaving={isSavingCloud}
+        isCalculatingSize={isCalculatingCloudSize}
+        estimatedSizeBytes={estimatedCloudSizeBytes}
         onConfirmSave={handleConfirmSaveCloud}
-        onExportLocal={handleGuardarProyecto}
+        onExportLocal={saveCloudMode === "template" ? handleExportarPlantillaProyecto : handleGuardarProyecto}
       />
 
       <CloudProjectsModal
         isOpen={showCloudProjectsModal}
         onClose={() => setShowCloudProjectsModal(false)}
         storageInfo={storageInfo}
+        initialTab={cloudProjectsModalInitialTab}
         onOpenProject={handleOpenCloudProject}
         onExportProject={handleExportCloudProject}
+        onUseTemplate={handleUseCloudTemplate}
+        onExportTemplate={handleExportCloudTemplate}
         onStorageUpdated={refreshStorage}
       />
     </div>

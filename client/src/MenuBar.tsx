@@ -13,7 +13,11 @@ interface MenuBarProps {
   onExportarPlantillaProyecto?: () => void;
   storageInfo?: UserStorageInfo | null;
   onOpenCloudProjects?: () => void;
+  onOpenCloudTemplates?: () => void;
   onSaveCloudProject?: () => void;
+  onSaveCloudProjectAs?: () => void;
+  onSaveCloudTemplate?: () => void;
+  onSaveCloudTemplateAs?: () => void;
   onImportarImagenesClick: () => void;
   onExportarPdf: () => void;
   exportandoPdf: boolean;
@@ -109,7 +113,11 @@ export default function MenuBar({
   onRenameDocumento,
   storageInfo,
   onOpenCloudProjects,
+  onOpenCloudTemplates,
   onSaveCloudProject,
+  onSaveCloudProjectAs,
+  onSaveCloudTemplate,
+  onSaveCloudTemplateAs,
 }: MenuBarProps) {
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>("");
@@ -186,7 +194,7 @@ export default function MenuBar({
     <div className="menu-bar" ref={menuBarRef}>
       <div className="menu-bar-brand">
         <span className="brand-logo">🎴</span>
-        <span className="brand-text">Card Deck Crafter v2.261001.5</span>
+        <span className="brand-text">Card Deck Crafter v2.261001.6</span>
       </div>
 
 
@@ -259,7 +267,22 @@ export default function MenuBar({
                         })
                       }
                     >
-                      <span className="menu-item-icon">☁️</span> Abrir desde la Nube... {!user && "🔒"}
+                      <span className="menu-item-icon">☁️</span> Abrir Proyecto desde la Nube... {!user && "🔒"}
+                    </button>
+                    <button
+                      className="menu-item"
+                      style={{ opacity: user ? 1 : 0.6 }}
+                      onClick={() =>
+                        handleAction(() => {
+                          if (user && onOpenCloudTemplates) {
+                            onOpenCloudTemplates();
+                          } else {
+                            setShowLoginModal(true);
+                          }
+                        })
+                      }
+                    >
+                      <span className="menu-item-icon">📐☁️</span> Abrir Plantilla desde la Nube... {!user && "🔒"}
                     </button>
                   </div>
                 )}
@@ -314,7 +337,52 @@ export default function MenuBar({
                         })
                       }
                     >
-                      <span className="menu-item-icon">☁️</span> Guardar en la Nube... {!user && "🔒"}
+                      <span className="menu-item-icon">☁️</span> Guardar Proyecto en la Nube... {!user && "🔒"}
+                    </button>
+                    <button
+                      className="menu-item"
+                      style={{ opacity: user ? 1 : 0.6 }}
+                      onClick={() =>
+                        handleAction(() => {
+                          if (user && onSaveCloudProjectAs) {
+                            onSaveCloudProjectAs();
+                          } else {
+                            setShowLoginModal(true);
+                          }
+                        })
+                      }
+                    >
+                      <span className="menu-item-icon">📑☁️</span> Guardar Proyecto en la Nube Como... {!user && "🔒"}
+                    </button>
+                    <button
+                      className="menu-item"
+                      style={{ opacity: user ? 1 : 0.6 }}
+                      onClick={() =>
+                        handleAction(() => {
+                          if (user && onSaveCloudTemplate) {
+                            onSaveCloudTemplate();
+                          } else {
+                            setShowLoginModal(true);
+                          }
+                        })
+                      }
+                    >
+                      <span className="menu-item-icon">📐☁️</span> Guardar Plantilla en la Nube... {!user && "🔒"}
+                    </button>
+                    <button
+                      className="menu-item"
+                      style={{ opacity: user ? 1 : 0.6 }}
+                      onClick={() =>
+                        handleAction(() => {
+                          if (user && onSaveCloudTemplateAs) {
+                            onSaveCloudTemplateAs();
+                          } else {
+                            setShowLoginModal(true);
+                          }
+                        })
+                      }
+                    >
+                      <span className="menu-item-icon">📑📐</span> Guardar Plantilla en la Nube Como... {!user && "🔒"}
                     </button>
                   </div>
                 )}

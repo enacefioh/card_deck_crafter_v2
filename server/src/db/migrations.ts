@@ -64,6 +64,31 @@ export const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_user_projects_user_updated ON user_projects(user_id, updated_at DESC);
       `);
     }
+  },
+  {
+    version: 4,
+    description: "Crear tabla user_templates para almacenar plantillas de proyecto en la nube (SRS-068)",
+    up: (db: DatabaseType) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_templates (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          filename TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT DEFAULT '',
+          document_count INTEGER NOT NULL DEFAULT 0,
+          template_count INTEGER NOT NULL DEFAULT 0,
+          file_size_bytes INTEGER NOT NULL,
+          is_public INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+          UNIQUE(user_id, filename)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_user_templates_user_updated ON user_templates(user_id, updated_at DESC);
+      `);
+    }
   }
 ];
 

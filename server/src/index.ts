@@ -174,7 +174,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261001.5",
+      version: "v2.261001.6",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -603,6 +603,94 @@ app.delete("/api/user/projects/:id", requireAuth, async (req, res) => {
     const { id } = req.params;
     const storageService = getStorageService();
     const result = await storageService.deleteProject(user.id, user.storageQuotaMb || 100, id);
+    res.json({ status: "OK", ...result });
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// --- Endpoints de Plantillas de Proyecto en la Nube (SRS-068) ---
+
+// Listar plantillas del usuario en la nube
+app.get("/api/user/templates", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const storageService = getStorageService();
+    const templates = storageService.listTemplates(user.id);
+    res.json({ templates });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Guardar o actualizar plantilla en la nube
+app.post("/api/user/templates", requireAuth, projectUpload.single("file"), async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    if (!req.file) {
+      return res.status(400).json({ error: "No se ha recibido ningún archivo de plantilla (.cdc2)." });
+    }
+
+    const { name, description, documentCount, templateCount, id } = req.body;
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: "El nombre de la plantilla es obligatorio." });
+    }
+
+    const storageService = getStorageService();
+    const freshUser = await authService.getRepository().findById(user.id);
+    const quota = freshUser?.storageQuotaMb ?? user.storageQuotaMb ?? 100;
+    const result = await storageService.saveTemplate(user.id, quota, {
+      id: id || undefined,
+      name: name.trim(),
+      description: description || "",
+      documentCount: documentCount ? parseInt(documentCount, 10) : 0,
+      templateCount: templateCount ? parseInt(templateCount, 10) : 0,
+      buffer: req.file.buffer
+    });
+
+    res.json({ status: "OK", ...result });
+  } catch (err: any) {
+    if (err.code === "QUOTA_EXCEEDED") {
+      return res.status(413).json({
+        error: err.message,
+        code: "QUOTA_EXCEEDED",
+        details: err.details
+      });
+    }
+    res.status(500).json({ error: err.message || "Error al guardar la plantilla en la nube." });
+  }
+});
+
+// Descargar plantilla de la nube para usarla o exportarla
+app.get("/api/user/templates/:id/download", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const { id } = req.params;
+    const storageService = getStorageService();
+    const { filePath, template } = await storageService.getTemplateFilePath(user.id, id);
+
+    const safeFilename = encodeURIComponent(template.name.replace(/[^a-zA-Z0-9_\-\.]/g, "_")) + ".cdc2";
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.sendFile(filePath);
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND" || err.code === "FILE_MISSING") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Eliminar plantilla de la nube
+app.delete("/api/user/templates/:id", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const { id } = req.params;
+    const storageService = getStorageService();
+    const result = await storageService.deleteTemplate(user.id, user.storageQuotaMb || 100, id);
     res.json({ status: "OK", ...result });
   } catch (err: any) {
     if (err.code === "NOT_FOUND") {

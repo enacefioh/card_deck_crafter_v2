@@ -160,4 +160,48 @@ describe("UserStorageService - SRS-066", () => {
 
     expect(storageService.getProjectById(testUserId, project.id)).toBeNull();
   });
+
+  it("debe guardar, listar y eliminar plantillas de proyecto con cuota compartida (SRS-068)", async () => {
+    // 1. Guardar un proyecto ordinario de 200 KB
+    const projectBuffer = Buffer.alloc(200 * 1024);
+    await storageService.saveProject(testUserId, 10, {
+      name: "Proyecto Base",
+      buffer: projectBuffer
+    });
+
+    // 2. Guardar una plantilla de proyecto de 300 KB
+    const templateBuffer = Buffer.alloc(300 * 1024);
+    const { template, storage } = await storageService.saveTemplate(testUserId, 10, {
+      name: "Plantilla Fantasía",
+      description: "Plantilla para héroes y monstruos",
+      documentCount: 3,
+      templateCount: 5,
+      buffer: templateBuffer
+    });
+
+    expect(template.id).toBeDefined();
+    expect(template.name).toBe("Plantilla Fantasía");
+    expect(template.description).toBe("Plantilla para héroes y monstruos");
+    expect(template.documentCount).toBe(3);
+    expect(template.templateCount).toBe(5);
+    expect(template.fileSizeBytes).toBe(templateBuffer.length);
+
+    // Comprobar que el espacio consumido es la suma de ambos (200 KB + 300 KB = 500 KB)
+    expect(storage.usedBytes).toBe(500 * 1024);
+
+    // Listar plantillas
+    const templatesList = storageService.listTemplates(testUserId);
+    expect(templatesList.length).toBe(1);
+    expect(templatesList[0].name).toBe("Plantilla Fantasía");
+
+    // Comprobar descarga física
+    const { filePath } = await storageService.getTemplateFilePath(testUserId, template.id);
+    expect(fs.existsSync(filePath)).toBe(true);
+
+    // Eliminar plantilla y comprobar liberación de cuota
+    const deleteResult = await storageService.deleteTemplate(testUserId, 10, template.id);
+    expect(deleteResult.storage.usedBytes).toBe(200 * 1024); // Solo queda el proyecto
+    expect(fs.existsSync(filePath)).toBe(false);
+    expect(storageService.getTemplateById(testUserId, template.id)).toBeNull();
+  });
 });

@@ -7,8 +7,11 @@ interface SaveCloudModalProps {
   initialName: string;
   cardCount: number;
   documentCount: number;
+  templateCount?: number;
+  isTemplateMode?: boolean;
   storageInfo: UserStorageInfo | null;
   isSaving: boolean;
+  isCalculatingSize?: boolean;
   estimatedSizeBytes?: number;
   onConfirmSave: (params: { name: string; description: string }) => Promise<void>;
   onExportLocal: () => void;
@@ -20,41 +23,51 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
   initialName,
   cardCount,
   documentCount,
+  templateCount = 0,
+  isTemplateMode = false,
   storageInfo,
   isSaving,
+  isCalculatingSize = false,
   estimatedSizeBytes,
   onConfirmSave,
   onExportLocal
 }) => {
-  const [name, setName] = useState(initialName || "Proyecto CDC2");
+  const defaultFallbackName = isTemplateMode ? "Plantilla CDC2" : "Proyecto CDC2";
+  const [name, setName] = useState(initialName || defaultFallbackName);
   const [description, setDescription] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      setName(initialName || "Proyecto CDC2");
+      setName(initialName || defaultFallbackName);
       setDescription("");
       setErrorMessage(null);
     }
-  }, [isOpen, initialName]);
+  }, [isOpen, initialName, defaultFallbackName]);
 
   if (!isOpen) return null;
 
-  const estimatedMb = estimatedSizeBytes ? (estimatedSizeBytes / (1024 * 1024)).toFixed(2) : "0.50";
-  const hasInsufficientSpace =
-    storageInfo && estimatedSizeBytes && estimatedSizeBytes > storageInfo.availableBytes;
+  const estimatedMb =
+    estimatedSizeBytes !== undefined
+      ? (estimatedSizeBytes / (1024 * 1024)).toFixed(2)
+      : null;
+  const hasInsufficientSpace = Boolean(
+    storageInfo &&
+    estimatedSizeBytes !== undefined &&
+    estimatedSizeBytes > storageInfo.availableBytes
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setErrorMessage("Por favor introduce un nombre para el proyecto.");
+      setErrorMessage(isTemplateMode ? "Por favor introduce un nombre para la plantilla." : "Por favor introduce un nombre para el proyecto.");
       return;
     }
     setErrorMessage(null);
     try {
       await onConfirmSave({ name: name.trim(), description: description.trim() });
     } catch (err: any) {
-      setErrorMessage(err.message || "Error al guardar el proyecto en la nube.");
+      setErrorMessage(err.message || (isTemplateMode ? "Error al guardar la plantilla en la nube." : "Error al guardar el proyecto en la nube."));
     }
   };
 
@@ -89,11 +102,15 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
         onClick={(e) => e.stopPropagation()}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-          <span style={{ fontSize: "28px" }}>☁️</span>
+          <span style={{ fontSize: "28px" }}>{isTemplateMode ? "📐" : "☁️"}</span>
           <div>
-            <h3 style={{ margin: 0, fontSize: "18px", color: "#fff" }}>Guardar Proyecto en la Nube</h3>
+            <h3 style={{ margin: 0, fontSize: "18px", color: "#fff" }}>
+              {isTemplateMode ? "Guardar Plantilla en la Nube" : "Guardar Proyecto en la Nube"}
+            </h3>
             <span style={{ fontSize: "12px", color: "#94a3b8" }}>
-              Guarda tus barajas de forma privada para acceder desde cualquier equipo
+              {isTemplateMode
+                ? "Guarda tu diseño como plantilla privada (sin cartas) para crear nuevas barajas"
+                : "Guarda tus barajas de forma privada para acceder desde cualquier equipo"}
             </span>
           </div>
         </div>
@@ -115,10 +132,10 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
         )}
 
         <form onSubmit={handleSubmit}>
-          {/* Nombre del proyecto */}
+          {/* Nombre */}
           <div style={{ marginBottom: "14px" }}>
             <label style={{ display: "block", fontSize: "13px", fontWeight: "600", marginBottom: "6px" }}>
-              Nombre del Proyecto *
+              {isTemplateMode ? "Nombre de la Plantilla *" : "Nombre del Proyecto *"}
             </label>
             <input
               type="text"
@@ -126,7 +143,7 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
               onChange={(e) => setName(e.target.value)}
               disabled={isSaving}
               required
-              placeholder="Ej. Cartas de Hechizos v1"
+              placeholder={isTemplateMode ? "Ej. Plantilla Fantasía Medieval" : "Ej. Cartas de Hechizos v1"}
               style={{
                 width: "100%",
                 padding: "9px 12px",
@@ -150,7 +167,7 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
               onChange={(e) => setDescription(e.target.value)}
               disabled={isSaving}
               rows={2}
-              placeholder="Breves notas sobre esta baraja o cambios..."
+              placeholder={isTemplateMode ? "Breve descripción sobre el formato y propósito de esta plantilla..." : "Breves notas sobre esta baraja o cambios..."}
               style={{
                 width: "100%",
                 padding: "8px 12px",
@@ -174,6 +191,44 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
               flexWrap: "wrap"
             }}
           >
+            {isTemplateMode ? (
+              <>
+                <span
+                  style={{
+                    padding: "4px 10px",
+                    backgroundColor: "#272733",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    color: "#cbd5e1"
+                  }}
+                >
+                  📐 {templateCount} {templateCount === 1 ? "diseño" : "diseños"}
+                </span>
+                <span
+                  style={{
+                    padding: "4px 10px",
+                    backgroundColor: "#272733",
+                    borderRadius: "4px",
+                    fontSize: "12px",
+                    color: "#a7f3d0"
+                  }}
+                >
+                  🧼 0 cartas (plantilla limpia)
+                </span>
+              </>
+            ) : (
+              <span
+                style={{
+                  padding: "4px 10px",
+                  backgroundColor: "#272733",
+                  borderRadius: "4px",
+                  fontSize: "12px",
+                  color: "#cbd5e1"
+                }}
+              >
+                🃏 {cardCount} cartas
+              </span>
+            )}
             <span
               style={{
                 padding: "4px 10px",
@@ -183,18 +238,7 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
                 color: "#cbd5e1"
               }}
             >
-              🃏 {cardCount} cartas
-            </span>
-            <span
-              style={{
-                padding: "4px 10px",
-                backgroundColor: "#272733",
-                borderRadius: "4px",
-                fontSize: "12px",
-                color: "#cbd5e1"
-              }}
-            >
-              📄 {documentCount} {documentCount === 1 ? "página" : "páginas"}
+              📄 {documentCount} {documentCount === 1 ? "documento" : "documentos"}
             </span>
             <span
               style={{
@@ -205,7 +249,11 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
                 color: "#38bdf8"
               }}
             >
-              💾 ~{estimatedMb} MB
+              {isCalculatingSize
+                ? "⏳ Calculando tamaño..."
+                : estimatedMb !== null
+                ? `💾 ~${estimatedMb} MB`
+                : "💾 ~0.00 MB"}
             </span>
           </div>
 
@@ -257,7 +305,7 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
                 <span>⚠️</span> Cuota de Almacenamiento Insuficiente
               </div>
               <p style={{ fontSize: "12px", color: "#fca5a5", margin: "6px 0 12px 0", lineHeight: "1.4" }}>
-                Este proyecto requiere ~{estimatedMb} MB y solo dispones de {storageInfo?.availableMb} MB libres en tu cuota. Para no perder tu trabajo, puedes exportarlo directamente a tu ordenador:
+                {isTemplateMode ? "Esta plantilla requiere" : "Este proyecto requiere"} ~{estimatedMb || "el archivo"} MB y solo dispones de {storageInfo?.availableMb} MB libres en tu cuota. Para no perder tu trabajo, puedes exportarlo directamente a tu ordenador:
               </p>
               <button
                 type="button"
@@ -302,23 +350,29 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
             </button>
             <button
               type="submit"
-              disabled={isSaving || !!hasInsufficientSpace}
+              disabled={isSaving || isCalculatingSize || hasInsufficientSpace}
               style={{
                 padding: "9px 20px",
                 borderRadius: "6px",
                 border: "none",
-                backgroundColor: isSaving || hasInsufficientSpace ? "#334155" : "#6366f1",
+                backgroundColor: isSaving || isCalculatingSize || hasInsufficientSpace ? "#334155" : "#6366f1",
                 color: "#fff",
                 fontWeight: "600",
                 fontSize: "13px",
-                cursor: isSaving ? "wait" : hasInsufficientSpace ? "not-allowed" : "pointer",
+                cursor: isSaving || isCalculatingSize ? "wait" : hasInsufficientSpace ? "not-allowed" : "pointer",
                 display: "flex",
                 alignItems: "center",
                 gap: "6px"
               }}
             >
-              <span>{isSaving ? "⏳" : "☁️"}</span>
-              {isSaving ? "Guardando en la nube..." : "Guardar en la Nube"}
+              <span>{isSaving || isCalculatingSize ? "⏳" : isTemplateMode ? "📐" : "☁️"}</span>
+              {isSaving
+                ? "Guardando en la nube..."
+                : isCalculatingSize
+                ? "Calculando tamaño..."
+                : isTemplateMode
+                ? "Guardar Plantilla en la Nube"
+                : "Guardar en la Nube"}
             </button>
           </div>
         </form>

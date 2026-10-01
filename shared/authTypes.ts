@@ -85,6 +85,20 @@ export interface CloudProjectMetadata {
   updatedAt: string;
 }
 
+export interface CloudTemplateMetadata {
+  id: string;
+  userId: string;
+  filename: string;
+  name: string;
+  description: string;
+  documentCount: number;
+  templateCount: number;
+  fileSizeBytes: number;
+  isPublic?: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface UserStorageInfo {
   quotaMb: number;
   quotaBytes: number;

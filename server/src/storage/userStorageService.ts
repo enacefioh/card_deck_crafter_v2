@@ -2,7 +2,7 @@ import fs from "fs";
 import path from "path";
 import crypto from "crypto";
 import type { Database as DatabaseType } from "better-sqlite3";
-import type { CloudProjectMetadata, UserStorageInfo } from "../../shared/authTypes";
+import type { CloudProjectMetadata, CloudTemplateMetadata, UserStorageInfo } from "../../shared/authTypes";
 
 export class UserStorageService {
   private db: DatabaseType;
@@ -29,35 +29,43 @@ export class UserStorageService {
   }
 
   /**
-   * Asegura la estructura de directorios del usuario en disco (Lazy/On-demand).
+   * Ruta al directorio personal de plantillas de proyecto de un usuario.
    */
-  public async ensureUserStorageTree(userId: string): Promise<string> {
-    const userDir = this.getUserProjectsDir(userId);
-    await fs.promises.mkdir(userDir, { recursive: true });
-    return userDir;
+  public getUserTemplatesDir(userId: string): string {
+    return path.join(this.baseDataDir, "users", userId, "templates");
   }
 
   /**
-   * Calcula el espacio real ocupado en disco por los proyectos del usuario leyendo el directorio.
+   * Asegura la estructura de directorios del usuario en disco (Lazy/On-demand).
    */
-  public async getDiskUsedStorageBytes(userId: string): Promise<number> {
-    const userDir = this.getUserProjectsDir(userId);
+  public async ensureUserStorageTree(userId: string): Promise<string> {
+    const projectsDir = this.getUserProjectsDir(userId);
+    const templatesDir = this.getUserTemplatesDir(userId);
+    await fs.promises.mkdir(projectsDir, { recursive: true });
+    await fs.promises.mkdir(templatesDir, { recursive: true });
+    return projectsDir;
+  }
+
+  /**
+   * Calcula el tamaño en bytes de todos los archivos regulares de un directorio.
+   */
+  private async getDirSizeBytes(dirPath: string): Promise<number> {
     try {
-      const exists = fs.existsSync(userDir);
+      const exists = fs.existsSync(dirPath);
       if (!exists) return 0;
 
-      const entries = await fs.promises.readdir(userDir);
+      const entries = await fs.promises.readdir(dirPath);
       let totalBytes = 0;
 
       for (const entry of entries) {
-        const filePath = path.join(userDir, entry);
+        const filePath = path.join(dirPath, entry);
         try {
           const stats = await fs.promises.stat(filePath);
           if (stats.isFile()) {
             totalBytes += stats.size;
           }
         } catch {
-          // Ignorar archivos bloqueados o temporales eliminados en concurrencia
+          // Ignorar archivos concurrentes eliminados
         }
       }
 
@@ -65,6 +73,19 @@ export class UserStorageService {
     } catch {
       return 0;
     }
+  }
+
+  /**
+   * Calcula el espacio real ocupado en disco por los proyectos y plantillas del usuario.
+   */
+  public async getDiskUsedStorageBytes(userId: string): Promise<number> {
+    const projectsDir = this.getUserProjectsDir(userId);
+    const templatesDir = this.getUserTemplatesDir(userId);
+    const [projectsBytes, templatesBytes] = await Promise.all([
+      this.getDirSizeBytes(projectsDir),
+      this.getDirSizeBytes(templatesDir)
+    ]);
+    return projectsBytes + templatesBytes;
   }
 
   /**
@@ -277,6 +298,197 @@ export class UserStorageService {
     }
 
     this.db.prepare("DELETE FROM user_projects WHERE id = ? AND user_id = ?").run(projectId, userId);
+
+    const storage = await this.getUserStorageInfo(userId, quotaMb);
+    return { storage };
+  }
+
+  /**
+   * Lista las plantillas de proyecto del usuario ordenadas por fecha de modificación decreciente.
+   */
+  public listTemplates(userId: string): CloudTemplateMetadata[] {
+    const stmt = this.db.prepare(
+      "SELECT * FROM user_templates WHERE user_id = ? ORDER BY updated_at DESC"
+    );
+    const rows = stmt.all(userId) as any[];
+
+    return rows.map((r) => ({
+      id: r.id,
+      userId: r.user_id,
+      filename: r.filename,
+      name: r.name,
+      description: r.description || "",
+      documentCount: r.document_count,
+      templateCount: r.template_count,
+      fileSizeBytes: r.file_size_bytes,
+      isPublic: Boolean(r.is_public),
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    }));
+  }
+
+  /**
+   * Obtiene los metadatos de una plantilla por su ID y usuario.
+   */
+  public getTemplateById(userId: string, templateId: string): CloudTemplateMetadata | null {
+    const stmt = this.db.prepare(
+      "SELECT * FROM user_templates WHERE user_id = ? AND id = ?"
+    );
+    const r = stmt.get(userId, templateId) as any;
+    if (!r) return null;
+
+    return {
+      id: r.id,
+      userId: r.user_id,
+      filename: r.filename,
+      name: r.name,
+      description: r.description || "",
+      documentCount: r.document_count,
+      templateCount: r.template_count,
+      fileSizeBytes: r.file_size_bytes,
+      isPublic: Boolean(r.is_public),
+      createdAt: r.created_at,
+      updatedAt: r.updated_at
+    };
+  }
+
+  /**
+   * Guarda o actualiza una plantilla de proyecto en la nube validando la cuota disponible.
+   */
+  public async saveTemplate(
+    userId: string,
+    quotaMb: number,
+    params: {
+      id?: string;
+      name: string;
+      description?: string;
+      documentCount?: number;
+      templateCount?: number;
+      buffer: Buffer;
+    }
+  ): Promise<{ template: CloudTemplateMetadata; storage: UserStorageInfo }> {
+    const cleanName = params.name ? params.name.trim() : "Plantilla sin título";
+    if (!cleanName) {
+      throw new Error("El nombre de la plantilla no puede estar vacío.");
+    }
+
+    let existing: CloudTemplateMetadata | null = null;
+    if (params.id) {
+      existing = this.getTemplateById(userId, params.id);
+    }
+
+    const newFileSize = params.buffer.length;
+    const existingFileSize = existing ? existing.fileSizeBytes : 0;
+
+    const totalUsedBytes = await this.getDiskUsedStorageBytes(userId);
+    const quotaBytes = Math.max(1, quotaMb) * 1024 * 1024;
+    const effectiveAvailableBytes = quotaBytes - (totalUsedBytes - existingFileSize);
+
+    if (newFileSize > effectiveAvailableBytes) {
+      const availableMb = (Math.max(0, effectiveAvailableBytes) / (1024 * 1024)).toFixed(2);
+      const neededMb = (newFileSize / (1024 * 1024)).toFixed(2);
+      const err: any = new Error(
+        `Espacio insuficiente. La plantilla ocupa ${neededMb} MB y dispones de ${availableMb} MB libres en tu cuota.`
+      );
+      err.code = "QUOTA_EXCEEDED";
+      err.details = {
+        fileSizeBytes: newFileSize,
+        availableBytes: Math.max(0, effectiveAvailableBytes),
+        quotaMb
+      };
+      throw err;
+    }
+
+    await this.ensureUserStorageTree(userId);
+    const templatesDir = this.getUserTemplatesDir(userId);
+
+    const templateId = existing ? existing.id : (params.id || crypto.randomUUID());
+    const filename = existing ? existing.filename : `${templateId}.cdc2`;
+    const filePath = path.join(templatesDir, filename);
+
+    await fs.promises.writeFile(filePath, params.buffer);
+
+    const now = new Date().toISOString();
+    const desc = params.description ? params.description.trim() : "";
+    const documentCount = params.documentCount ?? 0;
+    const templateCount = params.templateCount ?? 0;
+
+    if (existing) {
+      this.db
+        .prepare(
+          `UPDATE user_templates 
+           SET name = ?, description = ?, document_count = ?, template_count = ?, file_size_bytes = ?, updated_at = ?
+           WHERE id = ? AND user_id = ?`
+        )
+        .run(cleanName, desc, documentCount, templateCount, newFileSize, now, templateId, userId);
+    } else {
+      this.db
+        .prepare(
+          `INSERT INTO user_templates 
+           (id, user_id, filename, name, description, document_count, template_count, file_size_bytes, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        )
+        .run(templateId, userId, filename, cleanName, desc, documentCount, templateCount, newFileSize, now, now);
+    }
+
+    const updatedTemplate = this.getTemplateById(userId, templateId)!;
+    const storage = await this.getUserStorageInfo(userId, quotaMb);
+
+    return {
+      template: updatedTemplate,
+      storage
+    };
+  }
+
+  /**
+   * Obtiene la ruta física en disco de una plantilla verificando propiedad y existencia.
+   */
+  public async getTemplateFilePath(
+    userId: string,
+    templateId: string
+  ): Promise<{ filePath: string; template: CloudTemplateMetadata }> {
+    const template = this.getTemplateById(userId, templateId);
+    if (!template) {
+      const err: any = new Error("La plantilla no existe o no tienes permiso para acceder a ella.");
+      err.code = "NOT_FOUND";
+      throw err;
+    }
+
+    const filePath = path.join(this.getUserTemplatesDir(userId), template.filename);
+    if (!fs.existsSync(filePath)) {
+      const err: any = new Error("El archivo de la plantilla no se encuentra en el servidor.");
+      err.code = "FILE_MISSING";
+      throw err;
+    }
+
+    return { filePath, template };
+  }
+
+  /**
+   * Elimina una plantilla del disco y de la base de datos, liberando espacio.
+   */
+  public async deleteTemplate(
+    userId: string,
+    quotaMb: number,
+    templateId: string
+  ): Promise<{ storage: UserStorageInfo }> {
+    const template = this.getTemplateById(userId, templateId);
+    if (!template) {
+      const err: any = new Error("La plantilla no existe o ya ha sido eliminada.");
+      err.code = "NOT_FOUND";
+      throw err;
+    }
+
+    const filePath = path.join(this.getUserTemplatesDir(userId), template.filename);
+    try {
+      if (fs.existsSync(filePath)) {
+        await fs.promises.unlink(filePath);
+      }
+    } catch {
+      // Ignorar error si ya fue borrado
+    }
+
+    this.db.prepare("DELETE FROM user_templates WHERE id = ? AND user_id = ?").run(templateId, userId);
 
     const storage = await this.getUserStorageInfo(userId, quotaMb);
     return { storage };
