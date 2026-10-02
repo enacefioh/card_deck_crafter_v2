@@ -263,12 +263,29 @@ export function prepararPlantillaParaExportacion(
   plantilla: any,
   nuevoNombre: string,
   valoresCarta: Record<string, string>,
-  idOverride?: string
+  idOverride?: string,
+  capasOverrides?: Record<string, any>
 ): any {
   const newId = idOverride || `template_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
+  // Consolidar valores visibles y anulaciones en las capas de la plantilla (SRS-070)
+  const updatedCapas = (plantilla.capas || []).map((c: any) => {
+    let cap = { ...c };
+    if (c.tipo === "text" && valoresCarta) {
+      if (valoresCarta[c.id] !== undefined) {
+        cap.contenidoRaw = valoresCarta[c.id];
+      } else if (c.nombre && valoresCarta[c.nombre] !== undefined) {
+        cap.contenidoRaw = valoresCarta[c.nombre];
+      }
+    }
+    if (capasOverrides && capasOverrides[c.id]) {
+      cap = { ...cap, ...capasOverrides[c.id] };
+    }
+    return cap;
+  });
+
   const updatedCamposConfig = (plantilla.camposConfig || []).map((campo: any) => {
-    const currentVal = valoresCarta[campo.clave];
+    const currentVal = valoresCarta ? valoresCarta[campo.clave] : undefined;
     return {
       ...campo,
       valorDefecto: currentVal !== undefined ? currentVal : (campo.valorDefecto || "")
@@ -279,6 +296,7 @@ export function prepararPlantillaParaExportacion(
     ...plantilla,
     id: newId,
     nombre: nuevoNombre,
+    capas: updatedCapas,
     camposConfig: updatedCamposConfig
   };
 }

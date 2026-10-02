@@ -40,6 +40,7 @@ export interface Carta {
   capasOverrides?: Record<string, {
     colorFill?: string;
     src?: string;
+    modoAjuste?: string;
     color?: string;
     alineacion?: "left" | "center" | "right" | "justify";
     contenidoRaw?: string;
@@ -47,6 +48,9 @@ export interface Carta {
     fontSizePt?: number;
     textOutlineWidth?: number;
     textOutlineColor?: string;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
     visibility?: "visible" | "hidden" | "collapsed";
   }>;
   plantillaTraseraId?: string;
@@ -54,6 +58,7 @@ export interface Carta {
   capasOverridesTrasera?: Record<string, {
     colorFill?: string;
     src?: string;
+    modoAjuste?: string;
     color?: string;
     alineacion?: "left" | "center" | "right" | "justify";
     contenidoRaw?: string;
@@ -61,6 +66,9 @@ export interface Carta {
     fontSizePt?: number;
     textOutlineWidth?: number;
     textOutlineColor?: string;
+    bold?: boolean;
+    italic?: boolean;
+    underline?: boolean;
     visibility?: "visible" | "hidden" | "collapsed";
   }>;
   exposedProperties?: ExposedProperty[];

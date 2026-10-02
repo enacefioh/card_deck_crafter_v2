@@ -799,7 +799,8 @@ export default function EditCardModal({
     }
 
     const valoresActivos = activeTab === "frontal" ? tempValoresCampos : tempValoresCamposTrasera;
-    const updatedTemplate = prepararPlantillaParaExportacion(plantillaActiva, name, valoresActivos, idOverride);
+    const overridesActivos = activeTab === "frontal" ? tempCapasOverrides : tempCapasOverridesTrasera;
+    const updatedTemplate = prepararPlantillaParaExportacion(plantillaActiva, name, valoresActivos, idOverride, overridesActivos);
 
     // Generar miniatura JPEG Base64 de la plantilla (SRS-069)
     try {
@@ -967,18 +968,15 @@ export default function EditCardModal({
 
   const handleSelectGalleryAsset = (assetSrc: string) => {
     if (!activeSelectorTarget) return;
-    const { type, capaId } = activeSelectorTarget;
-    if (type === "override") {
-      setTempCapasOverridesActivos((prev) => ({
-        ...prev,
-        [capaId]: {
-          ...(prev[capaId] || {}),
-          src: assetSrc,
-        },
-      }));
-    } else {
-      handleUpdateCapaProp(capaId, "src", assetSrc);
-    }
+    const { capaId } = activeSelectorTarget;
+    handleUpdateCapaProp(capaId, "src", assetSrc);
+    setTempCapasOverridesActivos((prev) => ({
+      ...prev,
+      [capaId]: {
+        ...(prev[capaId] || {}),
+        src: assetSrc,
+      },
+    }));
     setShowGallerySelector(false);
     setActiveSelectorTarget(null);
   };
@@ -3027,177 +3025,259 @@ export default function EditCardModal({
                       </div>
                     )}
 
-                    {/* Capa de Texto */}
+                    {/* Capa de Texto (SRS-070: Unificado) */}
                     {selectedCapa.tipo === "text" && (
-                      <>
-                        {/* Sección 1: Contenido y Anulaciones de la Carta */}
-                        <div className="inspector-group-section">
-                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
-                            <h4 className="inspector-group-title" style={{ margin: 0 }}>Contenido y Anulaciones (Carta)</h4>
-                            {renderExposedEye("contenidoRaw", "Contenido Texto")}
-                          </div>
-                          
-                          <div className="inspector-section">
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px", position: "relative" }}>
-                              <label className="inspector-label" style={{ margin: 0 }}>
-                                {selectedCapa.nombre || "Texto"}
-                              </label>
-                              <span
-                                style={{ cursor: "help", fontSize: "14px" }}
-                                title="Formato disponible: **negrita**, *cursiva*, __subrayado__ y ++texto grande (+25%)++, +++muy grande (+56%)+++."
-                              >
-                                ℹ️
-                              </span>
-                              <div className="symbols-helper-container">
-                                <span
-                                  className="symbols-helper-trigger"
-                                  title="Insertar símbolo"
-                                  onClick={() => setActiveSymbolPopover(activeSymbolPopover === "override" ? null : "override")}
-                                >
-                                  🖼️
-                                </span>
-                                {activeSymbolPopover === "override" && (
-                                  <div className="symbols-helper-popover">
-                                    {projectSymbols.length === 0 ? (
-                                      <div className="symbols-helper-empty">No hay símbolos en el proyecto</div>
-                                    ) : (
-                                      projectSymbols.map((sym: any) => (
-                                        <button
-                                          key={sym.id}
-                                          type="button"
-                                          className="symbols-helper-item"
-                                          onClick={() => {
-                                            const currentVal = tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "");
-                                            const inputId = selectedCapa.multiline !== false ? ("editcard-override-textarea-" + selectedCapa.id) : ("editcard-override-input-" + selectedCapa.id);
-                                            handleInsertSymbol(sym.tag, inputId, currentVal, (newVal) => {
-                                              if (activeTab === "frontal") {
-                                                setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: newVal }));
-                                              } else {
-                                                setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: newVal }));
-                                              }
-                                            });
-                                          }}
-                                        >
-                                          <img src={sym.src} alt={sym.tag} />
-                                          <span className="symbols-helper-tag">{`{${sym.tag}}`}</span>
-                                        </button>
-                                      ))
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            {selectedCapa.multiline !== false ? (
-                              <textarea
-                                id={"editcard-override-textarea-" + selectedCapa.id}
-                                className="inspector-textarea"
-                                value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
-                                rows={4}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (activeTab === "frontal") {
-                                    setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                  } else {
-                                    setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                  }
-                                }}
-                              />
-                            ) : (
-                              <input
-                                id={"editcard-override-input-" + selectedCapa.id}
-                                type="text"
-                                className="inspector-input"
-                                value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  if (activeTab === "frontal") {
-                                    setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                  } else {
-                                    setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                  }
-                                }}
-                              />
-                            )}
-                          </div>
+                      <div className="inspector-group-section">
+                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
+                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Texto y Tipografía</h4>
+                          {renderExposedEye("contenidoRaw", "Contenido Texto")}
+                        </div>
 
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                              <label className="inspector-label" style={{ margin: 0 }}>Tipografía (Anulación)</label>
-                              {renderExposedEye("fontFamily", "Tipografía")}
+                        <div className="inspector-section">
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px", position: "relative" }}>
+                            <label className="inspector-label" style={{ margin: 0 }}>
+                              {selectedCapa.nombre || "Texto"}
+                            </label>
+                            <span
+                              style={{ cursor: "help", fontSize: "14px" }}
+                              title="Formato disponible: **negrita**, *cursiva*, __subrayado__ y ++texto grande (+25%)++, +++muy grande (+56%)+++."
+                            >
+                              ℹ️
+                            </span>
+                            <div className="symbols-helper-container">
+                              <span
+                                className="symbols-helper-trigger"
+                                title="Insertar símbolo"
+                                onClick={() => setActiveSymbolPopover(activeSymbolPopover === "text" ? null : "text")}
+                              >
+                                🖼️
+                              </span>
+                              {activeSymbolPopover === "text" && (
+                                <div className="symbols-helper-popover">
+                                  {projectSymbols.length === 0 ? (
+                                    <div className="symbols-helper-empty">No hay símbolos en el proyecto</div>
+                                  ) : (
+                                    projectSymbols.map((sym: any) => (
+                                      <button
+                                        key={sym.id}
+                                        type="button"
+                                        className="symbols-helper-item"
+                                        onClick={() => {
+                                          const currentVal = tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "");
+                                          const inputId = selectedCapa.multiline !== false ? ("editcard-text-textarea-" + selectedCapa.id) : ("editcard-text-input-" + selectedCapa.id);
+                                          handleInsertSymbol(sym.tag, inputId, currentVal, (newVal) => {
+                                            if (activeTab === "frontal") {
+                                              setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: newVal }));
+                                            } else {
+                                              setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: newVal }));
+                                            }
+                                            handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", newVal);
+                                          });
+                                        }}
+                                      >
+                                        <img src={sym.src} alt={sym.tag} />
+                                        <span className="symbols-helper-tag">{`{${sym.tag}}`}</span>
+                                      </button>
+                                    ))
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            <select
-                              className="inspector-input"
-                              value={tempCapasOverridesActivos[selectedCapa.id]?.fontFamily || selectedCapa.fontFamily || "sans-serif"}
+                          </div>
+                          {selectedCapa.multiline !== false ? (
+                            <textarea
+                              id={"editcard-text-textarea-" + selectedCapa.id}
+                              className="inspector-textarea"
+                              value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
+                              rows={4}
                               onChange={(e) => {
+                                const val = e.target.value;
+                                if (activeTab === "frontal") {
+                                  setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
+                                } else {
+                                  setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
+                                }
+                                handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
+                              }}
+                            />
+                          ) : (
+                            <input
+                              id={"editcard-text-input-" + selectedCapa.id}
+                              type="text"
+                              className="inspector-input"
+                              value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (activeTab === "frontal") {
+                                  setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
+                                } else {
+                                  setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
+                                }
+                                handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
+                              }}
+                            />
+                          )}
+                        </div>
+
+                        <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px", marginTop: "12px" }}>
+                          <input
+                            type="checkbox"
+                            id={`capa-multiline-${selectedCapa.id}`}
+                            checked={selectedCapa.multiline !== false}
+                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "multiline", e.target.checked)}
+                            style={{ width: "auto", margin: 0, cursor: "pointer" }}
+                          />
+                          <label htmlFor={`capa-multiline-${selectedCapa.id}`} className="inspector-label" style={{ margin: 0, cursor: "pointer" }}>
+                            Multilínea
+                          </label>
+                        </div>
+
+                        <div className="inspector-section" style={{ marginTop: "12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                            <label className="inspector-label" style={{ margin: 0 }}>Tipografía</label>
+                            {renderExposedEye("fontFamily", "Tipografía")}
+                          </div>
+                          <select
+                            className="inspector-input"
+                            value={tempCapasOverridesActivos[selectedCapa.id]?.fontFamily || selectedCapa.fontFamily || "sans-serif"}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              handleUpdateCapaProp(selectedCapa.id, "fontFamily", val);
+                              setTempCapasOverridesActivos((prev) => ({
+                                ...prev,
+                                [selectedCapa.id]: {
+                                  ...(prev[selectedCapa.id] || {}),
+                                  fontFamily: val,
+                                },
+                              }));
+                            }}
+                          >
+                            <option value="sans-serif">Inter (Sans Serif)</option>
+                            <option value="Outfit">Outfit</option>
+                            <option value="Arial">Arial</option>
+                            <option value="Times New Roman">Times New Roman</option>
+                            <option value="Courier New">Courier New (Monospace)</option>
+                            {projectFonts && projectFonts.length > 0 && (
+                              <optgroup label="Fuentes del Proyecto">
+                                {projectFonts.map((f: any) => (
+                                  <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                                ))}
+                              </optgroup>
+                            )}
+                          </select>
+                        </div>
+
+                        <div className="layout-form-grid" style={{ marginTop: "12px" }}>
+                          <div className="inspector-section">
+                            <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                              <label className="inspector-label" style={{ margin: 0, fontSize: "11px" }}>Tamaño Fuente (pt)</label>
+                              {renderExposedEye("fontSizePt", "Tamaño Fuente")}
+                            </div>
+                            <input
+                              type="number"
+                              step="1"
+                              min="4"
+                              className="inspector-input"
+                              value={tempCapasOverridesActivos[selectedCapa.id]?.fontSizePt || selectedCapa.fontSizePt || 12}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                handleUpdateCapaProp(selectedCapa.id, "fontSizePt", val);
                                 setTempCapasOverridesActivos((prev) => ({
                                   ...prev,
                                   [selectedCapa.id]: {
                                     ...(prev[selectedCapa.id] || {}),
-                                    fontFamily: e.target.value,
+                                    fontSizePt: val,
                                   },
                                 }));
                               }}
-                            >
-                              <option value="sans-serif">Inter (Sans Serif)</option>
-                              <option value="Outfit">Outfit</option>
-                              <option value="Arial">Arial</option>
-                              <option value="Times New Roman">Times New Roman</option>
-                              <option value="Courier New">Courier New (Monospace)</option>
-                              {projectFonts && projectFonts.length > 0 && (
-                                <optgroup label="Fuentes del Proyecto">
-                                  {projectFonts.map((f: any) => (
-                                    <option key={f.id} value={f.nombre}>{f.nombre}</option>
-                                  ))}
-                                </optgroup>
-                              )}
-                            </select>
+                            />
                           </div>
+                          {renderColorSelector(
+                            "Color de Texto",
+                            tempCapasOverridesActivos[selectedCapa.id]?.color || selectedCapa.color || "#000000",
+                            (val) => {
+                              handleUpdateCapaProp(selectedCapa.id, "color", val);
+                              setTempCapasOverridesActivos((prev) => ({
+                                ...prev,
+                                [selectedCapa.id]: {
+                                  ...(prev[selectedCapa.id] || {}),
+                                  color: val,
+                                },
+                              }));
+                            },
+                            false,
+                            "color",
+                            "Color Texto"
+                          )}
+                        </div>
 
-                          <div className="layout-form-grid" style={{ marginTop: "12px" }}>
-                            <div className="inspector-section">
-                              <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                                <label className="inspector-label" style={{ margin: 0, fontSize: "11px" }}>Tamaño Fuente (pt)</label>
-                                {renderExposedEye("fontSizePt", "Tamaño Fuente")}
-                              </div>
-                              <input
-                                type="number"
-                                step="1"
-                                min="4"
-                                className="inspector-input"
-                                value={tempCapasOverridesActivos[selectedCapa.id]?.fontSizePt || selectedCapa.fontSizePt || 12}
-                                onChange={(e) => {
-                                  setTempCapasOverridesActivos((prev) => ({
-                                    ...prev,
-                                    [selectedCapa.id]: {
-                                      ...(prev[selectedCapa.id] || {}),
-                                      fontSizePt: Number(e.target.value),
-                                    },
-                                  }));
-                                }}
-                              />
-                            </div>
-                            {renderColorSelector(
-                              "Color de Texto (Anulación)",
-                              tempCapasOverridesActivos[selectedCapa.id]?.color || selectedCapa.color || "#000000",
-                              (val) => {
-                                setTempCapasOverridesActivos((prev) => ({
-                                  ...prev,
-                                  [selectedCapa.id]: {
-                                    ...(prev[selectedCapa.id] || {}),
-                                    color: val,
-                                  },
-                                }));
-                              },
-                              false,
-                              "color",
-                              "Color Texto"
-                            )}
+                        <div className="inspector-section" style={{ marginTop: "12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                            <label className="inspector-label" style={{ margin: 0 }}>Estilos y Alineación</label>
+                            {renderExposedEye("alineacion", "Alineación Texto")}
                           </div>
-
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                              <label className="inspector-label" style={{ margin: 0 }}>Alineación (Anulación)</label>
-                              {renderExposedEye("alineacion", "Alineación Texto")}
+                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                            <div className="style-toggle-buttons">
+                              {(() => {
+                                const activeBold = tempCapasOverridesActivos[selectedCapa.id]?.bold !== undefined ? tempCapasOverridesActivos[selectedCapa.id].bold : !!selectedCapa.bold;
+                                const activeItalic = tempCapasOverridesActivos[selectedCapa.id]?.italic !== undefined ? tempCapasOverridesActivos[selectedCapa.id].italic : !!selectedCapa.italic;
+                                const activeUnderline = tempCapasOverridesActivos[selectedCapa.id]?.underline !== undefined ? tempCapasOverridesActivos[selectedCapa.id].underline : !!selectedCapa.underline;
+                                return (
+                                  <>
+                                    <button
+                                      type="button"
+                                      className={`style-btn ${activeBold ? "active" : ""}`}
+                                      onClick={() => {
+                                        const nextVal = !activeBold;
+                                        handleUpdateCapaProp(selectedCapa.id, "bold", nextVal);
+                                        setTempCapasOverridesActivos((prev) => ({
+                                          ...prev,
+                                          [selectedCapa.id]: {
+                                            ...(prev[selectedCapa.id] || {}),
+                                            bold: nextVal,
+                                          },
+                                        }));
+                                      }}
+                                    >
+                                      Negrita (B)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`style-btn ${activeItalic ? "active" : ""}`}
+                                      onClick={() => {
+                                        const nextVal = !activeItalic;
+                                        handleUpdateCapaProp(selectedCapa.id, "italic", nextVal);
+                                        setTempCapasOverridesActivos((prev) => ({
+                                          ...prev,
+                                          [selectedCapa.id]: {
+                                            ...(prev[selectedCapa.id] || {}),
+                                            italic: nextVal,
+                                          },
+                                        }));
+                                      }}
+                                    >
+                                      Cursiva (I)
+                                    </button>
+                                    <button
+                                      type="button"
+                                      className={`style-btn ${activeUnderline ? "active" : ""}`}
+                                      onClick={() => {
+                                        const nextVal = !activeUnderline;
+                                        handleUpdateCapaProp(selectedCapa.id, "underline", nextVal);
+                                        setTempCapasOverridesActivos((prev) => ({
+                                          ...prev,
+                                          [selectedCapa.id]: {
+                                            ...(prev[selectedCapa.id] || {}),
+                                            underline: nextVal,
+                                          },
+                                        }));
+                                      }}
+                                    >
+                                      Subrayado (U)
+                                    </button>
+                                  </>
+                                );
+                              })()}
                             </div>
                             <div className="alignment-group">
                               {(["left", "center", "right", "justify"] as const).map((align) => {
@@ -3208,6 +3288,7 @@ export default function EditCardModal({
                                     type="button"
                                     className={`align-btn ${activeAlign === align ? "active" : ""}`}
                                     onClick={() => {
+                                      handleUpdateCapaProp(selectedCapa.id, "alineacion", align);
                                       setTempCapasOverridesActivos((prev) => ({
                                         ...prev,
                                         [selectedCapa.id]: {
@@ -3216,7 +3297,7 @@ export default function EditCardModal({
                                         },
                                       }));
                                     }}
-                                    title={`Alinear ${align}`}
+                                    title={align === "left" ? "Alinear Izquierda" : align === "center" ? "Alinear Centro" : align === "right" ? "Alinear Derecha" : "Justificado"}
                                   >
                                     {align === "left" ? "⬅️" : align === "center" ? "↔️" : align === "right" ? "➡️" : "↕️"}
                                   </button>
@@ -3224,355 +3305,138 @@ export default function EditCardModal({
                               })}
                             </div>
                           </div>
+                        </div>
 
-                          {/* Contorno de Texto - Anulación (SRS-057) */}
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                              <label className="inspector-label" style={{ margin: 0 }}>Contorno de Texto (Outline)</label>
-                              {renderExposedEye("textOutlineWidth", "Grosor Contorno")}
+                        {/* Contorno de Texto (Outline) */}
+                        <div className="inspector-section" style={{ marginTop: "12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                            <label className="inspector-label" style={{ margin: 0 }}>Contorno de Texto (Outline)</label>
+                            {renderExposedEye("textOutlineWidth", "Grosor Contorno")}
+                          </div>
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Grosor (px)</label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.5"
+                                className="inspector-input"
+                                value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineWidth ?? selectedCapa.textOutlineWidth ?? 0}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                  handleUpdateCapaProp(selectedCapa.id, "textOutlineWidth", val);
+                                  setTempCapasOverridesActivos((prev) => ({
+                                    ...prev,
+                                    [selectedCapa.id]: {
+                                      ...(prev[selectedCapa.id] || {}),
+                                      textOutlineWidth: val,
+                                    },
+                                  }));
+                                }}
+                              />
                             </div>
-                            <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                              <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Grosor (px)</label>
+                            <div style={{ flex: 1 }}>
+                              <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Color Contorno</label>
+                              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
                                 <input
-                                  type="number"
-                                  min="0"
-                                  step="0.5"
-                                  className="inspector-input"
-                                  value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineWidth ?? selectedCapa.textOutlineWidth ?? 0}
+                                  type="color"
+                                  value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineColor || selectedCapa.textOutlineColor || "#000000"}
                                   onChange={(e) => {
-                                    const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                    const val = e.target.value;
+                                    handleUpdateCapaProp(selectedCapa.id, "textOutlineColor", val);
                                     setTempCapasOverridesActivos((prev) => ({
                                       ...prev,
                                       [selectedCapa.id]: {
                                         ...(prev[selectedCapa.id] || {}),
-                                        textOutlineWidth: val,
+                                        textOutlineColor: val,
+                                      },
+                                    }));
+                                  }}
+                                  style={{ width: "32px", height: "32px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
+                                />
+                                <input
+                                  type="text"
+                                  className="inspector-input"
+                                  style={{ flex: 1, height: "32px", fontSize: "12px" }}
+                                  value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineColor || selectedCapa.textOutlineColor || "#000000"}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    handleUpdateCapaProp(selectedCapa.id, "textOutlineColor", val);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        textOutlineColor: val,
                                       },
                                     }));
                                   }}
                                 />
                               </div>
-                              <div style={{ flex: 1 }}>
-                                <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Color Contorno</label>
-                                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                                  <input
-                                    type="color"
-                                    value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineColor || selectedCapa.textOutlineColor || "#000000"}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setTempCapasOverridesActivos((prev) => ({
-                                        ...prev,
-                                        [selectedCapa.id]: {
-                                          ...(prev[selectedCapa.id] || {}),
-                                          textOutlineColor: val,
-                                        },
-                                      }));
-                                    }}
-                                    style={{ width: "32px", height: "32px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
-                                  />
-                                  <input
-                                    type="text"
-                                    className="inspector-input"
-                                    style={{ flex: 1, height: "32px", fontSize: "12px" }}
-                                    value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineColor || selectedCapa.textOutlineColor || "#000000"}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setTempCapasOverridesActivos((prev) => ({
-                                        ...prev,
-                                        [selectedCapa.id]: {
-                                          ...(prev[selectedCapa.id] || {}),
-                                          textOutlineColor: val,
-                                        },
-                                      }));
-                                    }}
-                                  />
-                                </div>
-                              </div>
                             </div>
                           </div>
                         </div>
-
-                        {/* Sección 2: Definición de Plantilla (Diseño) */}
-                        <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
-                          <h4 className="inspector-group-title">Definición de Plantilla</h4>
-
-                          <div className="inspector-section">
-                            <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px", position: "relative" }}>
-                              <label className="inspector-label" style={{ margin: 0 }}>Texto por defecto</label>
-                              <span
-                                style={{ cursor: "pointer", fontSize: "14px" }}
-                                title="Copiar el texto del contenido"
-                                onClick={() => {
-                                  const currentValue = tempValoresActivos[selectedCapa.id] || "";
-                                  handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", currentValue);
-                                }}
-                              >
-                                📋
-                              </span>
-                              <div className="symbols-helper-container">
-                                <span
-                                  className="symbols-helper-trigger"
-                                  title="Insertar símbolo"
-                                  onClick={() => setActiveSymbolPopover(activeSymbolPopover === "default" ? null : "default")}
-                                >
-                                  🖼️
-                                </span>
-                                {activeSymbolPopover === "default" && (
-                                  <div className="symbols-helper-popover">
-                                    {projectSymbols.length === 0 ? (
-                                      <div className="symbols-helper-empty">No hay símbolos en el proyecto</div>
-                                    ) : (
-                                      projectSymbols.map((sym: any) => (
-                                        <button
-                                          key={sym.id}
-                                          type="button"
-                                          className="symbols-helper-item"
-                                          onClick={() => {
-                                            const currentVal = selectedCapa.contenidoRaw || "";
-                                            const inputId = selectedCapa.multiline !== false ? ("editcard-default-textarea-" + selectedCapa.id) : ("editcard-default-input-" + selectedCapa.id);
-                                            handleInsertSymbol(sym.tag, inputId, currentVal, (newVal) => {
-                                              handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", newVal);
-                                            });
-                                          }}
-                                        >
-                                          <img src={sym.src} alt={sym.tag} />
-                                          <span className="symbols-helper-tag">{`{${sym.tag}}`}</span>
-                                        </button>
-                                      ))
-                                    )}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            {selectedCapa.multiline !== false ? (
-                              <textarea
-                                id={"editcard-default-textarea-" + selectedCapa.id}
-                                className="inspector-textarea"
-                                value={selectedCapa.contenidoRaw || ""}
-                                rows={4}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", e.target.value)}
-                              />
-                            ) : (
-                              <input
-                                id={"editcard-default-input-" + selectedCapa.id}
-                                type="text"
-                                className="inspector-input"
-                                value={selectedCapa.contenidoRaw || ""}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", e.target.value)}
-                              />
-                            )}
-                          </div>
-
-                          <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px", marginTop: "12px" }}>
-                            <input
-                              type="checkbox"
-                              id={`capa-multiline-${selectedCapa.id}`}
-                              checked={selectedCapa.multiline !== false}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "multiline", e.target.checked)}
-                              style={{ width: "auto", margin: 0, cursor: "pointer" }}
-                            />
-                            <label htmlFor={`capa-multiline-${selectedCapa.id}`} className="inspector-label" style={{ margin: 0, cursor: "pointer" }}>
-                              Multilínea
-                            </label>
-                          </div>
-
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <label className="inspector-label">Tipografía por defecto</label>
-                            <select
-                              className="inspector-input"
-                              value={selectedCapa.fontFamily || "sans-serif"}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "fontFamily", e.target.value)}
-                            >
-                              <option value="sans-serif">Inter (Sans Serif)</option>
-                              <option value="Outfit">Outfit</option>
-                              <option value="Arial">Arial</option>
-                              <option value="Times New Roman">Times New Roman</option>
-                              <option value="Courier New">Courier New (Monospace)</option>
-                              {projectFonts && projectFonts.length > 0 && (
-                                <optgroup label="Fuentes del Proyecto">
-                                  {projectFonts.map((f: any) => (
-                                    <option key={f.id} value={f.nombre}>{f.nombre}</option>
-                                  ))}
-                                </optgroup>
-                              )}
-                            </select>
-                          </div>
-
-                          <div className="layout-form-grid" style={{ marginTop: "12px" }}>
-                            <div className="inspector-section">
-                              <label className="inspector-label">Tamaño Fuente por defecto (pt)</label>
-                              <input
-                                type="number"
-                                step="1"
-                                min="4"
-                                className="inspector-input"
-                                value={selectedCapa.fontSizePt || 12}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "fontSizePt", Number(e.target.value))}
-                              />
-                            </div>
-                            {renderColorSelector(
-                              "Color de Texto por defecto",
-                              selectedCapa.color || "#000000",
-                              (val) => handleUpdateCapaProp(selectedCapa.id, "color", val)
-                            )}
-                          </div>
-
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <label className="inspector-label">Estilos y Alineación por defecto</label>
-                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                              <div className="style-toggle-buttons">
-                                <button
-                                  type="button"
-                                  className={`style-btn ${selectedCapa.bold ? "active" : ""}`}
-                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "bold", !selectedCapa.bold)}
-                                >
-                                  Negrita (B)
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`style-btn ${selectedCapa.italic ? "active" : ""}`}
-                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "italic", !selectedCapa.italic)}
-                                >
-                                  Cursiva (I)
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`style-btn ${selectedCapa.underline ? "active" : ""}`}
-                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "underline", !selectedCapa.underline)}
-                                >
-                                  Subrayado (U)
-                                </button>
-                              </div>
-                              <div className="alignment-group">
-                                <button
-                                  type="button"
-                                  className={`align-btn ${selectedCapa.alineacion === "left" ? "active" : ""}`}
-                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "left")}
-                                  title="Alinear Izquierda"
-                                >
-                                  ⬅️
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`align-btn ${selectedCapa.alineacion === "center" ? "active" : ""}`}
-                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "center")}
-                                  title="Alinear Centro"
-                                >
-                                  ↔️
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`align-btn ${selectedCapa.alineacion === "right" ? "active" : ""}`}
-                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "right")}
-                                  title="Alinear Derecha"
-                                >
-                                  ➡️
-                                </button>
-                                <button
-                                  type="button"
-                                  className={`align-btn ${selectedCapa.alineacion === "justify" ? "active" : ""}`}
-                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "alineacion", "justify")}
-                                  title="Justificado"
-                                >
-                                  ↕️
-                                </button>
-                              </div>
-                            </div>
-
-                            {/* Contorno de Texto Base de Plantilla (SRS-057) */}
-                            <div className="inspector-section" style={{ marginTop: "12px" }}>
-                              <label className="inspector-label">Contorno por Defecto (Text Outline)</label>
-                              <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                                <div style={{ flex: 1 }}>
-                                  <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Grosor (px)</label>
-                                  <input
-                                    type="number"
-                                    min="0"
-                                    step="0.5"
-                                    className="inspector-input"
-                                    value={selectedCapa.textOutlineWidth ?? 0}
-                                    onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "textOutlineWidth", Math.max(0, parseFloat(e.target.value) || 0))}
-                                  />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                  <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Color Contorno</label>
-                                  <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-                                    <input
-                                      type="color"
-                                      value={selectedCapa.textOutlineColor || "#000000"}
-                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "textOutlineColor", e.target.value)}
-                                      style={{ width: "32px", height: "32px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
-                                    />
-                                    <input
-                                      type="text"
-                                      className="inspector-input"
-                                      style={{ flex: 1, height: "32px", fontSize: "12px" }}
-                                      value={selectedCapa.textOutlineColor || "#000000"}
-                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "textOutlineColor", e.target.value)}
-                                    />
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </>
+                      </div>
                     )}
 
-                    {/* Capas de Imagen */}
+                    {/* Capas de Imagen (SRS-070: Unificado) */}
                     {selectedCapa.tipo === "image" && (
-                      <>
-                        {/* Sección 1: Imagen de la Carta (Anulación) */}
-                        <div className="inspector-group-section">
-                           <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
-                             <h4 className="inspector-group-title" style={{ margin: 0 }}>Imagen de esta Carta (Anulación)</h4>
-                             {renderExposedEye("src", "Recurso Imagen")}
-                           </div>
-                          <div className="inspector-section">
-                            {tempCapasOverridesActivos[selectedCapa.id]?.src ? (
-                              <div className="image-override-preview-container">
-                                <img
-                                  src={tempCapasOverridesActivos[selectedCapa.id].src}
-                                  alt="Vista previa de anulación"
-                                  className="inspector-image-preview"
-                                  style={{
-                                    width: "100%",
-                                    maxHeight: "150px",
-                                    objectFit: "contain",
-                                    borderRadius: "6px",
-                                    backgroundColor: "#f1f5f9",
-                                    border: "1px solid #cbd5e1",
-                                    marginBottom: "8px",
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  className="btn-danger-sec"
-                                  style={{ width: "100%" }}
-                                  onClick={() => {
-                                    setTempCapasOverridesActivos((prev) => {
-                                      const next = { ...prev };
-                                      if (next[selectedCapa.id]) {
-                                        const { src, ...rest } = next[selectedCapa.id];
-                                        if (Object.keys(rest).length === 0) {
-                                          delete next[selectedCapa.id];
-                                        } else {
-                                          next[selectedCapa.id] = rest;
+                      <div className="inspector-group-section">
+                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
+                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Recurso de Imagen</h4>
+                          {renderExposedEye("src", "Recurso Imagen")}
+                        </div>
+                        <div className="inspector-section">
+                          {(() => {
+                            const activeSrc = tempCapasOverridesActivos[selectedCapa.id]?.src || selectedCapa.src;
+                            if (activeSrc) {
+                              return (
+                                <div className="image-override-preview-container">
+                                  <img
+                                    src={activeSrc}
+                                    alt="Vista previa de imagen"
+                                    className="inspector-image-preview"
+                                    style={{
+                                      width: "100%",
+                                      maxHeight: "150px",
+                                      objectFit: "contain",
+                                      borderRadius: "6px",
+                                      backgroundColor: "#f1f5f9",
+                                      border: "1px solid #cbd5e1",
+                                      marginBottom: "8px",
+                                    }}
+                                  />
+                                  <button
+                                    type="button"
+                                    className="btn-danger-sec"
+                                    style={{ width: "100%" }}
+                                    onClick={() => {
+                                      handleUpdateCapaProp(selectedCapa.id, "src", "");
+                                      setTempCapasOverridesActivos((prev) => {
+                                        const next = { ...prev };
+                                        if (next[selectedCapa.id]) {
+                                          const { src, ...rest } = next[selectedCapa.id];
+                                          if (Object.keys(rest).length === 0) {
+                                            delete next[selectedCapa.id];
+                                          } else {
+                                            next[selectedCapa.id] = rest;
+                                          }
                                         }
-                                      }
-                                      return next;
-                                    });
-                                  }}
-                                >
-                                  Quitar Anulación (Heredar plantilla)
-                                </button>
-                              </div>
-                            ) : (
+                                        return next;
+                                      });
+                                    }}
+                                  >
+                                    Quitar Imagen
+                                  </button>
+                                </div>
+                              );
+                            }
+
+                            return (
                               <div className="image-upload-dropzone">
                                 <input
                                   type="file"
                                   accept="image/*"
-                                  id={`file-override-${selectedCapa.id}`}
+                                  id={`file-image-${selectedCapa.id}`}
                                   style={{ display: "none" }}
                                   onChange={(e) => {
                                     if (e.target.files && e.target.files[0]) {
@@ -3582,6 +3446,7 @@ export default function EditCardModal({
                                         return;
                                       }
                                       handleUserAssetUpload(file, (base64) => {
+                                        handleUpdateCapaProp(selectedCapa.id, "src", base64);
                                         setTempCapasOverridesActivos((prev) => ({
                                           ...prev,
                                           [selectedCapa.id]: {
@@ -3594,7 +3459,7 @@ export default function EditCardModal({
                                   }}
                                 />
                                 <label
-                                  htmlFor={`file-override-${selectedCapa.id}`}
+                                  htmlFor={`file-image-${selectedCapa.id}`}
                                   className="dropzone-label"
                                   onDragOver={(e) => e.preventDefault()}
                                   onDrop={(e) => {
@@ -3606,6 +3471,7 @@ export default function EditCardModal({
                                         return;
                                       }
                                       handleUserAssetUpload(file, (base64) => {
+                                        handleUpdateCapaProp(selectedCapa.id, "src", base64);
                                         setTempCapasOverridesActivos((prev) => ({
                                           ...prev,
                                           [selectedCapa.id]: {
@@ -3646,145 +3512,40 @@ export default function EditCardModal({
                                   📂 Cargar desde Galería
                                 </button>
 
-                                {selectedCapa.src ? (
-                                  <p style={{ fontSize: "11px", color: "#64748b", marginTop: "6px", textAlign: "center" }}>
-                                    Heredando imagen por defecto de la plantilla
-                                  </p>
-                                ) : (
-                                  <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "6px", textAlign: "center" }}>
-                                    Sin imagen cargada
-                                  </p>
-                                )}
+                                <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "6px", textAlign: "center" }}>
+                                  Sin imagen cargada
+                                </p>
                               </div>
-                            )}
-                          </div>
+                            );
+                          })()}
                         </div>
 
-                        {/* Sección 2: Definición de la Plantilla (Diseño) */}
-                        <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
-                          <h4 className="inspector-group-title">Definición de Plantilla</h4>
-
-                          <div className="inspector-section">
-                            <label className="inspector-label">Nombre de Variable / Capa</label>
-                            <input
-                              type="text"
-                              className="inspector-input"
-                              value={selectedCapa.nombre || ""}
-                              placeholder="ej. Ilustración"
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
-                            />
+                        <div className="inspector-section" style={{ marginTop: "12px" }}>
+                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
+                            <label className="inspector-label" style={{ margin: 0 }}>Modo de Ajuste</label>
+                            {renderExposedEye("modoAjuste", "Modo de Ajuste")}
                           </div>
-
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <label className="inspector-label">Imagen por Defecto (Plantilla)</label>
-                            {selectedCapa.src ? (
-                              <div className="image-template-preview-container">
-                                <img
-                                  src={selectedCapa.src}
-                                  alt="Imagen plantilla"
-                                  style={{
-                                    width: "100%",
-                                    maxHeight: "150px",
-                                    objectFit: "contain",
-                                    borderRadius: "6px",
-                                    backgroundColor: "#f1f5f9",
-                                    border: "1px solid #cbd5e1",
-                                    marginBottom: "8px",
-                                  }}
-                                />
-                                <button
-                                  type="button"
-                                  className="btn-danger-sec"
-                                  style={{ width: "100%" }}
-                                  onClick={() => handleUpdateCapaProp(selectedCapa.id, "src", "")}
-                                >
-                                  Quitar Imagen
-                                </button>
-                              </div>
-                            ) : (
-                              <div className="image-upload-dropzone">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  id={`file-template-${selectedCapa.id}`}
-                                  style={{ display: "none" }}
-                                  onChange={(e) => {
-                                    if (e.target.files && e.target.files[0]) {
-                                      const file = e.target.files[0];
-                                      if (!file.type.startsWith("image/")) {
-                                        alert("Por favor, selecciona un archivo de imagen válido.");
-                                        return;
-                                      }
-                                      handleUserAssetUpload(file, (base64) => {
-                                        handleUpdateCapaProp(selectedCapa.id, "src", base64);
-                                      });
-                                    }
-                                  }}
-                                />
-                                <label
-                                  htmlFor={`file-template-${selectedCapa.id}`}
-                                  className="dropzone-label"
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDrop={(e) => {
-                                    e.preventDefault();
-                                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                                      const file = e.dataTransfer.files[0];
-                                      if (!file.type.startsWith("image/")) {
-                                        alert("Por favor, selecciona un archivo de imagen válido.");
-                                        return;
-                                      }
-                                      handleUserAssetUpload(file, (base64) => {
-                                        handleUpdateCapaProp(selectedCapa.id, "src", base64);
-                                      });
-                                    }
-                                  }}
-                                  style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    padding: "20px",
-                                    border: "2px dashed #cbd5e1",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    backgroundColor: "#f8fafc",
-                                    textAlign: "center",
-                                  }}
-                                >
-                                  <span style={{ fontSize: "24px" }}>📤</span>
-                                  <span style={{ fontSize: "12px", marginTop: "8px", fontWeight: 500 }}>
-                                    Subir imagen por defecto
-                                  </span>
-                                </label>
-
-                                <button
-                                  type="button"
-                                  className="btn-secundario-galeria"
-                                  onClick={() => {
-                                    setActiveSelectorTarget({ type: "default", capaId: selectedCapa.id });
-                                    setShowGallerySelector(true);
-                                  }}
-                                >
-                                  📂 Cargar desde Galería
-                                </button>
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <label className="inspector-label">Modo de Ajuste</label>
-                            <select
-                              className="inspector-input"
-                              value={selectedCapa.modoAjuste || "cover"}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "modoAjuste", e.target.value)}
-                            >
-                              <option value="cover">Cover (Rellenar)</option>
-                              <option value="contain">Contain (Contener)</option>
-                              <option value="stretch">Stretch (Estirar)</option>
-                            </select>
-                          </div>
+                          <select
+                            className="inspector-input"
+                            value={tempCapasOverridesActivos[selectedCapa.id]?.modoAjuste || selectedCapa.modoAjuste || "cover"}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              handleUpdateCapaProp(selectedCapa.id, "modoAjuste", val);
+                              setTempCapasOverridesActivos((prev) => ({
+                                ...prev,
+                                [selectedCapa.id]: {
+                                  ...(prev[selectedCapa.id] || {}),
+                                  modoAjuste: val,
+                                },
+                              }));
+                            }}
+                          >
+                            <option value="cover">Cover (Rellenar)</option>
+                            <option value="contain">Contain (Contener)</option>
+                            <option value="stretch">Stretch (Estirar)</option>
+                          </select>
                         </div>
-                      </>
+                      </div>
                     )}
 
                     {/* Capas de Imagen Switch */}

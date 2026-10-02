@@ -2372,7 +2372,19 @@ function AppContent() {
               contenidoRaw: capa.contenidoRaw || "",
               fontFamily: capa.fontFamily || "sans-serif",
               fontSizePt: capa.fontSizePt || 12,
+              textOutlineWidth: capa.textOutlineWidth || 0,
+              textOutlineColor: capa.textOutlineColor || "#000000",
+              bold: !!capa.bold,
+              italic: !!capa.italic,
+              underline: !!capa.underline,
             };
+          } else if (capa.tipo === "image") {
+            if (capa.src) {
+              overrides[capa.id] = {
+                src: capa.src,
+                modoAjuste: capa.modoAjuste || "cover",
+              };
+            }
           }
         });
       }
@@ -2410,7 +2422,19 @@ function AppContent() {
               contenidoRaw: capa.contenidoRaw || "",
               fontFamily: capa.fontFamily || "sans-serif",
               fontSizePt: capa.fontSizePt || 12,
+              textOutlineWidth: capa.textOutlineWidth || 0,
+              textOutlineColor: capa.textOutlineColor || "#000000",
+              bold: !!capa.bold,
+              italic: !!capa.italic,
+              underline: !!capa.underline,
             };
+          } else if (capa.tipo === "image") {
+            if (capa.src) {
+              overridesTrasera[capa.id] = {
+                src: capa.src,
+                modoAjuste: capa.modoAjuste || "cover",
+              };
+            }
           }
         });
       }
