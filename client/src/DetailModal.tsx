@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import "./DetailModal.css";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
+import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle } from "shared";
 import { parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
@@ -124,9 +125,9 @@ export default function DetailModal({
 
                             return filteredLayers.map((capa: any) => {
                               const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
-                              const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
-                              const isParentVertical = parentCapa && parentCapa.layout === "vertical";
-                              const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+                              const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
+                              const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
+                              const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
 
                               const activeVisibility = carta.capasOverrides?.[capa.id]?.visibility || capa.visibility || "visible";
 
@@ -186,13 +187,8 @@ export default function DetailModal({
                                   borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
                                 };
 
-                                const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
-                                const flexStyle: React.CSSProperties = isFlex ? {
-                                  display: "flex",
-                                  flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
-                                } : {
-
-                                };
+                                const isFlex = isFlexLayout(resolvedCapa.layout);
+                                const flexStyle: React.CSSProperties = isFlex ? (getContainerFlexStyle(resolvedCapa.layout) || {}) : {};
 
                                 return (
                                   <div
@@ -454,9 +450,9 @@ export default function DetailModal({
 
                             return filteredLayers.map((capa: any) => {
                               const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
-                              const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
-                              const isParentVertical = parentCapa && parentCapa.layout === "vertical";
-                              const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+                              const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
+                              const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
+                              const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
 
                               const activeVisibility = carta.capasOverridesTrasera?.[capa.id]?.visibility || capa.visibility || "visible";
 
@@ -516,13 +512,8 @@ export default function DetailModal({
                                   borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
                                 };
 
-                                const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
-                                const flexStyle: React.CSSProperties = isFlex ? {
-                                  display: "flex",
-                                  flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
-                                } : {
-
-                                };
+                                const isFlex = isFlexLayout(resolvedCapa.layout);
+                                const flexStyle: React.CSSProperties = isFlex ? (getContainerFlexStyle(resolvedCapa.layout) || {}) : {};
 
                                 return (
                                   <div

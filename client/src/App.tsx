@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { calcularDistribucion } from "shared";
+import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle } from "shared";
 import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2, UserStorageInfo, CloudProjectMetadata, CloudTemplateMetadata } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
@@ -3520,9 +3520,9 @@ function AppContent() {
 
                                       return filteredLayers.map((capa: any) => {
                                         const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
-                                        const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
-                                        const isParentVertical = parentCapa && parentCapa.layout === "vertical";
-                                        const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+                                        const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
+                                        const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
+                                        const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
                                         const isCardSelected = selectedCardIds.includes(cardData.id);
                                         const isEditActive = isCardSelected && activeCanvasEditLayerId === capa.id;
                                         const syncEvents = (isCardSelected && !rightSidebarCollapsed && !activeCanvasEditLayerId) ? {
@@ -3611,13 +3611,8 @@ function AppContent() {
                                             borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
                                           };
 
-                                          const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
-                                          const flexStyle: React.CSSProperties = isFlex ? {
-                                            display: "flex",
-                                            flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
-                                          } : {
-
-                                          };
+                                          const isFlex = isFlexLayout(resolvedCapa.layout);
+                                          const flexStyle: React.CSSProperties = isFlex ? (getContainerFlexStyle(resolvedCapa.layout) || {}) : {};
 
                                           return (
                                             <div
@@ -4001,9 +3996,9 @@ function AppContent() {
 
                                           return filteredLayers.map((capa: any) => {
                                             const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
-                                            const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
-                                            const isParentVertical = parentCapa && parentCapa.layout === "vertical";
-                                            const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+                                            const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
+                                            const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
+                                            const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
                                             const isCardSelected = selectedCardIds.includes(cardData.id);
                                             const isEditActive = isCardSelected && activeCanvasEditLayerId === capa.id;
                                             const syncEvents = (isCardSelected && !rightSidebarCollapsed && !activeCanvasEditLayerId) ? {
@@ -4186,11 +4181,8 @@ function AppContent() {
                                                 borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
                                               };
 
-                                              const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
-                                              const flexStyle: React.CSSProperties = isFlex ? {
-                                                display: "flex",
-                                                flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
-                                              } : {};
+                                              const isFlex = isFlexLayout(resolvedCapa.layout);
+                                              const flexStyle: React.CSSProperties = isFlex ? (getContainerFlexStyle(resolvedCapa.layout) || {}) : {};
 
                                               return (
                                                 <div

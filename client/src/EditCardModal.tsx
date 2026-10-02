@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import type { CardConfig, Carta, ExposedProperty } from "shared";
+import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle } from "shared";
 import JSZip from "jszip";
 import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
 import { generarMiniaturaPlantilla } from "./utils/thumbnailUtils";
@@ -1035,10 +1036,10 @@ export default function EditCardModal({
             [propKey]: propVal
           };
           if (propKey === "layout") {
-            if (propVal !== "horizontal" && updatedObj.anchoMm === "auto") {
+            if (!isHorizontalLayout(propVal) && updatedObj.anchoMm === "auto") {
               updatedObj.anchoMm = 40;
             }
-            if (propVal !== "vertical" && updatedObj.altoMm === "auto") {
+            if (!isVerticalLayout(propVal) && updatedObj.altoMm === "auto") {
               updatedObj.altoMm = 20;
             }
           }
@@ -1966,7 +1967,13 @@ export default function EditCardModal({
                         subtitle = capa.tipo === "image" ? "Capa de Imagen" : "Imagen Switch";
                       } else if (capa.tipo === "container") {
                         title = capa.nombre;
-                        subtitle = capa.layout === "vertical" ? "Contenedor Vertical" : capa.layout === "horizontal" ? "Contenedor Horizontal" : "Contenedor Libre";
+                        if (capa.layout === "vertical") subtitle = "Contenedor Vertical";
+                        else if (capa.layout === "vertical-center") subtitle = "Contenedor Vertical Centrado";
+                        else if (capa.layout === "vertical-reverse") subtitle = "Contenedor Vertical Inverso";
+                        else if (capa.layout === "horizontal") subtitle = "Contenedor Horizontal";
+                        else if (capa.layout === "horizontal-center") subtitle = "Contenedor Horizontal Centrado";
+                        else if (capa.layout === "horizontal-reverse") subtitle = "Contenedor Horizontal Inverso";
+                        else subtitle = "Contenedor Libre";
                       } else if (capa.tipo === "block") {
                         title = capa.nombre || "Bloque";
                         subtitle = "Bloque Vacío";
@@ -2246,9 +2253,9 @@ export default function EditCardModal({
 
                       return filteredLayers.map((capa: any) => {
                         const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
-                        const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
-                        const isParentVertical = parentCapa && parentCapa.layout === "vertical";
-                        const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+                        const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
+                        const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
+                        const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
 
                         const overrides = tempCapasOverridesActivos[capa.id];
                         const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
@@ -2398,11 +2405,8 @@ export default function EditCardModal({
                             borderBottomLeftRadius: `${radiusBottomLeftPx}px`,
                           };
 
-                          const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
-                          const flexStyle: React.CSSProperties = isFlex ? {
-                            display: "flex",
-                            flexDirection: resolvedCapa.layout === "vertical" ? "column" : "row",
-                          } : {};
+                          const isFlex = isFlexLayout(resolvedCapa.layout);
+                          const flexStyle: React.CSSProperties = isFlex ? (getContainerFlexStyle(resolvedCapa.layout) || {}) : {};
 
                           return (
                             <div
@@ -2837,8 +2841,8 @@ export default function EditCardModal({
 
                         {/* Checkboxes de Dimensiones Automáticas (SRS-050) */}
                         {(() => {
-                          const canAutoWidth = selectedCapa.tipo === "text" || (selectedCapa.tipo === "container" && selectedCapa.layout === "horizontal");
-                          const canAutoHeight = selectedCapa.tipo === "text" || (selectedCapa.tipo === "container" && selectedCapa.layout === "vertical");
+                          const canAutoWidth = selectedCapa.tipo === "text" || (selectedCapa.tipo === "container" && isHorizontalLayout(selectedCapa.layout));
+                          const canAutoHeight = selectedCapa.tipo === "text" || (selectedCapa.tipo === "container" && isVerticalLayout(selectedCapa.layout));
 
                           if (!canAutoWidth && !canAutoHeight) return null;
 
@@ -3750,7 +3754,11 @@ export default function EditCardModal({
                           >
                             <option value="none">Libre (FrameLayout)</option>
                             <option value="vertical">Lineal Vertical</option>
+                            <option value="vertical-center">Lineal Vertical Centrado</option>
+                            <option value="vertical-reverse">Lineal Vertical Inverso (Abajo a Arriba)</option>
                             <option value="horizontal">Lineal Horizontal</option>
+                            <option value="horizontal-center">Lineal Horizontal Centrado</option>
+                            <option value="horizontal-reverse">Lineal Horizontal Inverso (Derecha a Izquierda)</option>
                           </select>
                         </div>
 

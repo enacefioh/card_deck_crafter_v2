@@ -7,7 +7,7 @@ import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
-import { calcularDistribucion } from "shared";
+import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexCssString } from "shared";
 import type { CanvasConfig, ProyectoCDC2, Carta } from "shared";
 
 import cookieParser from "cookie-parser";
@@ -174,7 +174,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261002.1",
+      version: "v2.261002.2",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -999,15 +999,15 @@ function generarHtmlImpresion(
               const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 
               const parentCapa = capas.find((p: any) => p.id === resolvedCapa.parentCapaId);
-              const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
+              const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
 
               const isFlexParent = isParentFlex;
               const positionCss = isFlexParent ? "position: relative;" : "position: absolute;";
               
               let leftPx = "";
               let topPx = "";
-              const isParentVertical = parentCapa && parentCapa.layout === "vertical";
-              const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+              const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
+              const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
 
               if (!isFlexParent) {
                 const xMmVal = resolvedCapa.xMm;
@@ -1095,8 +1095,8 @@ function generarHtmlImpresion(
                 const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
                 const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
 
-                const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
-                const flexStyle = isFlex ? `display: flex; flex-direction: ${resolvedCapa.layout === "vertical" ? "column" : "row"};` : "";
+                const isFlex = isFlexLayout(resolvedCapa.layout);
+                const flexStyle = isFlex ? getContainerFlexCssString(resolvedCapa.layout) : "";
 
                 const innerContentHtml = renderCapaRecursiva(capa.id);
 
@@ -1740,14 +1740,14 @@ function renderCardFaceContentHtml(
         const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 
         const parentCapa = capas.find((p: any) => p.id === resolvedCapa.parentCapaId);
-        const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
+        const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
 
         const positionCss = isParentFlex ? "position: relative;" : "position: absolute;";
         
         let leftPx = "";
         let topPx = "";
-        const isParentVertical = parentCapa && parentCapa.layout === "vertical";
-        const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+        const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
+        const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
 
         if (!isParentFlex) {
           leftPx = `left: ${resolvedCapa.xMm * MM_TO_PX}px;`;
@@ -1821,8 +1821,8 @@ function renderCardFaceContentHtml(
           const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
           const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
 
-          const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
-          const flexStyle = isFlex ? `display: flex; flex-direction: ${resolvedCapa.layout === "vertical" ? "column" : "row"};` : "";
+          const isFlex = isFlexLayout(resolvedCapa.layout);
+          const flexStyle = isFlex ? getContainerFlexCssString(resolvedCapa.layout) : "";
 
           const innerContentHtml = renderCapaRecursiva(capa.id);
           const displayStyle = activeVisibility === "collapsed" ? "display: none;" : (isFlex ? "display: flex;" : "");

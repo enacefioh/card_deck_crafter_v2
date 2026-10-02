@@ -1,4 +1,4 @@
-import { calcularDistribucion } from "../../shared/layoutEngine.js";
+import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexCssString } from "../../shared/layoutEngine.js";
 import type { CanvasConfig, CardConfig, Carta, ProyectoCDC2 } from "../../shared/layoutEngine.js";
 import fs from "fs";
 import path from "path";
@@ -203,15 +203,15 @@ function generarHtmlImpresion(
 
           return filteredLayers.map((capa: any) => {
             const parentCapa = layers.find((p: any) => p.id === capa.parentCapaId);
-            const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
+            const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
 
             const isFlexParent = isParentFlex;
             const positionCss = isFlexParent ? "position: relative;" : "position: absolute;";
             
             let leftMm = "";
             let topMm = "";
-            const isParentVertical = parentCapa && parentCapa.layout === "vertical";
-            const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+            const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
+            const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
 
             if (!isFlexParent) {
               const xMmVal = capa.xMm + (parentId === null ? sangrado : 0);
@@ -298,8 +298,8 @@ function generarHtmlImpresion(
               const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftMm}mm; border-top-right-radius: ${radiusTopRightMm}mm; border-bottom-right-radius: ${radiusBottomRightMm}mm; border-bottom-left-radius: ${radiusBottomLeftMm}mm;`;
               const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
 
-              const isFlex = resolvedCapa.layout === "vertical" || resolvedCapa.layout === "horizontal";
-              const flexStyle = isFlex ? `display: flex; flex-direction: ${resolvedCapa.layout === "vertical" ? "column" : "row"};` : "";
+              const isFlex = isFlexLayout(resolvedCapa.layout);
+              const flexStyle = isFlex ? getContainerFlexCssString(resolvedCapa.layout) : "";
 
               const innerContentHtml = renderCapaRecursiva(capa.id);
 

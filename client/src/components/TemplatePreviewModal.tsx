@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import type { CardConfig } from "shared";
+import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle } from "shared";
 import { parsearTextoConSimbolos, parseMarkdownToHtml } from "../utils/projectUtils";
 
 interface TemplatePreviewModalProps {
@@ -79,9 +80,9 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
       }
 
       const parentCapa = capas.find((p: any) => p.id === capa.parentCapaId);
-      const isParentFlex = parentCapa && (parentCapa.layout === "vertical" || parentCapa.layout === "horizontal");
-      const isParentVertical = parentCapa && parentCapa.layout === "vertical";
-      const isParentHorizontal = parentCapa && parentCapa.layout === "horizontal";
+      const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
+      const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
+      const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
 
       const layerX = (capa.xMm || 0) * previewScale;
       const layerY = (capa.yMm || 0) * previewScale;
@@ -140,12 +141,9 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
       if (capa.tipo === "container") {
         const radiusPx = (capa.borderRadius ?? capa.borderTopLeftRadius ?? 0) * previewScale;
         const borderWidthPx = (capa.borderWidth ?? capa.borderTopWidth ?? 0) * previewScale;
-        const isFlex = capa.layout === "vertical" || capa.layout === "horizontal";
+        const isFlex = isFlexLayout(capa.layout);
         const flexStyle: React.CSSProperties = isFlex
-          ? {
-              display: "flex",
-              flexDirection: capa.layout === "vertical" ? "column" : "row",
-            }
+          ? (getContainerFlexStyle(capa.layout) || {})
           : {};
 
         return (

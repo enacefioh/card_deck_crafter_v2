@@ -290,3 +290,63 @@ export function calcularDistribucion(
 
   return { paginasFrontales, paginasTraseras };
 }
+
+// --- Tipos y Funciones de Utilidad para Layout de Contenedores (SRS-071) ---
+export type ContainerLayout =
+  | "none"
+  | "vertical"
+  | "vertical-center"
+  | "vertical-reverse"
+  | "horizontal"
+  | "horizontal-center"
+  | "horizontal-reverse";
+
+export function isVerticalLayout(layout?: string): boolean {
+  return layout === "vertical" || layout === "vertical-center" || layout === "vertical-reverse";
+}
+
+export function isHorizontalLayout(layout?: string): boolean {
+  return layout === "horizontal" || layout === "horizontal-center" || layout === "horizontal-reverse";
+}
+
+export function isFlexLayout(layout?: string): boolean {
+  return isVerticalLayout(layout) || isHorizontalLayout(layout);
+}
+
+export interface ContainerFlexStyle {
+  display: "flex";
+  flexDirection: "column" | "column-reverse" | "row" | "row-reverse";
+  justifyContent?: "center";
+}
+
+export function getContainerFlexStyle(layout?: string): ContainerFlexStyle | null {
+  if (!isFlexLayout(layout)) return null;
+
+  switch (layout) {
+    case "vertical-center":
+      return { display: "flex", flexDirection: "column", justifyContent: "center" };
+    case "vertical-reverse":
+      return { display: "flex", flexDirection: "column-reverse" };
+    case "vertical":
+      return { display: "flex", flexDirection: "column" };
+    case "horizontal-center":
+      return { display: "flex", flexDirection: "row", justifyContent: "center" };
+    case "horizontal-reverse":
+      return { display: "flex", flexDirection: "row-reverse" };
+    case "horizontal":
+      return { display: "flex", flexDirection: "row" };
+    default:
+      return null;
+  }
+}
+
+export function getContainerFlexCssString(layout?: string): string {
+  const style = getContainerFlexStyle(layout);
+  if (!style) return "";
+  let css = `display: flex; flex-direction: ${style.flexDirection};`;
+  if (style.justifyContent) {
+    css += ` justify-content: ${style.justifyContent};`;
+  }
+  return css;
+}
+
