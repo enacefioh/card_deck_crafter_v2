@@ -161,7 +161,7 @@ export default function DetailModal({
                                 );
                               }
 
-                              if (capa.tipo === "container") {
+                              if (capa.tipo === "container" || capa.tipo === "list") {
                                 const overrides = carta.capasOverrides?.[capa.id];
                                 const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 
@@ -486,7 +486,7 @@ export default function DetailModal({
                                 );
                               }
 
-                              if (capa.tipo === "container") {
+                              if (capa.tipo === "container" || capa.tipo === "list") {
                                 const overrides = carta.capasOverridesTrasera?.[capa.id];
                                 const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 

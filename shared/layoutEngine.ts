@@ -350,3 +350,47 @@ export function getContainerFlexCssString(layout?: string): string {
   return css;
 }
 
+// --- Tipos y Funciones de Utilidad para Listas y Subplantillas Hijas (SRS-072) ---
+export interface ChildTemplate {
+  id: string;               // ID única de la subplantilla (ej. "tmpl_mele_1")
+  tag: string;              // Etiqueta identificativa (ej. "mele")
+  name: string;             // Nombre visible para el usuario (ej. "Ataque Melé")
+  rootCapa: any;            // Clon de la capa raíz de la subplantilla
+  descendantCapas?: any[];  // Capas anidadas hijas si rootCapa es un container
+  exposedProperties?: any[]; // Propiedades expuestas asociadas a la plantilla
+}
+
+export function cloneLayerTreeWithNewIds(
+  rootCapa: any,
+  descendantCapas: any[] = [],
+  targetParentId: string
+): { newRoot: any; newDescendants: any[]; idMap: Map<string, string> } {
+  const idMap = new Map<string, string>();
+
+  // 1. Generar nueva ID para la raíz
+  const newRootId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  idMap.set(rootCapa.id, newRootId);
+
+  // 2. Generar nuevas IDs para todas las descendientes
+  descendantCapas.forEach((c) => {
+    idMap.set(c.id, `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`);
+  });
+
+  // 3. Clonar y reasignar raíz
+  const newRoot = {
+    ...JSON.parse(JSON.stringify(rootCapa)),
+    id: newRootId,
+    parentCapaId: targetParentId
+  };
+
+  // 4. Clonar y reasignar descendientes
+  const newDescendants = descendantCapas.map((c) => {
+    const cloned = JSON.parse(JSON.stringify(c));
+    cloned.id = idMap.get(c.id)!;
+    cloned.parentCapaId = idMap.get(c.parentCapaId) || newRootId;
+    return cloned;
+  });
+
+  return { newRoot, newDescendants, idMap };
+}
+

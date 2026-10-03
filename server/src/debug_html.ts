@@ -275,7 +275,7 @@ function generarHtmlImpresion(
               `;
             }
 
-            if (capa.tipo === "container") {
+            if (capa.tipo === "container" || capa.tipo === "list") {
               const overrides = cardData.capasOverrides?.[capa.id];
               const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 

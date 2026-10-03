@@ -138,7 +138,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
         );
       }
 
-      if (capa.tipo === "container") {
+      if (capa.tipo === "container" || capa.tipo === "list") {
         const radiusPx = (capa.borderRadius ?? capa.borderTopLeftRadius ?? 0) * previewScale;
         const borderWidthPx = (capa.borderWidth ?? capa.borderTopWidth ?? 0) * previewScale;
         const isFlex = isFlexLayout(capa.layout);

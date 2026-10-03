@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcularDistribucion } from "./layoutEngine";
+import { calcularDistribucion, cloneLayerTreeWithNewIds } from "./layoutEngine";
 import type { CanvasConfig, CardConfig, Carta } from "./layoutEngine";
 
 describe("layoutEngine - Motor de Maquetación", () => {
@@ -189,5 +189,28 @@ describe("layoutEngine - Motor de Maquetación", () => {
     expect(paginasTraseras[0].slots[0].imagenSrc).toBe("back2.png");
     expect(paginasTraseras[0].slots[1].cartaId).toBe("1");
     expect(paginasTraseras[0].slots[1].imagenSrc).toBe("back1.png");
+  });
+
+  it("SRS-072: cloneLayerTreeWithNewIds debe clonar recursivamente capas y generar nuevos IDs consistentes", () => {
+    const rootCapa = {
+      id: "root_1",
+      nombre: "Item Raíz",
+      tipo: "container",
+      parentCapaId: null
+    };
+    const descendants = [
+      { id: "child_1", nombre: "Texto", tipo: "text", parentCapaId: "root_1" },
+      { id: "child_2", nombre: "Icono", tipo: "image", parentCapaId: "root_1" }
+    ];
+
+    const result = cloneLayerTreeWithNewIds(rootCapa, descendants, "list_parent_123");
+
+    expect(result.newRoot.id).not.toBe("root_1");
+    expect(result.newRoot.parentCapaId).toBe("list_parent_123");
+    expect(result.newDescendants.length).toBe(2);
+    expect(result.newDescendants[0].id).not.toBe("child_1");
+    expect(result.newDescendants[0].parentCapaId).toBe(result.newRoot.id);
+    expect(result.newDescendants[1].id).not.toBe("child_2");
+    expect(result.newDescendants[1].parentCapaId).toBe(result.newRoot.id);
   });
 });

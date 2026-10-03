@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import type { CardConfig, Carta, ExposedProperty } from "shared";
-import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle } from "shared";
+import type { CardConfig, Carta, ExposedProperty, ChildTemplate } from "shared";
+import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle, cloneLayerTreeWithNewIds } from "shared";
 import JSZip from "jszip";
 import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
 import { generarMiniaturaPlantilla } from "./utils/thumbnailUtils";
@@ -140,7 +140,7 @@ export default function EditCardModal({
   // Popup de añadir elementos
   const [showAddElementPopup, setShowAddElementPopup] = useState<boolean>(false);
   const [canvasEditMode, setCanvasEditMode] = useState<boolean>(false);
-  const [selectedNewType, setSelectedNewType] = useState<"text" | "image" | "image-switch" | "container" | "block">("text");
+  const [selectedNewType, setSelectedNewType] = useState<"text" | "image" | "image-switch" | "container" | "block" | "list">("text");
   const [showSwitchResourcesPopup, setShowSwitchResourcesPopup] = useState<boolean>(false);
   const [tempSwitchCapaId, setTempSwitchCapaId] = useState<string | null>(null);
 
@@ -232,7 +232,7 @@ export default function EditCardModal({
     const collectIds = (plantilla: any) => {
       if (plantilla && plantilla.capas) {
         plantilla.capas.forEach((c: any) => {
-          if (c.tipo === "container") {
+          if (c.tipo === "container" || c.tipo === "list") {
             list.push(c.id);
           }
         });
@@ -252,6 +252,11 @@ export default function EditCardModal({
   const [expandBorders, setExpandBorders] = useState<boolean>(false);
   const [expandRadii, setExpandRadii] = useState<boolean>(false);
   const [expandPadding, setExpandPadding] = useState<boolean>(false);
+
+  // Estados para gestión de subplantillas de Lista (SRS-072)
+  const [selectedChildForTemplate, setSelectedChildForTemplate] = useState<string>("");
+  const [newTemplateName, setNewTemplateName] = useState<string>("");
+  const [newTemplateTag, setNewTemplateTag] = useState<string>("");
 
   // Estados para Galería de la Plantilla (SRS-020)
   const [showGallerySelector, setShowGallerySelector] = useState<boolean>(false);
@@ -544,15 +549,16 @@ export default function EditCardModal({
     const isImage = selectedNewType === "image";
     const isImageSwitch = selectedNewType === "image-switch";
     const isContainer = selectedNewType === "container";
+    const isList = selectedNewType === "list";
     const isBlock = selectedNewType === "block";
     const newId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
     const newClave = `campo_${Date.now().toString().slice(-4)}`;
 
-    // Resolver tamaño del padre (contenedor o lienzo)
+    // Resolver tamaño del padre (contenedor, lista o lienzo)
     const selectedCapa = selectedLayerId ? (plantillaActiva.capas || []).find((c: any) => c.id === selectedLayerId) : null;
     let parentId: string | null = null;
     if (selectedCapa) {
-      if (selectedCapa.tipo === "container") {
+      if (selectedCapa.tipo === "container" || selectedCapa.tipo === "list") {
         parentId = selectedCapa.id;
       } else {
         parentId = selectedCapa.parentCapaId || null;
@@ -606,6 +612,33 @@ export default function EditCardModal({
         altoMm: 50,
         parentCapaId: null,
         layout: "none" as const,
+        backgroundColor: "",
+        borderTopWidth: 0,
+        borderRightWidth: 0,
+        borderBottomWidth: 0,
+        borderLeftWidth: 0,
+        borderTopColor: "#000000",
+        borderRightColor: "#000000",
+        borderBottomColor: "#000000",
+        borderLeftColor: "#000000",
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderBottomLeftRadius: 0
+      };
+    } else if (isList) {
+      newLayer = {
+        id: newId,
+        nombre: `lista_${Date.now().toString().slice(-4)}`,
+        visible: true,
+        tipo: "list" as const,
+        xMm: Math.round((cardConfig.anchoMm * 0.1) * 10) / 10,
+        yMm: Math.round((cardConfig.altoMm * 0.1) * 10) / 10,
+        anchoMm: 50,
+        altoMm: "auto",
+        parentCapaId: null,
+        layout: "vertical" as const,
+        childTemplates: [],
         backgroundColor: "",
         borderTopWidth: 0,
         borderRightWidth: 0,
@@ -686,7 +719,7 @@ export default function EditCardModal({
       let parentId: string | null = null;
 
       if (selectedCapa) {
-        if (selectedCapa.tipo === "container") {
+        if (selectedCapa.tipo === "container" || selectedCapa.tipo === "list") {
           parentId = selectedCapa.id;
         } else {
           parentId = selectedCapa.parentCapaId || null;
@@ -709,7 +742,7 @@ export default function EditCardModal({
         } else {
           updatedCapas.push(layerWithParent);
         }
-      } else if (selectedCapa.tipo === "container") {
+      } else if (selectedCapa.tipo === "container" || selectedCapa.tipo === "list") {
         // Contenedor seleccionado: dentro del contenedor al final de sus hijos
         let lastChildIndex = -1;
         for (let i = updatedCapas.length - 1; i >= 0; i--) {
@@ -748,6 +781,12 @@ export default function EditCardModal({
           layerId: newId,
           property: "src",
           label: `${newLayer.nombre} > Recurso Imagen`
+        });
+      } else if (isList) {
+        nextExposed.push({
+          layerId: newId,
+          property: "items",
+          label: `${newLayer.nombre} > Elementos Lista`
         });
       }
 
@@ -1137,7 +1176,7 @@ export default function EditCardModal({
     // Si tiene un contenedor padre, usar sus dimensiones
     if (selectedCapa.parentCapaId) {
       const parentCapa = plantillaActiva.capas?.find((c: any) => c.id === selectedCapa.parentCapaId);
-      if (parentCapa && parentCapa.tipo === "container") {
+      if (parentCapa && (parentCapa.tipo === "container" || parentCapa.tipo === "list")) {
         anchoCarta = parentCapa.anchoMm || 0;
         altoCarta = parentCapa.altoMm || 0;
       }
@@ -1361,7 +1400,7 @@ export default function EditCardModal({
       const targetLayer = nextCapas[targetIndex];
       console.log("[CDC DND] updater targetLayer:", targetLayer.nombre, "tipo:", targetLayer.tipo);
 
-      if (targetLayer.tipo === "container") {
+      if (targetLayer.tipo === "container" || targetLayer.tipo === "list") {
         console.log("[CDC DND] updater target is container");
         sourceLayer.parentCapaId = targetLayer.id;
         nextCapas.splice(sourceIndex, 1);
@@ -1431,7 +1470,7 @@ export default function EditCardModal({
       idMap.set(node.id, nodeNewId);
       overridesToDuplicate.push({ oldId: node.id, newId: nodeNewId });
 
-      const nodeNewNombre = node.nombre || (node.tipo === "image" ? "Imagen" : node.tipo === "image-switch" ? "Imagen Switch" : node.tipo === "container" ? "Contenedor" : node.tipo === "block" ? "Bloque" : "Texto");
+      const nodeNewNombre = node.nombre || (node.tipo === "image" ? "Imagen" : node.tipo === "image-switch" ? "Imagen Switch" : node.tipo === "container" ? "Contenedor" : node.tipo === "list" ? "Lista" : node.tipo === "block" ? "Bloque" : "Texto");
 
       const dupNode = {
         ...node,
@@ -1692,8 +1731,102 @@ export default function EditCardModal({
         return next;
       });
     }
+    if (!selectedLayerId || idsToDelete.includes(selectedLayerId)) {
+      setSelectedLayerId(null);
+    }
+  };
 
-    setSelectedLayerId(null);
+  // --- Gestión de Subplantillas para Capas de tipo Lista (SRS-072) ---
+  const handleSaveChildAsTemplate = (listCapaId: string) => {
+    if (!plantillaActiva || !selectedChildForTemplate) return;
+    const rootCapa = (plantillaActiva.capas || []).find((c: any) => c.id === selectedChildForTemplate);
+    if (!rootCapa) return;
+
+    const getDescendants = (parentId: string): any[] => {
+      const descendants: any[] = [];
+      const children = (plantillaActiva.capas || []).filter((c: any) => c.parentCapaId === parentId);
+      for (const ch of children) {
+        descendants.push(ch);
+        descendants.push(...getDescendants(ch.id));
+      }
+      return descendants;
+    };
+
+    const descendantCapas = getDescendants(rootCapa.id);
+    const allTreeIds = new Set([rootCapa.id, ...descendantCapas.map(d => d.id)]);
+    const exposedProps = (tempExposedProperties || []).filter(ep => allTreeIds.has(ep.layerId));
+
+    const newTmpl: ChildTemplate = {
+      id: `tmpl_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      name: newTemplateName.trim() || rootCapa.nombre || "Subplantilla",
+      tag: (newTemplateTag.trim() || (rootCapa.nombre || "item")).toLowerCase().replace(/\s+/g, "_"),
+      rootCapa: JSON.parse(JSON.stringify(rootCapa)),
+      descendantCapas: JSON.parse(JSON.stringify(descendantCapas)),
+      exposedProperties: JSON.parse(JSON.stringify(exposedProps))
+    };
+
+    const targetList = (plantillaActiva.capas || []).find((c: any) => c.id === listCapaId);
+    const currentTemplates = targetList?.childTemplates || [];
+    handleUpdateCapaProp(listCapaId, "childTemplates", [...currentTemplates, newTmpl]);
+
+    setSelectedChildForTemplate("");
+    setNewTemplateName("");
+    setNewTemplateTag("");
+  };
+
+  const handleUpdateChildTemplate = (listCapaId: string, tmplId: string, updates: Partial<ChildTemplate>) => {
+    if (!plantillaActiva) return;
+    const targetList = (plantillaActiva.capas || []).find((c: any) => c.id === listCapaId);
+    if (!targetList) return;
+    const currentTemplates = targetList.childTemplates || [];
+    const updated = currentTemplates.map((t: ChildTemplate) =>
+      t.id === tmplId ? { ...t, ...updates } : t
+    );
+    handleUpdateCapaProp(listCapaId, "childTemplates", updated);
+  };
+
+  const handleDeleteChildTemplate = (listCapaId: string, tmplId: string) => {
+    if (!plantillaActiva) return;
+    const targetList = (plantillaActiva.capas || []).find((c: any) => c.id === listCapaId);
+    if (!targetList) return;
+    const currentTemplates = targetList.childTemplates || [];
+    const updated = currentTemplates.filter((t: ChildTemplate) => t.id !== tmplId);
+    handleUpdateCapaProp(listCapaId, "childTemplates", updated);
+  };
+
+  const handleInstantiateChildTemplate = (listCapaId: string, tmpl: ChildTemplate) => {
+    if (!plantillaActiva) return;
+    const { newRoot, newDescendants, idMap } = cloneLayerTreeWithNewIds(
+      tmpl.rootCapa,
+      tmpl.descendantCapas || [],
+      listCapaId
+    );
+    newRoot.originTemplateId = tmpl.id;
+
+    const newExposedProps = (tmpl.exposedProperties || []).map((ep: any) => {
+      const newLayerId = idMap.get(ep.layerId);
+      if (!newLayerId) return null;
+      return {
+        ...ep,
+        layerId: newLayerId
+      };
+    }).filter(Boolean);
+
+    const updater = (prev: any) => {
+      return {
+        ...prev,
+        capas: [...prev.capas, newRoot, ...newDescendants],
+        exposedProperties: [...(prev.exposedProperties || []), ...newExposedProps]
+      };
+    };
+
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+    setTempExposedProperties(prev => [...prev, ...newExposedProps]);
+    setSelectedLayerId(newRoot.id);
   };
 
   // --- Modificar Clave de Capa (Sincronizada con camposConfig y valores de carta) ---
@@ -1974,6 +2107,10 @@ export default function EditCardModal({
                         else if (capa.layout === "horizontal-center") subtitle = "Contenedor Horizontal Centrado";
                         else if (capa.layout === "horizontal-reverse") subtitle = "Contenedor Horizontal Inverso";
                         else subtitle = "Contenedor Libre";
+                      } else if (capa.tipo === "list") {
+                        title = capa.nombre;
+                        const tCount = capa.childTemplates?.length || 0;
+                        subtitle = `Lista (${tCount} ${tCount === 1 ? "subplantilla" : "subplantillas"})`;
                       } else if (capa.tipo === "block") {
                         title = capa.nombre || "Bloque";
                         subtitle = "Bloque Vacío";
@@ -1995,7 +2132,7 @@ export default function EditCardModal({
 
                       const isDragOver = dragOverLayerId === capa.id;
                       const dragOverClass = isDragOver
-                        ? (capa.tipo === "container" ? "drag-over-container" : "drag-over")
+                        ? ((capa.tipo === "container" || capa.tipo === "list") ? "drag-over-container" : "drag-over")
                         : "";
 
                       return (
@@ -2018,7 +2155,7 @@ export default function EditCardModal({
                           onMouseEnter={() => setHoveredLayerId(capa.id)}
                           onMouseLeave={() => setHoveredLayerId(null)}
                         >
-                          {capa.tipo === "container" ? (
+                          {(capa.tipo === "container" || capa.tipo === "list") ? (
                             <button
                               type="button"
                               className="collapse-toggle-btn"
@@ -2033,7 +2170,7 @@ export default function EditCardModal({
                             <span className="collapse-placeholder" />
                           )}
                           <span className="hierarchy-icon">
-                            {capa.tipo === "background" ? "🎨" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : capa.tipo === "block" ? "⬜" : "📝"}
+                            {capa.tipo === "background" ? "🎨" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : capa.tipo === "list" ? "📋" : capa.tipo === "block" ? "⬜" : "📝"}
                           </span>
                           <div className="hierarchy-text-container" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                             <span className="hierarchy-label" style={{ fontWeight: 600, fontSize: "13px" }}>{title}</span>
@@ -2379,7 +2516,7 @@ export default function EditCardModal({
                           );
                         }
 
-                        if (capa.tipo === "container") {
+                        if (capa.tipo === "container" || capa.tipo === "list") {
                           const overrides = tempCapasOverridesActivos[capa.id];
                           const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 
@@ -2643,7 +2780,7 @@ export default function EditCardModal({
                 <div className="inspector-panel">
                   <div className="inspector-layer-header">
                     <span className="inspector-layer-icon">
-                      {selectedCapa.tipo === "background" ? "🎨" : (selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") ? "🖼️" : selectedCapa.tipo === "container" ? "📦" : selectedCapa.tipo === "block" ? "⬜" : "📝"}
+                      {selectedCapa.tipo === "background" ? "🎨" : (selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch") ? "🖼️" : selectedCapa.tipo === "container" ? "📦" : selectedCapa.tipo === "list" ? "📋" : selectedCapa.tipo === "block" ? "⬜" : "📝"}
                     </span>
                     <input
                       type="text"
@@ -2674,8 +2811,8 @@ export default function EditCardModal({
 
                   {/* Formulario Unificado de Propiedades (SRS-035) */}
                   <div className="inspector-properties-form" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
-                    {/* Alineación y Posición (Común para text, image, image-switch, container, block) */}
-                    {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "block") && (
+                    {/* Alineación y Posición (Común para text, image, image-switch, container, list, block) */}
+                    {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "list" || selectedCapa.tipo === "block") && (
                       <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
                         <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
                           <h4 className="inspector-group-title" style={{ margin: 0 }}>Posición y Dimensiones</h4>
@@ -2841,8 +2978,8 @@ export default function EditCardModal({
 
                         {/* Checkboxes de Dimensiones Automáticas (SRS-050) */}
                         {(() => {
-                          const canAutoWidth = selectedCapa.tipo === "text" || (selectedCapa.tipo === "container" && isHorizontalLayout(selectedCapa.layout));
-                          const canAutoHeight = selectedCapa.tipo === "text" || (selectedCapa.tipo === "container" && isVerticalLayout(selectedCapa.layout));
+                          const canAutoWidth = selectedCapa.tipo === "text" || ((selectedCapa.tipo === "container" || selectedCapa.tipo === "list") && isHorizontalLayout(selectedCapa.layout));
+                          const canAutoHeight = selectedCapa.tipo === "text" || ((selectedCapa.tipo === "container" || selectedCapa.tipo === "list") && isVerticalLayout(selectedCapa.layout));
 
                           if (!canAutoWidth && !canAutoHeight) return null;
 
@@ -3771,13 +3908,281 @@ export default function EditCardModal({
                           >
                             <option value="">(Raíz)</option>
                             {(plantillaActiva.capas || [])
-                              .filter((c: any) => c.tipo === "container" && c.id !== selectedCapa.id && !isDescendant(c.id, selectedCapa.id))
+                              .filter((c: any) => (c.tipo === "container" || c.tipo === "list") && c.id !== selectedCapa.id && !isDescendant(c.id, selectedCapa.id))
                               .map((c: any) => (
                                 <option key={c.id} value={c.id}>
-                                  {c.nombre || `Contenedor ${c.id}`}
+                                  {c.nombre || `${c.tipo === "list" ? "Lista" : "Contenedor"} ${c.id}`}
                                 </option>
                               ))}
                           </select>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Capas de Lista (SRS-072) */}
+                    {selectedCapa.tipo === "list" && (
+                      <div className="inspector-group-section">
+                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
+                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Definición de Lista</h4>
+                          {renderExposedEye("items", "Elementos Lista")}
+                        </div>
+
+                        <div className="inspector-section">
+                          <label className="inspector-label">Nombre de la Lista</label>
+                          <input
+                            type="text"
+                            className="inspector-input"
+                            value={selectedCapa.nombre || ""}
+                            placeholder="ej. Lista de Ataques"
+                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
+                          />
+                        </div>
+
+                        <div className="inspector-section" style={{ marginTop: "12px" }}>
+                          <label className="inspector-label">Tipo de Layout</label>
+                          <select
+                            className="inspector-input"
+                            value={selectedCapa.layout || "vertical"}
+                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "layout", e.target.value)}
+                          >
+                            <option value="vertical">Lineal Vertical</option>
+                            <option value="vertical-center">Lineal Vertical Centrado</option>
+                            <option value="vertical-reverse">Lineal Vertical Inverso (Abajo a Arriba)</option>
+                            <option value="horizontal">Lineal Horizontal</option>
+                            <option value="horizontal-center">Lineal Horizontal Centrado</option>
+                            <option value="horizontal-reverse">Lineal Horizontal Inverso (Derecha a Izquierda)</option>
+                          </select>
+                        </div>
+
+                        <div className="inspector-section" style={{ marginTop: "12px" }}>
+                          <label className="inspector-label">Contenedor Padre</label>
+                          <select
+                            className="inspector-input"
+                            value={selectedCapa.parentCapaId || ""}
+                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "parentCapaId", e.target.value === "" ? null : e.target.value)}
+                          >
+                            <option value="">(Raíz)</option>
+                            {(plantillaActiva.capas || [])
+                              .filter((c: any) => (c.tipo === "container" || c.tipo === "list") && c.id !== selectedCapa.id && !isDescendant(c.id, selectedCapa.id))
+                              .map((c: any) => (
+                                <option key={c.id} value={c.id}>
+                                  {c.nombre || `${c.tipo === "list" ? "Lista" : "Contenedor"} ${c.id}`}
+                                </option>
+                              ))}
+                          </select>
+                        </div>
+
+                        {/* Subplantillas Disponibles (Child Blueprints) */}
+                        <div style={{ marginTop: "16px", borderTop: "1px dashed var(--border-color)", paddingTop: "12px" }}>
+                          <label className="inspector-label" style={{ fontWeight: 600 }}>📦 Subplantillas Disponibles ({((selectedCapa.childTemplates || []).length)})</label>
+                          <p style={{ fontSize: "11px", color: "var(--text-secondary)", margin: "4px 0 8px 0" }}>
+                            Las subplantillas se conservan en la lista aunque borres los elementos del lienzo.
+                          </p>
+
+                          {((selectedCapa.childTemplates || []).length === 0) ? (
+                            <div style={{ fontSize: "12px", color: "var(--text-secondary)", fontStyle: "italic", padding: "6px 0" }}>
+                              No hay subplantillas registradas en esta lista.
+                            </div>
+                          ) : (
+                            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                              {(selectedCapa.childTemplates || []).map((tmpl: ChildTemplate) => (
+                                <div key={tmpl.id} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--bg-secondary)", padding: "6px 8px", borderRadius: "4px", border: "1px solid var(--border-color)" }}>
+                                  <span style={{ fontSize: "14px" }}>📋</span>
+                                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px" }}>
+                                    <input
+                                      type="text"
+                                      className="inspector-input"
+                                      style={{ fontSize: "12px", padding: "2px 4px", height: "auto" }}
+                                      value={tmpl.name}
+                                      title="Nombre de la subplantilla"
+                                      onChange={(e) => handleUpdateChildTemplate(selectedCapa.id, tmpl.id, { name: e.target.value })}
+                                    />
+                                    <input
+                                      type="text"
+                                      className="inspector-input"
+                                      style={{ fontSize: "10px", padding: "1px 4px", height: "auto", color: "var(--text-secondary)" }}
+                                      value={tmpl.tag}
+                                      title="Tag identificativo"
+                                      placeholder="tag"
+                                      onChange={(e) => handleUpdateChildTemplate(selectedCapa.id, tmpl.id, { tag: e.target.value })}
+                                    />
+                                  </div>
+                                  <button
+                                    type="button"
+                                    className="btn-danger"
+                                    style={{ padding: "4px 6px", fontSize: "11px" }}
+                                    title="Eliminar Subplantilla"
+                                    onClick={() => {
+                                      if (window.confirm(`¿Eliminar la subplantilla "${tmpl.name}"?`)) {
+                                        handleDeleteChildTemplate(selectedCapa.id, tmpl.id);
+                                      }
+                                    }}
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Guardar hijo existente como subplantilla */}
+                          <div style={{ background: "var(--bg-tertiary, #2a2a2a)", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", marginTop: "8px" }}>
+                            <div style={{ fontSize: "11px", fontWeight: 600, marginBottom: "6px" }}>➕ Guardar hijo existente como Subplantilla:</div>
+                            {(() => {
+                              const directChildren = (plantillaActiva.capas || []).filter((c: any) => c.parentCapaId === selectedCapa.id);
+                              if (directChildren.length === 0) {
+                                return (
+                                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                                    Añade elementos dentro de esta lista en el árbol de capas para poder guardarlos como subplantilla.
+                                  </div>
+                                );
+                              }
+                              return (
+                                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                  <select
+                                    className="inspector-input"
+                                    style={{ fontSize: "12px" }}
+                                    value={selectedChildForTemplate}
+                                    onChange={(e) => {
+                                      setSelectedChildForTemplate(e.target.value);
+                                      const found = directChildren.find((c: any) => c.id === e.target.value);
+                                      if (found) {
+                                        setNewTemplateName(found.nombre || "Subplantilla");
+                                        setNewTemplateTag((found.nombre || "item").toLowerCase().replace(/\s+/g, "_"));
+                                      }
+                                    }}
+                                  >
+                                    <option value="">-- Seleccionar elemento hijo --</option>
+                                    {directChildren.map((child: any) => (
+                                      <option key={child.id} value={child.id}>
+                                        {child.nombre || `${child.tipo} ${child.id}`} ({child.tipo})
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {selectedChildForTemplate && (
+                                    <>
+                                      <input
+                                        type="text"
+                                        className="inspector-input"
+                                        style={{ fontSize: "12px" }}
+                                        placeholder="Nombre legible (ej. Ataque Melé)"
+                                        value={newTemplateName}
+                                        onChange={(e) => setNewTemplateName(e.target.value)}
+                                      />
+                                      <input
+                                        type="text"
+                                        className="inspector-input"
+                                        style={{ fontSize: "11px" }}
+                                        placeholder="Tag (ej. mele)"
+                                        value={newTemplateTag}
+                                        onChange={(e) => setNewTemplateTag(e.target.value)}
+                                      />
+                                      <button
+                                        type="button"
+                                        className="btn-primary"
+                                        style={{ padding: "4px 8px", fontSize: "11px", alignSelf: "flex-end" }}
+                                        onClick={() => handleSaveChildAsTemplate(selectedCapa.id)}
+                                      >
+                                        ➕ Registrar Subplantilla
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Instanciar en la Plantilla */}
+                          {(selectedCapa.childTemplates || []).length > 0 && (
+                            <div style={{ marginTop: "12px" }}>
+                              <div style={{ fontSize: "11px", fontWeight: 600, marginBottom: "6px" }}>Insertar instancia en plantilla:</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                {(selectedCapa.childTemplates || []).map((tmpl: ChildTemplate) => (
+                                  <button
+                                    key={tmpl.id}
+                                    type="button"
+                                    className="btn-secondary"
+                                    style={{
+                                      padding: "4px 10px",
+                                      fontSize: "11px",
+                                      display: "flex",
+                                      alignItems: "center",
+                                      gap: "4px",
+                                      backgroundColor: "rgba(147, 51, 234, 0.2)",
+                                      color: "#e9d5ff",
+                                      borderRadius: "4px",
+                                      border: "1px solid rgba(168, 85, 247, 0.5)",
+                                      cursor: "pointer",
+                                      fontWeight: 600
+                                    }}
+                                    onClick={() => handleInstantiateChildTemplate(selectedCapa.id, tmpl)}
+                                  >
+                                    ➕ {tmpl.name}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Elementos Actuales en la Lista */}
+                          {(() => {
+                            const directChildren = (plantillaActiva.capas || []).filter((c: any) => c.parentCapaId === selectedCapa.id);
+                            if (directChildren.length === 0) return null;
+                            return (
+                              <div style={{ marginTop: "14px", borderTop: "1px dashed var(--border-color)", paddingTop: "10px" }}>
+                                <div style={{ fontSize: "11px", fontWeight: 600, marginBottom: "6px" }}>Elementos en esta lista ({directChildren.length}):</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                  {directChildren.map((child: any, idx: number) => (
+                                    <div key={child.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-secondary)", padding: "4px 8px", borderRadius: "4px", fontSize: "11px" }}>
+                                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "120px" }}>
+                                        {idx + 1}. {child.nombre || child.id}
+                                      </span>
+                                      <div style={{ display: "flex", gap: "2px" }}>
+                                        <button
+                                          type="button"
+                                          className="btn-secondary"
+                                          style={{ padding: "2px 4px", fontSize: "10px", color: "#e2e8f0" }}
+                                          disabled={idx === 0}
+                                          title="Mover arriba"
+                                          onClick={() => handleMoveCapa(child.id, "up")}
+                                        >
+                                          🔼
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn-secondary"
+                                          style={{ padding: "2px 4px", fontSize: "10px", color: "#e2e8f0" }}
+                                          disabled={idx === directChildren.length - 1}
+                                          title="Mover abajo"
+                                          onClick={() => handleMoveCapa(child.id, "down")}
+                                        >
+                                          🔽
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn-secondary"
+                                          style={{ padding: "2px 4px", fontSize: "10px", color: "#e2e8f0" }}
+                                          title="Duplicar elemento"
+                                          onClick={() => handleDuplicateCapa(child.id)}
+                                        >
+                                          📋
+                                        </button>
+                                        <button
+                                          type="button"
+                                          className="btn-danger"
+                                          style={{ padding: "2px 4px", fontSize: "10px" }}
+                                          title="Eliminar elemento"
+                                          onClick={() => handleDeleteCapa(child.id)}
+                                        >
+                                          🗑️
+                                        </button>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            );
+                          })()}
                         </div>
                       </div>
                     )}
@@ -3800,8 +4205,8 @@ export default function EditCardModal({
                       </div>
                     )}
 
-                    {/* Bordes, Esquinas y Fondo (text, image, image-switch, container, block) */}
-                    {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "block") && (
+                    {/* Bordes, Esquinas y Fondo (text, image, image-switch, container, list, block) */}
+                    {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "list" || selectedCapa.tipo === "block") && (
                       <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
                         
                         {/* Sección de Bordes */}
@@ -4101,6 +4506,13 @@ export default function EditCardModal({
                 <span className="add-element-option-label">Contenedor</span>
               </div>
               <div
+                className={`add-element-option ${selectedNewType === "list" ? "selected" : ""}`}
+                onClick={() => setSelectedNewType("list")}
+              >
+                <span className="add-element-option-icon">📋</span>
+                <span className="add-element-option-label">Lista</span>
+              </div>
+              <div
                 className={`add-element-option ${selectedNewType === "block" ? "selected" : ""}`}
                 onClick={() => setSelectedNewType("block")}
               >
@@ -4292,6 +4704,11 @@ export default function EditCardModal({
                         list.push(
                           { property: "layout", label: "Tipo Layout" }
                         );
+                      } else if (capa.tipo === "list") {
+                        list.push(
+                          { property: "items", label: "Elementos de la Lista" },
+                          { property: "layout", label: "Tipo Layout" }
+                        );
                       } else if (capa.tipo === "background") {
                         list.push(
                           { property: "colorFill", label: "Color Relleno" }
@@ -4308,7 +4725,7 @@ export default function EditCardModal({
 
                       const isExpanded = expandedConfigLayerIds.includes(capa.id);
                       const availableProps = getPropertiesForCapa(capa);
-                      const capaEmoji = capa.tipo === "text" ? "📝" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : "⬜";
+                      const capaEmoji = capa.tipo === "text" ? "📝" : (capa.tipo === "image" || capa.tipo === "image-switch") ? "🖼️" : capa.tipo === "container" ? "📦" : capa.tipo === "list" ? "📋" : "⬜";
 
                       const isCollapsed = collapsedConfigContainerIds.includes(capa.id);
 
@@ -4342,7 +4759,7 @@ export default function EditCardModal({
                             }}
                           >
                             <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-primary)", display: "flex", alignItems: "center" }}>
-                              {capa.tipo === "container" && (
+                              {(capa.tipo === "container" || capa.tipo === "list") && (
                                 <span
                                   style={{ marginRight: "6px", cursor: "pointer", fontSize: "11px", color: "var(--text-secondary)" }}
                                   onClick={(e) => {

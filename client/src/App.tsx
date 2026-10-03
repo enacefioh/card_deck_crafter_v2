@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle } from "shared";
-import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2, UserStorageInfo, CloudProjectMetadata, CloudTemplateMetadata } from "shared";
+import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle, cloneLayerTreeWithNewIds } from "shared";
+import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2, UserStorageInfo, CloudProjectMetadata, CloudTemplateMetadata, ChildTemplate } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
 import { validarYParsearProyecto, moverCartas, duplicarCartas, insertarCartaDesdePlantilla, validarYParsearPlantilla, obtenerRutaJerarquica, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
@@ -579,6 +579,9 @@ function AppContent() {
 
   // --- Estado de Secciones Colapsables del Inspector (SRS-043) ---
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
+
+  // --- Estado de Acordeón para Elementos de Lista (SRS-072) ---
+  const [expandedListItems, setExpandedListItems] = useState<Record<string, boolean>>({});
 
   // --- Estado de la pestaña del Inspector Delantera/Trasera (SRS-044) ---
   const [inspectorTab, setInspectorTab] = useState<"front" | "back">("front");
@@ -3585,7 +3588,7 @@ function AppContent() {
                                           );
                                         }
 
-                                        if (capa.tipo === "container") {
+                                        if (capa.tipo === "container" || capa.tipo === "list") {
                                           const overrides = cardData.capasOverrides?.[capa.id];
                                           const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 
@@ -4155,7 +4158,7 @@ function AppContent() {
                                               );
                                             }
 
-                                            if (capa.tipo === "container") {
+                                            if (capa.tipo === "container" || capa.tipo === "list") {
                                               const overrides = cardData.capasOverridesTrasera?.[capa.id];
                                               const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 
@@ -4686,7 +4689,8 @@ function AppContent() {
               }
             }
 
-            if (camposCoincidentes.length === 0) {
+            const hasAnyList = baseCapas.some((c: any) => c.tipo === "list");
+            if (camposCoincidentes.length === 0 && !hasAnyList) {
               return (
                 <div style={{ textAlign: "center", padding: "24px", color: "var(--text-secondary)", fontSize: "13px", fontStyle: "italic" }}>
                   No hay campos editables coincidentes entre las cartas seleccionadas.
@@ -4694,7 +4698,733 @@ function AppContent() {
               );
             }
 
-            // Construir los elementos a renderizar (cabeceras de contenedores y campos editables)
+            const getDescendantIds = (parentId: string, allCapas: any[]): string[] => {
+              const ids: string[] = [];
+              const children = (allCapas || []).filter((c: any) => c.parentCapaId === parentId);
+              for (const ch of children) {
+                ids.push(ch.id);
+                ids.push(...getDescendantIds(ch.id, allCapas));
+              }
+              return ids;
+            };
+
+            const isLayerInsideList = (layerId: string | null): boolean => {
+              if (!layerId) return false;
+              let curr = baseCapas.find((c: any) => c.id === layerId);
+              while (curr && curr.parentCapaId) {
+                const parent = baseCapas.find((c: any) => c.id === curr.parentCapaId);
+                if (parent && parent.tipo === "list") return true;
+                curr = parent;
+              }
+              return false;
+            };
+
+            // Operaciones dinámicas de Lista (SRS-072)
+            const handleAddListItem = (listLayerId: string, tmpl: ChildTemplate) => {
+              const { newRoot, newDescendants, idMap } = cloneLayerTreeWithNewIds(
+                tmpl.rootCapa,
+                tmpl.descendantCapas || [],
+                listLayerId
+              );
+              newRoot.originTemplateId = tmpl.id;
+
+              let effectiveExposed: any[] = tmpl.exposedProperties ? [...tmpl.exposedProperties] : [];
+              if (effectiveExposed.length === 0) {
+                const tmplOriginalIds = new Set([tmpl.rootCapa.id, ...(tmpl.descendantCapas || []).map((d: any) => d.id)]);
+                effectiveExposed = (plantillaBase?.exposedProperties || []).filter((ep: any) => tmplOriginalIds.has(ep.layerId));
+                if (effectiveExposed.length === 0) {
+                  effectiveExposed = [];
+                  const allLayers = [tmpl.rootCapa, ...(tmpl.descendantCapas || [])];
+                  allLayers.forEach((l: any) => {
+                    if (l.tipo === "text") {
+                      effectiveExposed.push({ layerId: l.id, property: "contenidoRaw", label: `${l.nombre || "Texto"} > Contenido Texto` });
+                    } else if (l.tipo === "image" || l.tipo === "image-switch") {
+                      effectiveExposed.push({ layerId: l.id, property: "src", label: `${l.nombre || "Imagen"} > Recurso Imagen` });
+                    }
+                  });
+                }
+              }
+
+              const newExposedProps = (effectiveExposed || []).map((ep: any) => {
+                const newLayerId = idMap.get(ep.layerId);
+                if (!newLayerId) return null;
+                return {
+                  ...ep,
+                  layerId: newLayerId
+                };
+              }).filter(Boolean);
+
+              setCartas(prev => prev.map(c => {
+                if (!selectedCardIds.includes(c.id)) return c;
+                const p = JSON.parse(JSON.stringify(
+                  isBack
+                    ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
+                    : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null))
+                ));
+                if (!p) return c;
+
+                p.capas = [...(p.capas || []), newRoot, ...newDescendants];
+                p.exposedProperties = [...(p.exposedProperties || []), ...newExposedProps];
+
+                return isBack
+                  ? { ...c, plantillaTrasera: p }
+                  : { ...c, plantilla: p, exposedProperties: p.exposedProperties };
+              }));
+
+              setExpandedListItems(prev => ({ ...prev, [newRoot.id]: true }));
+              setIsDirty(true);
+            };
+
+            const handleMoveListItem = (listLayerId: string, itemId: string, dir: "up" | "down") => {
+              setCartas(prev => prev.map(c => {
+                if (!selectedCardIds.includes(c.id)) return c;
+                const p = JSON.parse(JSON.stringify(
+                  isBack
+                    ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
+                    : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null))
+                ));
+                if (!p) return c;
+
+                const direct = p.capas.filter((layer: any) => layer.parentCapaId === listLayerId);
+                const idx = direct.findIndex((layer: any) => layer.id === itemId);
+                if (idx === -1) return c;
+                if (dir === "up" && idx === 0) return c;
+                if (dir === "down" && idx === direct.length - 1) return c;
+
+                const targetIdx = dir === "up" ? idx - 1 : idx + 1;
+                const itemA = direct[idx];
+                const itemB = direct[targetIdx];
+
+                const getSubtree = (rootId: string): any[] => {
+                  const res: any[] = [];
+                  const root = p.capas.find((layer: any) => layer.id === rootId);
+                  if (root) res.push(root);
+                  const children = p.capas.filter((layer: any) => layer.parentCapaId === rootId);
+                  for (const ch of children) {
+                    res.push(...getSubtree(ch.id));
+                  }
+                  return res;
+                };
+
+                const subtreeA = getSubtree(itemA.id);
+                const subtreeB = getSubtree(itemB.id);
+                const firstSubtree = dir === "up" ? subtreeB : subtreeA;
+                const secondSubtree = dir === "up" ? subtreeA : subtreeB;
+                const allIds = new Set([...firstSubtree.map((layer: any) => layer.id), ...secondSubtree.map((layer: any) => layer.id)]);
+
+                const firstIndex = p.capas.findIndex((layer: any) => allIds.has(layer.id));
+                const withoutBoth = p.capas.filter((layer: any) => !allIds.has(layer.id));
+
+                const newCapas = [...withoutBoth];
+                if (dir === "up") {
+                  newCapas.splice(firstIndex, 0, ...subtreeA, ...subtreeB);
+                } else {
+                  newCapas.splice(firstIndex, 0, ...subtreeB, ...subtreeA);
+                }
+
+                p.capas = newCapas;
+
+                return isBack
+                  ? { ...c, plantillaTrasera: p }
+                  : { ...c, plantilla: p, exposedProperties: p.exposedProperties };
+              }));
+              setIsDirty(true);
+            };
+
+            const handleDuplicateListItem = (listLayerId: string, childId: string) => {
+              setCartas(prev => prev.map(c => {
+                if (!selectedCardIds.includes(c.id)) return c;
+                const p = JSON.parse(JSON.stringify(
+                  isBack
+                    ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
+                    : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null))
+                ));
+                if (!p) return c;
+
+                const rootCapa = p.capas.find((x: any) => x.id === childId);
+                if (!rootCapa) return c;
+
+                const descendants = getDescendantIds(rootCapa.id, p.capas);
+                const { newRoot, newDescendants, idMap } = cloneLayerTreeWithNewIds(rootCapa, descendants, listLayerId);
+
+                const allOriginalIds = new Set([rootCapa.id, ...descendants]);
+                const relatedExposed = (p.exposedProperties || []).filter((ep: any) => allOriginalIds.has(ep.layerId));
+                const newExposed = relatedExposed.map((ep: any) => ({
+                  ...ep,
+                  layerId: idMap.get(ep.layerId)!
+                }));
+
+                const lastDescendantId = descendants.length > 0 ? descendants[descendants.length - 1] : rootCapa.id;
+                const insertIdx = p.capas.findIndex((x: any) => x.id === lastDescendantId);
+                const nextCapas = [...p.capas];
+                nextCapas.splice(insertIdx + 1, 0, newRoot, ...newDescendants);
+
+                p.capas = nextCapas;
+                p.exposedProperties = [...(p.exposedProperties || []), ...newExposed];
+
+                const nextOverrides = { ...(isBack ? c.capasOverridesTrasera : c.capasOverrides) };
+                const nextValores = { ...(isBack ? c.valoresCamposTrasera : c.valoresCampos) };
+                idMap.forEach((newId, oldId) => {
+                  if (nextOverrides[oldId]) {
+                    nextOverrides[newId] = JSON.parse(JSON.stringify(nextOverrides[oldId]));
+                  }
+                  if (nextValores[oldId] !== undefined) {
+                    nextValores[newId] = nextValores[oldId];
+                  }
+                });
+
+                setExpandedListItems(exp => ({ ...exp, [newRoot.id]: true }));
+
+                return isBack
+                  ? { ...c, plantillaTrasera: p, capasOverridesTrasera: nextOverrides, valoresCamposTrasera: nextValores }
+                  : { ...c, plantilla: p, exposedProperties: p.exposedProperties, capasOverrides: nextOverrides, valoresCampos: nextValores };
+              }));
+              setIsDirty(true);
+            };
+
+            const handleDeleteListItem = (childId: string) => {
+              setCartas(prev => prev.map(c => {
+                if (!selectedCardIds.includes(c.id)) return c;
+                const p = JSON.parse(JSON.stringify(
+                  isBack
+                    ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
+                    : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null))
+                ));
+                if (!p) return c;
+
+                const idsToDelete = [childId, ...getDescendantIds(childId, p.capas)];
+                p.capas = p.capas.filter((x: any) => !idsToDelete.includes(x.id));
+                p.exposedProperties = (p.exposedProperties || []).filter((ep: any) => !idsToDelete.includes(ep.layerId));
+
+                const nextOverrides = { ...(isBack ? c.capasOverridesTrasera : c.capasOverrides) };
+                const nextValores = { ...(isBack ? c.valoresCamposTrasera : c.valoresCampos) };
+                idsToDelete.forEach(id => {
+                  delete nextOverrides[id];
+                  delete nextValores[id];
+                });
+
+                return isBack
+                  ? { ...c, plantillaTrasera: p, capasOverridesTrasera: nextOverrides, valoresCamposTrasera: nextValores }
+                  : { ...c, plantilla: p, exposedProperties: p.exposedProperties, capasOverrides: nextOverrides, valoresCampos: nextValores };
+              }));
+              setIsDirty(true);
+            };
+
+            // Renderizador común de campo expuesto (para lista e inspector general)
+            const renderFieldRow = (campo: any, rowKey: string, customIndentPx?: number) => {
+              const currentCapaId = campo.mapaCartaCapaId[cartaBase.id];
+              const friendlyPath = obtenerRutaJerarquica(currentCapaId, baseCapas);
+              const nestingLevel = friendlyPath ? friendlyPath.split(" > ").length : 1;
+              const indentStyle = { paddingLeft: `${customIndentPx !== undefined ? customIndentPx : nestingLevel * 12}px` };
+
+              const valores = selectedCartas.map((c) => {
+                const capaId = campo.mapaCartaCapaId[c.id];
+                if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
+                  if (isBack) {
+                    if (c.valoresCamposTrasera && c.valoresCamposTrasera[capaId] !== undefined) return c.valoresCamposTrasera[capaId];
+                    if (c.capasOverridesTrasera?.[capaId]?.contenidoRaw !== undefined) return c.capasOverridesTrasera[capaId].contenidoRaw;
+                    const p = c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null);
+                    return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
+                  } else {
+                    if (c.valoresCampos && c.valoresCampos[capaId] !== undefined) return c.valoresCampos[capaId];
+                    if (c.capasOverrides?.[capaId]?.contenidoRaw !== undefined) return c.capasOverrides[capaId].contenidoRaw;
+                    const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
+                    return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
+                  }
+                }
+                const overrideObj = (isBack ? c.capasOverridesTrasera?.[capaId] : c.capasOverrides?.[capaId]) as any;
+                if (overrideObj?.[campo.property] !== undefined) {
+                  return overrideObj[campo.property];
+                }
+                const p = isBack
+                  ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
+                  : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null));
+                const layerObj = p?.capas?.find((x: any) => x.id === capaId) as any;
+                return layerObj?.[campo.property] || "";
+              });
+
+              const todosIguales = valores.every((v) => v === valores[0]);
+              const valorMostrar = todosIguales ? (valores[0] || "") : "";
+              const placeholderTexto = todosIguales ? "" : "<Valores múltiples>";
+
+              const handleUpdateValorLote = (nuevoValor: any) => {
+                const nuevasCartas = cartas.map((c) => {
+                  if (!selectedCardIds.includes(c.id)) return c;
+                  const capaId = campo.mapaCartaCapaId[c.id];
+                  if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
+                    if (isBack) {
+                      const nextValoresCamposTrasera = { ...(c.valoresCamposTrasera || {}) };
+                      nextValoresCamposTrasera[capaId] = nuevoValor;
+                      return { ...c, valoresCamposTrasera: nextValoresCamposTrasera };
+                    } else {
+                      const nextValoresCampos = { ...(c.valoresCampos || {}) };
+                      nextValoresCampos[capaId] = nuevoValor;
+                      return { ...c, valoresCampos: nextValoresCampos };
+                    }
+                  }
+                  
+                  let extraUpdates: any = {};
+                  if (campo.property === "borderTopColor") {
+                    extraUpdates = {
+                      borderTopColor: nuevoValor,
+                      borderRightColor: nuevoValor,
+                      borderBottomColor: nuevoValor,
+                      borderLeftColor: nuevoValor
+                    };
+                  } else if (campo.property === "borderTopWidth") {
+                    extraUpdates = {
+                      borderTopWidth: nuevoValor,
+                      borderRightWidth: nuevoValor,
+                      borderBottomWidth: nuevoValor,
+                      borderLeftWidth: nuevoValor
+                    };
+                  } else if (campo.property === "borderTopLeftRadius") {
+                    extraUpdates = {
+                      borderTopLeftRadius: nuevoValor,
+                      borderTopRightRadius: nuevoValor,
+                      borderBottomRightRadius: nuevoValor,
+                      borderBottomLeftRadius: nuevoValor
+                    };
+                  } else if (campo.property === "paddingTopMm") {
+                    extraUpdates = {
+                      paddingTopMm: nuevoValor,
+                      paddingRightMm: nuevoValor,
+                      paddingBottomMm: nuevoValor,
+                      paddingLeftMm: nuevoValor
+                    };
+                  } else {
+                    extraUpdates = {
+                      [campo.property]: nuevoValor
+                    };
+                  }
+
+                  if (isBack) {
+                    const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
+                    const currentOverride = nextOverridesTrasera[capaId] || {};
+                    nextOverridesTrasera[capaId] = {
+                      ...currentOverride,
+                      ...extraUpdates
+                    };
+                    return { ...c, capasOverridesTrasera: nextOverridesTrasera };
+                  } else {
+                    const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                    const currentOverride = nextOverrides[capaId] || {};
+                    nextOverrides[capaId] = {
+                      ...currentOverride,
+                      ...extraUpdates
+                    };
+                    return { ...c, capasOverrides: nextOverrides };
+                  }
+                });
+                setCartas(nuevasCartas);
+                setIsDirty(true);
+              };
+
+              const isTextarea = campo.tipoCapa === "text" && campo.property === "contenidoRaw" && campo.multiline !== false;
+              let displayLabel = "";
+              if (campo.property === "contenidoRaw" || campo.property === "src") {
+                 const labelParts = campo.ruta.split(" > ");
+                 displayLabel = labelParts[labelParts.length - 1];
+              } else {
+                 const labelParts = (campo.label || "").split(" > ");
+                 displayLabel = labelParts[labelParts.length - 1] || campo.property;
+              }
+              const labelTruncated = displayLabel.length > 15 ? displayLabel.substring(0, 13) + "..." : displayLabel;
+
+              if (isTextarea) {
+                return (
+                  <div
+                    key={rowKey}
+                    className={`inspector-row-multiline${!rightSidebarCollapsed && hoveredCapaId === currentCapaId ? " highlighted-property-field" : ""}`}
+                    style={indentStyle}
+                    data-inspector-capa-id={currentCapaId}
+                    onMouseEnter={() => { if (!rightSidebarCollapsed) setHoveredCapaId(currentCapaId); }}
+                    onMouseLeave={() => { if (!rightSidebarCollapsed) setHoveredCapaId(null); }}
+                  >
+                    <label className="inspector-label-col" title={displayLabel} style={{ fontWeight: "600", fontSize: "11px" }}>
+                      {labelTruncated}
+                    </label>
+                    <div className="inspector-value-col" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                        <div className="symbols-helper-container" style={{ position: "relative" }}>
+                          <span
+                            className="symbols-helper-trigger"
+                            title="Insertar símbolo"
+                            style={{ cursor: "pointer", fontSize: "14px" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveSymbolPopover(activeSymbolPopover === `inspector_${rowKey}` ? null : `inspector_${rowKey}`);
+                            }}
+                          >
+                            🖼️
+                          </span>
+                          {activeSymbolPopover === `inspector_${rowKey}` && (
+                            <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "4px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                              {projectSymbols.length === 0 ? (
+                                <div className="symbols-helper-empty" style={{ fontSize: "11px", padding: "4px", color: "var(--text-secondary)" }}>No hay símbolos</div>
+                              ) : (
+                                projectSymbols.map((sym: any) => (
+                                  <button
+                                    key={sym.id}
+                                    type="button"
+                                    className="symbols-helper-item"
+                                    style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const inputId = `inspector-textarea-${rowKey}`;
+                                      handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
+                                        handleUpdateValorLote(newVal);
+                                      });
+                                    }}
+                                  >
+                                    <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
+                                    <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <textarea
+                        id={`inspector-textarea-${rowKey}`}
+                        ref={(el) => {
+                          if (el) {
+                            el.style.height = "auto";
+                            el.style.height = `${Math.max(40, el.scrollHeight)}px`;
+                          }
+                        }}
+                        className="inspector-textarea"
+                        value={valorMostrar}
+                        placeholder={placeholderTexto}
+                        onChange={(e) => {
+                          handleUpdateValorLote(e.target.value);
+                          e.target.style.height = "auto";
+                          e.target.style.height = `${Math.max(40, e.target.scrollHeight)}px`;
+                        }}
+                      />
+                    </div>
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={rowKey}
+                  className={`inspector-row${!rightSidebarCollapsed && hoveredCapaId === currentCapaId ? " highlighted-property-field" : ""}`}
+                  style={indentStyle}
+                  data-inspector-capa-id={currentCapaId}
+                  onMouseEnter={() => { if (!rightSidebarCollapsed) setHoveredCapaId(currentCapaId); }}
+                  onMouseLeave={() => { if (!rightSidebarCollapsed) setHoveredCapaId(null); }}
+                >
+                  <label className="inspector-label-col" title={displayLabel}>
+                    {labelTruncated}
+                  </label>
+                  <div className="inspector-value-col">
+                    {campo.tipoCapa === "text" && campo.property === "contenidoRaw" && (
+                      <div style={{ display: "flex", gap: "4px", width: "100%", alignItems: "center", position: "relative" }}>
+                        <input
+                          id={`inspector-input-${rowKey}`}
+                          type="text"
+                          className="inspector-input"
+                          value={valorMostrar}
+                          placeholder={placeholderTexto}
+                          onChange={(e) => handleUpdateValorLote(e.target.value)}
+                          style={{ height: "26px", fontSize: "12px", flex: 1, minWidth: 0 }}
+                        />
+                        <div className="symbols-helper-container" style={{ position: "relative" }}>
+                          <span
+                            className="symbols-helper-trigger"
+                            title="Insertar símbolo"
+                            style={{ cursor: "pointer", fontSize: "14px" }}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveSymbolPopover(activeSymbolPopover === `inspector_${rowKey}` ? null : `inspector_${rowKey}`);
+                            }}
+                          >
+                            🖼️
+                          </span>
+                          {activeSymbolPopover === `inspector_${rowKey}` && (
+                            <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "4px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                              {projectSymbols.length === 0 ? (
+                                <div className="symbols-helper-empty" style={{ fontSize: "11px", padding: "4px", color: "var(--text-secondary)" }}>No hay símbolos</div>
+                              ) : (
+                                projectSymbols.map((sym: any) => (
+                                  <button
+                                    key={sym.id}
+                                    type="button"
+                                    className="symbols-helper-item"
+                                    style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const inputId = `inspector-input-${rowKey}`;
+                                      handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
+                                        handleUpdateValorLote(newVal);
+                                      });
+                                    }}
+                                  >
+                                    <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
+                                    <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
+                                  </button>
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) && (
+                      <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                        <input
+                          type="color"
+                          style={{ width: "24px", height: "24px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", flexShrink: 0 }}
+                          value={todosIguales && valorMostrar.startsWith("#") ? valorMostrar : "#ffffff"}
+                          onChange={(e) => handleUpdateValorLote(e.target.value)}
+                        />
+                        {projectColors && projectColors.length > 0 ? (
+                          <select
+                            className="inspector-input"
+                            value={projectColors.some(c => c.valor.toLowerCase() === valorMostrar.toLowerCase()) ? projectColors.find(c => c.valor.toLowerCase() === valorMostrar.toLowerCase())?.valor : ""}
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleUpdateValorLote(e.target.value);
+                              }
+                            }}
+                            style={{ fontSize: "11px", height: "24px", padding: "0 4px", flex: 1, minWidth: 0 }}
+                          >
+                            <option value="">Personalizado</option>
+                            {projectColors.map((c) => (
+                              <option key={c.id} value={c.valor}>
+                                {c.nombre}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type="text"
+                            className="inspector-input"
+                            style={{ flex: 1, minWidth: 0, height: "24px", fontSize: "11px" }}
+                            value={valorMostrar}
+                            placeholder={placeholderTexto || "#ffffff"}
+                            onChange={(e) => handleUpdateValorLote(e.target.value)}
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {(campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src" && (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                        <div style={{ display: "flex", gap: "4px", width: "100%" }}>
+                          <button
+                            type="button"
+                            className="btn-action"
+                            style={{ flex: 1, padding: "4px", fontSize: "10px", height: "24px" }}
+                            onClick={() => {
+                              setSidebarGalleryTargetField(campo);
+                              setSidebarGallerySelectorTab("project");
+                              setShowSidebarGallerySelector(true);
+                            }}
+                          >
+                            🖼️ Galería
+                          </button>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            id={`sidebar-upload-${rowKey}`}
+                            style={{ display: "none" }}
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = async (event) => {
+                                  const base64 = event.target?.result as string;
+                                  const assetId = `user_asset_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+                                  const nuevoRecurso = { id: assetId, nombre: file.name, src: base64 };
+                                  setUserAssets((prev) => {
+                                    if (prev.some((x: any) => x.src === base64)) return prev;
+                                    return [...prev, nuevoRecurso];
+                                  });
+                                  handleUpdateValorLote(base64);
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                          />
+                          <label
+                            htmlFor={`sidebar-upload-${rowKey}`}
+                            className="btn-action"
+                            style={{ flex: 1, padding: "4px", fontSize: "10px", height: "24px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                          >
+                            📤 Subir
+                          </label>
+                        </div>
+
+                        {campo.tipoCapa === "image-switch" && campo.options && campo.options.length > 0 && (
+                          <div style={{ marginTop: "4px" }}>
+                            <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>
+                              {campo.options.map((opt: any) => {
+                                const seleccionado = todosIguales && valorMostrar === opt.src;
+                                return (
+                                  <button
+                                    key={opt.id}
+                                    type="button"
+                                    style={{
+                                      flexShrink: 0,
+                                      width: "24px",
+                                      height: "24px",
+                                      border: seleccionado ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                                      borderRadius: "4px",
+                                      overflow: "hidden",
+                                      cursor: "pointer",
+                                      padding: 0,
+                                      backgroundColor: seleccionado ? "var(--bg-primary)" : "transparent"
+                                    }}
+                                    onClick={() => handleUpdateValorLote(opt.src)}
+                                    title={opt.nombre}
+                                  >
+                                    <img src={opt.src} alt={opt.nombre} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {campo.property === "canvasEditMode" && (
+                      <button
+                        type="button"
+                        className="btn-sec"
+                        style={{
+                          width: "100%",
+                          height: "26px",
+                          padding: "0 12px",
+                          fontSize: "12px",
+                          fontWeight: 600,
+                          borderRadius: "4px",
+                          border: "1px solid var(--border-color)",
+                          backgroundColor: activeCanvasEditLayerId === currentCapaId ? "var(--accent-primary)" : "var(--bg-app)",
+                          color: activeCanvasEditLayerId === currentCapaId ? "white" : "var(--text-primary)",
+                          cursor: "pointer",
+                          transition: "all 0.2s ease"
+                        }}
+                        onClick={() => {
+                          if (activeCanvasEditLayerId === currentCapaId) {
+                            setActiveCanvasEditLayerId(null);
+                          } else {
+                            setActiveCanvasEditLayerId(currentCapaId);
+                          }
+                        }}
+                      >
+                        {activeCanvasEditLayerId === currentCapaId ? "⏹️ Salir" : "🖱️ Mover"}
+                      </button>
+                    )}
+
+                    {(campo.property === "anchoMm" || campo.property === "altoMm") && (
+                      <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                        <input
+                          type={valorMostrar === "auto" ? "text" : "number"}
+                          step="0.5"
+                          className="inspector-input"
+                          style={{ flex: 1, minWidth: 0, height: "26px", fontSize: "12px" }}
+                          value={valorMostrar === "auto" ? "-" : (valorMostrar !== undefined ? valorMostrar : "")}
+                          placeholder={placeholderTexto}
+                          disabled={valorMostrar === "auto"}
+                          onChange={(e) => {
+                            if (valorMostrar !== "auto") {
+                              handleUpdateValorLote(Number(Number(e.target.value).toFixed(1)));
+                            }
+                          }}
+                        />
+                        <label style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "11px", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                          <input
+                            type="checkbox"
+                            checked={valorMostrar === "auto"}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                handleUpdateValorLote("auto");
+                              } else {
+                                handleUpdateValorLote(campo.property === "anchoMm" ? 40 : 20);
+                              }
+                            }}
+                            style={{ width: "auto", margin: 0 }}
+                          />
+                          Auto
+                        </label>
+                      </div>
+                    )}
+
+                    {campo.property === "rotacion" && (
+                      <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                        <input
+                          type="number"
+                          min="-180"
+                          max="180"
+                          step="1"
+                          className="inspector-input"
+                          style={{ width: "60px", height: "26px", fontSize: "12px" }}
+                          value={valorMostrar !== undefined ? valorMostrar : 0}
+                          placeholder={placeholderTexto}
+                          onChange={(e) => {
+                            let val = Number(e.target.value);
+                            if (isNaN(val)) val = 0;
+                            if (val < -180) val = -180;
+                            if (val > 180) val = 180;
+                            handleUpdateValorLote(val);
+                          }}
+                        />
+                        <input
+                          type="range"
+                          min="-180"
+                          max="180"
+                          step="1"
+                          style={{ flex: 1, cursor: "pointer", height: "26px" }}
+                          value={valorMostrar !== undefined ? valorMostrar : 0}
+                          onChange={(e) => handleUpdateValorLote(Number(e.target.value))}
+                        />
+                      </div>
+                    )}
+
+                    {campo.property !== "anchoMm" &&
+                      campo.property !== "altoMm" &&
+                      campo.property !== "canvasEditMode" &&
+                      campo.property !== "visibility" &&
+                      campo.property !== "rotacion" &&
+                      !(campo.tipoCapa === "text" && campo.property === "contenidoRaw") &&
+                      !(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) &&
+                      !((campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src") && (
+                        <input
+                          type="number"
+                          step="0.5"
+                          className="inspector-input"
+                          style={{ height: "26px", fontSize: "12px", width: "100%" }}
+                          value={valorMostrar !== undefined ? valorMostrar : ""}
+                          placeholder={placeholderTexto}
+                          onChange={(e) => handleUpdateValorLote(Number(Number(e.target.value).toFixed(1)))}
+                        />
+                      )}
+
+                    {campo.property === "visibility" && (
+                      <select
+                        className="inspector-input"
+                        value={todosIguales ? valorMostrar : ""}
+                        onChange={(e) => handleUpdateValorLote(e.target.value)}
+                        style={{ height: "26px", fontSize: "12px", width: "100%" }}
+                      >
+                        {!todosIguales && <option value="" disabled>&lt;Múltiples&gt;</option>}
+                        <option value="visible">Visible</option>
+                        <option value="hidden">Invisible</option>
+                        <option value="collapsed">Eliminado</option>
+                      </select>
+                    )}
+                  </div>
+                </div>
+              );
+            };
+
+            // Construir los elementos a renderizar (cabeceras de contenedores, listas y campos editables)
             // siguiendo el orden de capas jerárquico DFS pre-orden de la plantilla (TKT-041)
             const renderableItems: any[] = [];
 
@@ -4714,6 +5444,20 @@ function AppContent() {
             };
 
             capasOrdenadas.forEach((capa) => {
+              if (isLayerInsideList(capa.id)) {
+                return; // Omitir capas pertenecientes a items de listas (se renderizan en su acordeón dedicado)
+              }
+
+              if (capa.tipo === "list") {
+                renderableItems.push({
+                  type: "list",
+                  id: capa.id,
+                  capa: capa,
+                  nestingLevel: 1
+                });
+                return;
+              }
+
               if (capa.tipo === "container") {
                 const isContained = (layer: any) => {
                   let curr = layer;
@@ -4754,8 +5498,7 @@ function AppContent() {
 
             return (
               <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
-                {renderableItems.map((item, itemIdx) => {
-                  const fieldIdx = itemIdx;
+                {renderableItems.map((item, _itemIdx) => {
                   if (item.type === "header") {
                     const isCollapsed = collapsedSections[item.id] === true;
                     if (isAncestorCollapsed(item.id)) {
@@ -4777,6 +5520,178 @@ function AppContent() {
                     );
                   }
 
+                  if (item.type === "list") {
+                    const listLayer = item.capa;
+                    const listChildren = baseCapas.filter((c: any) => c.parentCapaId === listLayer.id);
+
+                    return (
+                      <div
+                        key={`list_section_${listLayer.id}`}
+                        className="inspector-list-container"
+                        style={{
+                          border: "1px solid var(--border-color)",
+                          borderRadius: "6px",
+                          padding: "10px",
+                          backgroundColor: "var(--bg-card)",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "10px"
+                        }}
+                      >
+                        {/* Cabecera de la lista */}
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: "600", fontSize: "13px", color: "var(--text-primary)" }}>
+                            <span>📋</span>
+                            <span>{listLayer.nombre || "Lista"}</span>
+                          </div>
+                          <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
+                            {listChildren.length} {listChildren.length === 1 ? "elemento" : "elementos"}
+                          </span>
+                        </div>
+
+                        {/* Botonera de Creación Rápida */}
+                        {selectedCartas.length > 1 ? (
+                          <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                            Selecciona una única carta para añadir o reordenar elementos de la lista.
+                          </div>
+                        ) : (
+                          <>
+                            {listLayer.childTemplates && listLayer.childTemplates.length > 0 && (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 600 }}>Añadir elemento:</span>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                                  {listLayer.childTemplates.map((tmpl: ChildTemplate) => (
+                                    <button
+                                      key={tmpl.id}
+                                      type="button"
+                                      className="btn-secondary"
+                                      style={{
+                                        padding: "4px 10px",
+                                        fontSize: "11px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        gap: "4px",
+                                        backgroundColor: "rgba(147, 51, 234, 0.2)",
+                                        color: "#e9d5ff",
+                                        borderRadius: "4px",
+                                        border: "1px solid rgba(168, 85, 247, 0.5)",
+                                        cursor: "pointer",
+                                        fontWeight: 600
+                                      }}
+                                      onClick={() => handleAddListItem(listLayer.id, tmpl)}
+                                      title={`Añadir ${tmpl.name}`}
+                                    >
+                                      ➕ {tmpl.name}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Elementos Actuales (Acordeón) */}
+                            {listChildren.length === 0 ? (
+                              <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>
+                                La lista está vacía. Añade elementos pulsando los botones superiores.
+                              </div>
+                            ) : (
+                              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                {listChildren.map((child: any, idx: number) => {
+                                  const isExpanded = expandedListItems[child.id] === true;
+                                  const childTreeIds = new Set([child.id, ...getDescendantIds(child.id, baseCapas)]);
+                                  const itemCampos = camposCoincidentes.filter(cc => childTreeIds.has(cc.mapaCartaCapaId[cartaBase.id]));
+
+                                  return (
+                                    <div key={child.id} style={{ border: "1px solid var(--border-color)", borderRadius: "4px", backgroundColor: "var(--bg-app)", overflow: "hidden" }}>
+                                      {/* Cabecera del Item del Acordeón */}
+                                      <div
+                                        style={{
+                                          display: "flex",
+                                          alignItems: "center",
+                                          justifyContent: "space-between",
+                                          padding: "6px 8px",
+                                          backgroundColor: "var(--bg-secondary)",
+                                          cursor: "pointer",
+                                          userSelect: "none"
+                                        }}
+                                        onClick={() => setExpandedListItems(prev => ({ ...prev, [child.id]: !isExpanded }))}
+                                      >
+                                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "600", minWidth: 0, flex: 1 }}>
+                                          <span style={{ fontSize: "10px", color: "var(--text-secondary)" }}>
+                                            {isExpanded ? "▼" : "▶"}
+                                          </span>
+                                          <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={child.nombre || `Elemento ${idx + 1}`}>
+                                            {idx + 1}. {child.nombre || `Elemento ${idx + 1}`}
+                                          </span>
+                                        </div>
+
+                                        {/* Botones de Acción Rápida */}
+                                        <div style={{ display: "flex", gap: "2px", alignItems: "center" }} onClick={(e) => e.stopPropagation()}>
+                                          <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            style={{ padding: "2px 5px", fontSize: "10px", color: "#e2e8f0" }}
+                                            disabled={idx === 0}
+                                            title="Mover arriba"
+                                            onClick={() => handleMoveListItem(listLayer.id, child.id, "up")}
+                                          >
+                                            🔼
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            style={{ padding: "2px 5px", fontSize: "10px", color: "#e2e8f0" }}
+                                            disabled={idx === listChildren.length - 1}
+                                            title="Mover abajo"
+                                            onClick={() => handleMoveListItem(listLayer.id, child.id, "down")}
+                                          >
+                                            🔽
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn-secondary"
+                                            style={{ padding: "2px 5px", fontSize: "10px", color: "#e2e8f0" }}
+                                            title="Duplicar elemento"
+                                            onClick={() => handleDuplicateListItem(listLayer.id, child.id)}
+                                          >
+                                            📋
+                                          </button>
+                                          <button
+                                            type="button"
+                                            className="btn-danger"
+                                            style={{ padding: "2px 5px", fontSize: "10px" }}
+                                            title="Eliminar elemento"
+                                            onClick={() => handleDeleteListItem(child.id)}
+                                          >
+                                            🗑️
+                                          </button>
+                                        </div>
+                                      </div>
+
+                                      {/* Cuerpo del Item Desplegado con Campos Expuestos */}
+                                      {isExpanded && (
+                                        <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--border-color)" }}>
+                                          {itemCampos.length === 0 ? (
+                                            <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", padding: "4px 0" }}>
+                                              No hay propiedades expuestas para este elemento.
+                                            </div>
+                                          ) : (
+                                            itemCampos.map((campo, campoIdx) =>
+                                              renderFieldRow(campo, `list_item_${child.id}_${campo.property}_${campoIdx}`, 0)
+                                            )
+                                          )}
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  }
+
                   const campo = item.campo;
                   const isCollapsed = collapsedSections[item.layerId] === true;
                   const layer = baseCapas.find((l: any) => l.id === item.layerId);
@@ -4785,517 +5700,7 @@ function AppContent() {
                     return null;
                   }
 
-                  const friendlyPath = obtenerRutaJerarquica(item.layerId, baseCapas);
-                  const nestingLevel = friendlyPath ? friendlyPath.split(" > ").length : 1;
-                  const indentStyle = { paddingLeft: `${nestingLevel * 12}px` };
-
-                  const valores = selectedCartas.map((c) => {
-                              const capaId = campo.mapaCartaCapaId[c.id];
-                              if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
-                                if (isBack) {
-                                  if (c.valoresCamposTrasera && c.valoresCamposTrasera[capaId] !== undefined) return c.valoresCamposTrasera[capaId];
-                                  if (c.capasOverridesTrasera?.[capaId]?.contenidoRaw !== undefined) return c.capasOverridesTrasera[capaId].contenidoRaw;
-                                  const p = c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null);
-                                  return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
-                                } else {
-                                  if (c.valoresCampos && c.valoresCampos[capaId] !== undefined) return c.valoresCampos[capaId];
-                                  if (c.capasOverrides?.[capaId]?.contenidoRaw !== undefined) return c.capasOverrides[capaId].contenidoRaw;
-                                  const p = c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null);
-                                  return p?.capas?.find((x: any) => x.id === capaId)?.contenidoRaw || "";
-                                }
-                              }
-                              const overrideObj = (isBack ? c.capasOverridesTrasera?.[capaId] : c.capasOverrides?.[capaId]) as any;
-                              if (overrideObj?.[campo.property] !== undefined) {
-                                return overrideObj[campo.property];
-                              }
-                              const p = isBack
-                                ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
-                                : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null));
-                              const layerObj = p?.capas?.find((x: any) => x.id === capaId) as any;
-                              return layerObj?.[campo.property] || "";
-                            });
-
-                            const todosIguales = valores.every((v) => v === valores[0]);
-                            const valorMostrar = todosIguales ? (valores[0] || "") : "";
-                            const placeholderTexto = todosIguales ? "" : "<Valores múltiples>";
-
-                            const handleUpdateValorLote = (nuevoValor: any) => {
-                              const nuevasCartas = cartas.map((c) => {
-                                if (!selectedCardIds.includes(c.id)) return c;
-                                const capaId = campo.mapaCartaCapaId[c.id];
-                                if (campo.tipoCapa === "text" && campo.property === "contenidoRaw") {
-                                  if (isBack) {
-                                    const nextValoresCamposTrasera = { ...(c.valoresCamposTrasera || {}) };
-                                    nextValoresCamposTrasera[capaId] = nuevoValor;
-                                    return { ...c, valoresCamposTrasera: nextValoresCamposTrasera };
-                                  } else {
-                                    const nextValoresCampos = { ...(c.valoresCampos || {}) };
-                                    nextValoresCampos[capaId] = nuevoValor;
-                                    return { ...c, valoresCampos: nextValoresCampos };
-                                  }
-                                }
-                                
-                                let extraUpdates: any = {};
-                                if (campo.property === "borderTopColor") {
-                                  extraUpdates = {
-                                    borderTopColor: nuevoValor,
-                                    borderRightColor: nuevoValor,
-                                    borderBottomColor: nuevoValor,
-                                    borderLeftColor: nuevoValor
-                                  };
-                                } else if (campo.property === "borderTopWidth") {
-                                  extraUpdates = {
-                                    borderTopWidth: nuevoValor,
-                                    borderRightWidth: nuevoValor,
-                                    borderBottomWidth: nuevoValor,
-                                    borderLeftWidth: nuevoValor
-                                  };
-                                } else if (campo.property === "borderTopLeftRadius") {
-                                  extraUpdates = {
-                                    borderTopLeftRadius: nuevoValor,
-                                    borderTopRightRadius: nuevoValor,
-                                    borderBottomRightRadius: nuevoValor,
-                                    borderBottomLeftRadius: nuevoValor
-                                  };
-                                } else if (campo.property === "paddingTopMm") {
-                                  extraUpdates = {
-                                    paddingTopMm: nuevoValor,
-                                    paddingRightMm: nuevoValor,
-                                    paddingBottomMm: nuevoValor,
-                                    paddingLeftMm: nuevoValor
-                                  };
-                                } else {
-                                  extraUpdates = {
-                                    [campo.property]: nuevoValor
-                                  };
-                                }
-
-                                if (isBack) {
-                                  const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
-                                  const currentOverride = nextOverridesTrasera[capaId] || {};
-                                  nextOverridesTrasera[capaId] = {
-                                    ...currentOverride,
-                                    ...extraUpdates
-                                  };
-                                  return { ...c, capasOverridesTrasera: nextOverridesTrasera };
-                                } else {
-                                  const nextOverrides = { ...(c.capasOverrides || {}) } as any;
-                                  const currentOverride = nextOverrides[capaId] || {};
-                                  nextOverrides[capaId] = {
-                                    ...currentOverride,
-                                    ...extraUpdates
-                                  };
-                                  return { ...c, capasOverrides: nextOverrides };
-                                }
-                              });
-                              setCartas(nuevasCartas);
-                              setIsDirty(true);
-                            };
-
-                            const isTextarea = campo.tipoCapa === "text" && campo.property === "contenidoRaw" && campo.multiline !== false;
-                            let displayLabel = "";
-                            if (campo.property === "contenidoRaw" || campo.property === "src") {
-                               const labelParts = campo.ruta.split(" > ");
-                               displayLabel = labelParts[labelParts.length - 1];
-                            } else {
-                               const labelParts = (campo.label || "").split(" > ");
-                               displayLabel = labelParts[labelParts.length - 1] || campo.property;
-                            }
-                            const labelTruncated = displayLabel.length > 15 ? displayLabel.substring(0, 13) + "..." : displayLabel;
-
-                            const currentCapaId = campo.mapaCartaCapaId[cartaBase.id];
-
-                            if (isTextarea) {
-                              return (
-                                <div
-                                  key={campo.property + "_" + fieldIdx}
-                                  className={`inspector-row-multiline${!rightSidebarCollapsed && hoveredCapaId === currentCapaId ? " highlighted-property-field" : ""}`}
-                                  style={indentStyle}
-                                  data-inspector-capa-id={currentCapaId}
-                                  onMouseEnter={() => { if (!rightSidebarCollapsed) setHoveredCapaId(currentCapaId); }}
-                                  onMouseLeave={() => { if (!rightSidebarCollapsed) setHoveredCapaId(null); }}
-                                >
-                                  <label className="inspector-label-col" title={displayLabel} style={{ fontWeight: "600", fontSize: "11px" }}>
-                                    {labelTruncated}
-                                  </label>
-                                  <div className="inspector-value-col" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                                      <div className="symbols-helper-container" style={{ position: "relative" }}>
-                                        <span
-                                          className="symbols-helper-trigger"
-                                          title="Insertar símbolo"
-                                          style={{ cursor: "pointer", fontSize: "14px" }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActiveSymbolPopover(activeSymbolPopover === `inspector_${campo.property}_${fieldIdx}` ? null : `inspector_${campo.property}_${fieldIdx}`);
-                                          }}
-                                        >
-                                          🖼️
-                                        </span>
-                                        {activeSymbolPopover === `inspector_${campo.property}_${fieldIdx}` && (
-                                          <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "4px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
-                                            {projectSymbols.length === 0 ? (
-                                              <div className="symbols-helper-empty" style={{ fontSize: "11px", padding: "4px", color: "var(--text-secondary)" }}>No hay símbolos</div>
-                                            ) : (
-                                              projectSymbols.map((sym: any) => (
-                                                <button
-                                                  key={sym.id}
-                                                  type="button"
-                                                  className="symbols-helper-item"
-                                                  style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const inputId = `inspector-textarea-${campo.property}-${fieldIdx}`;
-                                                    handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
-                                                      handleUpdateValorLote(newVal);
-                                                    });
-                                                  }}
-                                                >
-                                                  <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
-                                                  <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
-                                                </button>
-                                              ))
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <textarea
-                                      id={`inspector-textarea-${campo.property}-${fieldIdx}`}
-                                      ref={(el) => {
-                                        if (el) {
-                                          el.style.height = "auto";
-                                          el.style.height = `${Math.max(40, el.scrollHeight)}px`;
-                                        }
-                                      }}
-                                      className="inspector-textarea"
-                                      value={valorMostrar}
-                                      placeholder={placeholderTexto}
-                                      onChange={(e) => {
-                                        handleUpdateValorLote(e.target.value);
-                                        e.target.style.height = "auto";
-                                        e.target.style.height = `${Math.max(40, e.target.scrollHeight)}px`;
-                                      }}
-                                    />
-                                  </div>
-                                </div>
-                              );
-                            }
-
-                            return (
-                              <div
-                                key={campo.property + "_" + fieldIdx}
-                                className={`inspector-row${!rightSidebarCollapsed && hoveredCapaId === currentCapaId ? " highlighted-property-field" : ""}`}
-                                style={indentStyle}
-                                data-inspector-capa-id={currentCapaId}
-                                onMouseEnter={() => { if (!rightSidebarCollapsed) setHoveredCapaId(currentCapaId); }}
-                                onMouseLeave={() => { if (!rightSidebarCollapsed) setHoveredCapaId(null); }}
-                              >
-                                <label className="inspector-label-col" title={displayLabel}>
-                                  {labelTruncated}
-                                </label>
-                                <div className="inspector-value-col">
-                                  {campo.tipoCapa === "text" && campo.property === "contenidoRaw" && (
-                                    <div style={{ display: "flex", gap: "4px", width: "100%", alignItems: "center", position: "relative" }}>
-                                      <input
-                                        id={`inspector-input-${campo.property}-${fieldIdx}`}
-                                        type="text"
-                                        className="inspector-input"
-                                        value={valorMostrar}
-                                        placeholder={placeholderTexto}
-                                        onChange={(e) => handleUpdateValorLote(e.target.value)}
-                                        style={{ height: "26px", fontSize: "12px", flex: 1, minWidth: 0 }}
-                                      />
-                                      <div className="symbols-helper-container" style={{ position: "relative" }}>
-                                        <span
-                                          className="symbols-helper-trigger"
-                                          title="Insertar símbolo"
-                                          style={{ cursor: "pointer", fontSize: "14px" }}
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setActiveSymbolPopover(activeSymbolPopover === `inspector_${campo.property}_${fieldIdx}` ? null : `inspector_${campo.property}_${fieldIdx}`);
-                                          }}
-                                        >
-                                          🖼️
-                                        </span>
-                                        {activeSymbolPopover === `inspector_${campo.property}_${fieldIdx}` && (
-                                          <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "4px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
-                                            {projectSymbols.length === 0 ? (
-                                              <div className="symbols-helper-empty" style={{ fontSize: "11px", padding: "4px", color: "var(--text-secondary)" }}>No hay símbolos</div>
-                                            ) : (
-                                              projectSymbols.map((sym: any) => (
-                                                <button
-                                                  key={sym.id}
-                                                  type="button"
-                                                  className="symbols-helper-item"
-                                                  style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
-                                                  onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    const inputId = `inspector-input-${campo.property}-${fieldIdx}`;
-                                                    handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
-                                                      handleUpdateValorLote(newVal);
-                                                    });
-                                                  }}
-                                                >
-                                                  <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
-                                                  <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
-                                                </button>
-                                              ))
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  )}
-
-                                  {(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) && (
-                                    <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
-                                      <input
-                                        type="color"
-                                        style={{ width: "24px", height: "24px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", flexShrink: 0 }}
-                                        value={todosIguales && valorMostrar.startsWith("#") ? valorMostrar : "#ffffff"}
-                                        onChange={(e) => handleUpdateValorLote(e.target.value)}
-                                      />
-                                      {projectColors && projectColors.length > 0 ? (
-                                        <select
-                                          className="inspector-input"
-                                          value={projectColors.some(c => c.valor.toLowerCase() === valorMostrar.toLowerCase()) ? projectColors.find(c => c.valor.toLowerCase() === valorMostrar.toLowerCase())?.valor : ""}
-                                          onChange={(e) => {
-                                            if (e.target.value) {
-                                              handleUpdateValorLote(e.target.value);
-                                            }
-                                          }}
-                                          style={{ fontSize: "11px", height: "24px", padding: "0 4px", flex: 1, minWidth: 0 }}
-                                        >
-                                          <option value="">Personalizado</option>
-                                          {projectColors.map((c) => (
-                                            <option key={c.id} value={c.valor}>
-                                              {c.nombre}
-                                            </option>
-                                          ))}
-                                        </select>
-                                      ) : (
-                                        <input
-                                          type="text"
-                                          className="inspector-input"
-                                          style={{ flex: 1, minWidth: 0, height: "24px", fontSize: "11px" }}
-                                          value={valorMostrar}
-                                          placeholder={placeholderTexto || "#ffffff"}
-                                          onChange={(e) => handleUpdateValorLote(e.target.value)}
-                                        />
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {(campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src" && (
-                                    <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
-                                      <div style={{ display: "flex", gap: "4px", width: "100%" }}>
-                                        <button
-                                          type="button"
-                                          className="btn-action"
-                                          style={{ flex: 1, padding: "4px", fontSize: "10px", height: "24px" }}
-                                          onClick={() => {
-                                            setSidebarGalleryTargetField(campo);
-                                            setSidebarGallerySelectorTab("project");
-                                            setShowSidebarGallerySelector(true);
-                                          }}
-                                        >
-                                          🖼️ Galería
-                                        </button>
-                                        <input
-                                          type="file"
-                                          accept="image/*"
-                                          id={`sidebar-upload-${fieldIdx}`}
-                                          style={{ display: "none" }}
-                                          onChange={async (e) => {
-                                            const file = e.target.files?.[0];
-                                            if (file) {
-                                              const reader = new FileReader();
-                                              reader.onload = async (event) => {
-                                                const base64 = event.target?.result as string;
-                                                const assetId = `user_asset_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-                                                const nuevoRecurso = { id: assetId, nombre: file.name, src: base64 };
-                                                setUserAssets((prev) => {
-                                                  if (prev.some((x: any) => x.src === base64)) return prev;
-                                                  return [...prev, nuevoRecurso];
-                                                });
-                                                handleUpdateValorLote(base64);
-                                              };
-                                              reader.readAsDataURL(file);
-                                            }
-                                          }}
-                                        />
-                                        <label
-                                          htmlFor={`sidebar-upload-${fieldIdx}`}
-                                          className="btn-action"
-                                          style={{ flex: 1, padding: "4px", fontSize: "10px", height: "24px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
-                                        >
-                                          📤 Subir
-                                        </label>
-                                      </div>
-
-                                      {campo.tipoCapa === "image-switch" && campo.options && campo.options.length > 0 && (
-                                        <div style={{ marginTop: "4px" }}>
-                                          <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>
-                                            {campo.options.map((opt: any) => {
-                                              const seleccionado = todosIguales && valorMostrar === opt.src;
-                                              return (
-                                                <button
-                                                  key={opt.id}
-                                                  type="button"
-                                                  style={{
-                                                    flexShrink: 0,
-                                                    width: "24px",
-                                                    height: "24px",
-                                                    border: seleccionado ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
-                                                    borderRadius: "4px",
-                                                    overflow: "hidden",
-                                                    cursor: "pointer",
-                                                    padding: 0,
-                                                    backgroundColor: seleccionado ? "var(--bg-primary)" : "transparent"
-                                                  }}
-                                                  onClick={() => handleUpdateValorLote(opt.src)}
-                                                  title={opt.nombre}
-                                                >
-                                                  <img src={opt.src} alt={opt.nombre} style={{ width: "100%", height: "100%", objectFit: "contain" }} />
-                                                </button>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
-                                   {campo.property === "canvasEditMode" && (
-                                     <button
-                                       type="button"
-                                       className="btn-sec"
-                                       style={{
-                                         width: "100%",
-                                         height: "26px",
-                                         padding: "0 12px",
-                                         fontSize: "12px",
-                                         fontWeight: 600,
-                                         borderRadius: "4px",
-                                         border: "1px solid var(--border-color)",
-                                         backgroundColor: activeCanvasEditLayerId === currentCapaId ? "var(--accent-primary)" : "var(--bg-app)",
-                                         color: activeCanvasEditLayerId === currentCapaId ? "white" : "var(--text-primary)",
-                                         cursor: "pointer",
-                                         transition: "all 0.2s ease"
-                                       }}
-                                       onClick={() => {
-                                         if (activeCanvasEditLayerId === currentCapaId) {
-                                           setActiveCanvasEditLayerId(null);
-                                         } else {
-                                           setActiveCanvasEditLayerId(currentCapaId);
-                                         }
-                                       }}
-                                     >
-                                       {activeCanvasEditLayerId === currentCapaId ? "⏹️ Salir" : "🖱️ Mover"}
-                                     </button>
-                                   )}
-
-                                   {(campo.property === "anchoMm" || campo.property === "altoMm") && (
-                                     <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
-                                       <input
-                                         type={valorMostrar === "auto" ? "text" : "number"}
-                                         step="0.5"
-                                         className="inspector-input"
-                                         style={{ flex: 1, minWidth: 0, height: "26px", fontSize: "12px" }}
-                                         value={valorMostrar === "auto" ? "-" : (valorMostrar !== undefined ? valorMostrar : "")}
-                                         placeholder={placeholderTexto}
-                                         disabled={valorMostrar === "auto"}
-                                         onChange={(e) => {
-                                           if (valorMostrar !== "auto") {
-                                             handleUpdateValorLote(Number(Number(e.target.value).toFixed(1)));
-                                           }
-                                         }}
-                                       />
-                                       <label style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "11px", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
-                                         <input
-                                           type="checkbox"
-                                           checked={valorMostrar === "auto"}
-                                           onChange={(e) => {
-                                             if (e.target.checked) {
-                                               handleUpdateValorLote("auto");
-                                             } else {
-                                               handleUpdateValorLote(campo.property === "anchoMm" ? 40 : 20);
-                                             }
-                                           }}
-                                           style={{ width: "auto", margin: 0 }}
-                                         />
-                                         Auto
-                                       </label>
-                                     </div>
-                                   )}
-
-                                   {campo.property === "rotacion" && (
-                                      <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
-                                        <input
-                                          type="number"
-                                          min="-180"
-                                          max="180"
-                                          step="1"
-                                          className="inspector-input"
-                                          style={{ width: "60px", height: "26px", fontSize: "12px" }}
-                                          value={valorMostrar !== undefined ? valorMostrar : 0}
-                                          placeholder={placeholderTexto}
-                                          onChange={(e) => {
-                                            let val = Number(e.target.value);
-                                            if (isNaN(val)) val = 0;
-                                            if (val < -180) val = -180;
-                                            if (val > 180) val = 180;
-                                            handleUpdateValorLote(val);
-                                          }}
-                                        />
-                                        <input
-                                          type="range"
-                                          min="-180"
-                                          max="180"
-                                          step="1"
-                                          style={{ flex: 1, cursor: "pointer", height: "26px" }}
-                                          value={valorMostrar !== undefined ? valorMostrar : 0}
-                                          onChange={(e) => handleUpdateValorLote(Number(e.target.value))}
-                                        />
-                                      </div>
-                                    )}
-
-                                   {campo.property !== "anchoMm" &&
-                                    campo.property !== "altoMm" &&
-                                    campo.property !== "canvasEditMode" &&
-                                    campo.property !== "visibility" &&
-                                    campo.property !== "rotacion" &&
-                                    !(campo.tipoCapa === "text" && campo.property === "contenidoRaw") &&
-                                    !(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) &&
-                                    !((campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src") && (
-                                      <input
-                                        type="number"
-                                        step="0.5"
-                                        className="inspector-input"
-                                        style={{ height: "26px", fontSize: "12px", width: "100%" }}
-                                        value={valorMostrar !== undefined ? valorMostrar : ""}
-                                        placeholder={placeholderTexto}
-                                        onChange={(e) => handleUpdateValorLote(Number(Number(e.target.value).toFixed(1)))}
-                                      />
-                                   )}
-
-                                  {campo.property === "visibility" && (
-                                    <select
-                                      className="inspector-input"
-                                      value={todosIguales ? valorMostrar : ""}
-                                      onChange={(e) => handleUpdateValorLote(e.target.value)}
-                                      style={{ height: "26px", fontSize: "12px", width: "100%" }}
-                                    >
-                                      {!todosIguales && <option value="" disabled>&lt;Múltiples&gt;</option>}
-                                      <option value="visible">Visible</option>
-                                      <option value="hidden">Invisible</option>
-                                      <option value="collapsed">Eliminado</option>
-                                    </select>
-                                  )}
-                                </div>
-                              </div>
-                            );
+                  return renderFieldRow(campo, `field_${item.id}`);
                 })}
               </div>
             );

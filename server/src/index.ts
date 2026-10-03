@@ -174,7 +174,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261002.2",
+      version: "v2.261003.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1072,7 +1072,7 @@ function generarHtmlImpresion(
                 `;
               }
 
-              if (capa.tipo === "container") {
+              if (capa.tipo === "container" || capa.tipo === "list") {
                 const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
                 const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 
@@ -1802,7 +1802,7 @@ function renderCardFaceContentHtml(
           return `<div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; overflow: hidden; ${borderCornersCss}"></div>`;
         }
 
-        if (capa.tipo === "container") {
+        if (capa.tipo === "container" || capa.tipo === "list") {
           const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
           const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
           const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
