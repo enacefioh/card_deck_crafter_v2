@@ -6,6 +6,7 @@ interface SaveCloudModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialName: string;
+  initialDescription?: string;
   cardCount: number;
   documentCount: number;
   templateCount?: number;
@@ -22,6 +23,7 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
   isOpen,
   onClose,
   initialName,
+  initialDescription = "",
   cardCount,
   documentCount,
   templateCount = 0,
@@ -35,16 +37,16 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
 }) => {
   const defaultFallbackName = isTemplateMode ? "Plantilla CDC2" : "Proyecto CDC2";
   const [name, setName] = useState(initialName || defaultFallbackName);
-  const [description, setDescription] = useState("");
+  const [description, setDescription] = useState(initialDescription || "");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (isOpen) {
       setName(initialName || defaultFallbackName);
-      setDescription("");
+      setDescription(initialDescription || "");
       setErrorMessage(null);
     }
-  }, [isOpen, initialName, defaultFallbackName]);
+  }, [isOpen, initialName, initialDescription, defaultFallbackName]);
 
   const backdropProps = useSafeBackdrop(() => {
     if (!isSaving) onClose();

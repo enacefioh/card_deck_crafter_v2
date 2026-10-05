@@ -88,6 +88,8 @@ function AppContent() {
   const [saveCloudMode, setSaveCloudMode] = useState<"project" | "template">("project");
   const [saveCloudAsNew, setSaveCloudAsNew] = useState<boolean>(false);
   const [currentCloudTemplateId, setCurrentCloudTemplateId] = useState<string | null>(null);
+  const [currentCloudTemplateName, setCurrentCloudTemplateName] = useState<string | null>(null);
+  const [currentCloudTemplateDescription, setCurrentCloudTemplateDescription] = useState<string>("");
   const [isSavingCloud, setIsSavingCloud] = useState(false);
   const [estimatedCloudSizeBytes, setEstimatedCloudSizeBytes] = useState<number | undefined>(undefined);
   const [isCalculatingCloudSize, setIsCalculatingCloudSize] = useState<boolean>(false);
@@ -520,6 +522,7 @@ function AppContent() {
 
   // --- Estados del Setup y Configuración del Proyecto (SRS-022) ---
   const [nombreProyecto, setNombreProyectoInternal] = useState<string>("Mi Baraja");
+  const [descripcionProyecto, setDescripcionProyectoInternal] = useState<string>("");
   const [projectCreated, setProjectCreated] = useState<boolean>(false);
   const [showCreateProjectForm, setShowCreateProjectForm] = useState<boolean>(false);
 
@@ -552,6 +555,10 @@ function AppContent() {
   // Wrappers para marcar como modificado (isDirty = true) al realizar acciones desde la UI
   const setNombreProyecto = (value: React.SetStateAction<string>) => {
     setNombreProyectoInternal(value);
+    setIsDirty(true);
+  };
+  const setDescripcionProyecto = (value: React.SetStateAction<string>) => {
+    setDescripcionProyectoInternal(value);
     setIsDirty(true);
   };
   const setProjectAssets = (value: React.SetStateAction<any[]>) => {
@@ -668,6 +675,7 @@ function AppContent() {
 
   // --- Estados y Handlers Temporales para Configuración (SRS-022) ---
   const [tempNombreProyecto, setTempNombreProyecto] = useState<string>("Mi Baraja");
+  const [tempDescripcionProyecto, setTempDescripcionProyecto] = useState<string>("");
   const [tempCanvasType, setTempCanvasType] = useState<any>("A4");
   const [tempCanvasConfig, setTempCanvasConfig] = useState<CanvasConfig>({
     tipo: "A4",
@@ -697,12 +705,13 @@ function AppContent() {
   useEffect(() => {
     if (showProjectConfig) {
       setTempNombreProyecto(nombreProyecto);
+      setTempDescripcionProyecto(descripcionProyecto);
       setTempCanvasType(canvasType);
       setTempCanvasConfig({ ...canvasConfig });
       setTempCardPreset(cardPreset);
       setTempCardConfig({ ...cardConfig });
     }
-  }, [showProjectConfig, nombreProyecto, canvasConfig, cardConfig, canvasType, cardPreset]);
+  }, [showProjectConfig, nombreProyecto, descripcionProyecto, canvasConfig, cardConfig, canvasType, cardPreset]);
 
   const handleTempCanvasPresetChange = (presetKey: any) => {
     setTempCanvasType(presetKey);
@@ -748,6 +757,7 @@ function AppContent() {
       return;
     }
     setNombreProyecto(tempNombreProyecto.trim());
+    setDescripcionProyecto(tempDescripcionProyecto.trim());
     setCanvasType(tempCanvasType);
     setCanvasConfig(tempCanvasConfig);
     setCardPreset(tempCardPreset);
@@ -1060,6 +1070,7 @@ function AppContent() {
     asTemplate?: boolean;
     newId?: string;
     newName?: string;
+    newDescription?: string;
   }): Promise<Blob> => {
     const isTemplate = options?.asTemplate === true;
     const zip = new JSZip();
@@ -1385,6 +1396,7 @@ function AppContent() {
 
     const targetId = options?.newId || (isTemplate ? `tmpl_${Date.now()}_${Math.random().toString(36).substring(2, 9)}` : currentProjectId);
     const targetNombre = options?.newName || nombreProyecto;
+    const targetDescripcion = options?.newDescription !== undefined ? options.newDescription : descripcionProyecto;
 
     const proyecto = {
       version: "2.1.0" as const,
@@ -1393,6 +1405,7 @@ function AppContent() {
       meta: {
         id: targetId,
         nombre: targetNombre,
+        descripcion: targetDescripcion,
         fechaCreacion: new Date().toISOString(),
         fechaModificacion: new Date().toISOString(),
         ...(isTemplate ? { isTemplate: true, type: "template" as const } : { type: "project" as const }),
@@ -1955,9 +1968,14 @@ function AppContent() {
 
       if (proyecto.meta && proyecto.meta.nombre) {
         setNombreProyectoInternal(proyecto.meta.nombre);
+        setTempNombreProyecto(proyecto.meta.nombre);
       } else {
         setNombreProyectoInternal("Proyecto Importado");
+        setTempNombreProyecto("Proyecto Importado");
       }
+      const loadedDesc = proyecto.meta && (proyecto.meta as any).descripcion ? (proyecto.meta as any).descripcion : "";
+      setDescripcionProyectoInternal(loadedDesc);
+      setTempDescripcionProyecto(loadedDesc);
       if (isOpeningAsTemplate) {
         setCurrentProjectId(generateProjectId());
       } else {
@@ -2074,7 +2092,7 @@ function AppContent() {
         const targetId = (saveCloudAsNew || !currentCloudTemplateId)
           ? `tmpl_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`
           : currentCloudTemplateId;
-        const zipBlob = await generarProyectoZip({ asTemplate: true, newId: targetId, newName: name });
+        const zipBlob = await generarProyectoZip({ asTemplate: true, newId: targetId, newName: name, newDescription: description });
         const result = await uploadCloudTemplate(zipBlob, {
           id: targetId,
           name,
@@ -2084,11 +2102,13 @@ function AppContent() {
         });
         setStorageInfo(result.storage);
         setCurrentCloudTemplateId(result.template.id);
+        setCurrentCloudTemplateName(result.template.name);
+        setCurrentCloudTemplateDescription(result.template.description || "");
         setShowSaveCloudModal(false);
         alert(`¡Plantilla "${result.template.name}" guardada en la nube!`);
       } else {
         const targetId = saveCloudAsNew ? generateProjectId() : currentProjectId;
-        const zipBlob = await generarProyectoZip({ newId: targetId, newName: name });
+        const zipBlob = await generarProyectoZip({ newId: targetId, newName: name, newDescription: description });
         const result = await uploadCloudProject(zipBlob, {
           id: targetId,
           name,
@@ -2098,6 +2118,10 @@ function AppContent() {
         });
         setStorageInfo(result.storage);
         setCurrentProjectId(result.project.id);
+        setNombreProyectoInternal(result.project.name);
+        setTempNombreProyecto(result.project.name);
+        setDescripcionProyectoInternal(result.project.description || "");
+        setTempDescripcionProyecto(result.project.description || "");
         setShowSaveCloudModal(false);
         setIsDirty(false);
         alert(`¡Proyecto "${result.project.name}" guardado en la nube!`);
@@ -2115,6 +2139,10 @@ function AppContent() {
       const file = new File([blob], `${project.name}.cdc2`, { type: "application/octet-stream" });
       await handleCargarProyecto(file);
       setCurrentProjectId(project.id);
+      setNombreProyectoInternal(project.name);
+      setTempNombreProyecto(project.name);
+      setDescripcionProyectoInternal(project.description || "");
+      setTempDescripcionProyecto(project.description || "");
       setShowCloudProjectsModal(false);
     } catch (err: any) {
       alert(`Error al cargar el proyecto desde la nube: ${err.message || err}`);
@@ -2143,6 +2171,8 @@ function AppContent() {
       const file = new File([blob], `${template.name}.cdc2`, { type: "application/octet-stream" });
       await handleCargarProyecto(file, { asTemplate: true });
       setCurrentCloudTemplateId(template.id);
+      setCurrentCloudTemplateName(template.name);
+      setCurrentCloudTemplateDescription(template.description || "");
       setShowCloudProjectsModal(false);
     } catch (err: any) {
       alert(`Error al instanciar plantilla desde la nube: ${err.message || err}`);
@@ -2575,7 +2605,12 @@ function AppContent() {
       });
       setNombreProyectoInternal("Mi Baraja");
       setTempNombreProyecto("Mi Baraja");
+      setDescripcionProyectoInternal("");
+      setTempDescripcionProyecto("");
       setCurrentProjectId(generateProjectId());
+      setCurrentCloudTemplateId(null);
+      setCurrentCloudTemplateName(null);
+      setCurrentCloudTemplateDescription("");
       setProjectCreated(false);
       setShowCreateProjectForm(true);
       setIsDirty(false);
@@ -6898,6 +6933,18 @@ function AppContent() {
                   required
                 />
               </div>
+              <div className="input-field" style={{ marginBottom: "16px" }}>
+                <label style={{ fontWeight: 500, display: "block", marginBottom: "4px" }}>
+                  Descripción del Proyecto <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "normal" }}>(opcional)</span>
+                </label>
+                <textarea
+                  value={tempDescripcionProyecto}
+                  onChange={(e) => setTempDescripcionProyecto(e.target.value)}
+                  placeholder="Breve descripción del proyecto o juego..."
+                  rows={2}
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", boxSizing: "border-box", resize: "none", backgroundColor: "var(--bg-primary, #141418)", color: "#fff" }}
+                />
+              </div>
 
               <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", margin: "16px 0 12px 0", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
                 Ajustes de Página
@@ -7124,6 +7171,18 @@ function AppContent() {
                   required
                 />
               </div>
+              <div className="input-field" style={{ marginBottom: "16px" }}>
+                <label style={{ fontWeight: 500, display: "block", marginBottom: "4px" }}>
+                  Descripción del Proyecto <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: "normal" }}>(opcional)</span>
+                </label>
+                <textarea
+                  value={tempDescripcionProyecto}
+                  onChange={(e) => setTempDescripcionProyecto(e.target.value)}
+                  placeholder="Breve descripción del proyecto o juego..."
+                  rows={2}
+                  style={{ width: "100%", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", boxSizing: "border-box", resize: "none", backgroundColor: "var(--bg-primary, #141418)", color: "#fff" }}
+                />
+              </div>
 
               <div className="config-section-title" style={{ fontWeight: "bold", fontSize: "14px", margin: "16px 0 12px 0", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
                 Ajustes de Página
@@ -7346,8 +7405,17 @@ function AppContent() {
         onClose={() => setShowSaveCloudModal(false)}
         initialName={
           saveCloudMode === "template"
-            ? (nombreProyecto ? `Plantilla ${nombreProyecto}` : "Mi Plantilla")
-            : (tempNombreProyecto || "Mi Baraja")
+            ? (saveCloudAsNew
+                ? `${currentCloudTemplateName || (nombreProyecto ? `Plantilla ${nombreProyecto}` : "Mi Plantilla")} (Copia)`
+                : (currentCloudTemplateName || (nombreProyecto ? `Plantilla ${nombreProyecto}` : "Mi Plantilla")))
+            : (saveCloudAsNew
+                ? `${nombreProyecto || "Mi Baraja"} (Copia)`
+                : (nombreProyecto || "Mi Baraja"))
+        }
+        initialDescription={
+          saveCloudMode === "template"
+            ? (currentCloudTemplateDescription || descripcionProyecto || "")
+            : (descripcionProyecto || "")
         }
         cardCount={cartas.length}
         documentCount={documentos.length}
