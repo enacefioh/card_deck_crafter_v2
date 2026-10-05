@@ -9,7 +9,6 @@ interface MenuBarProps {
   onCargarProyectoClick: () => void;
   onGuardarProyecto: () => void;
   onAbrirComoPlantillaClick?: () => void;
-  onGuardarProyectoComo?: () => void;
   onExportarPlantillaProyecto?: () => void;
   storageInfo?: UserStorageInfo | null;
   onOpenCloudProjects?: () => void;
@@ -69,7 +68,6 @@ export default function MenuBar({
   onCargarProyectoClick,
   onGuardarProyecto,
   onAbrirComoPlantillaClick,
-  onGuardarProyectoComo,
   onExportarPlantillaProyecto,
   onImportarImagenesClick,
   onExportarPdf,
@@ -124,18 +122,44 @@ export default function MenuBar({
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [activeSubmenu, setActiveSubmenu] = useState<string | null>(null);
   const menuBarRef = useRef<HTMLDivElement>(null);
+  const submenuTimeoutRef = useRef<any>(null);
+
+  const clearSubmenuTimer = () => {
+    if (submenuTimeoutRef.current) {
+      clearTimeout(submenuTimeoutRef.current);
+      submenuTimeoutRef.current = null;
+    }
+  };
+
+  const handleSubmenuEnter = (name: string) => {
+    clearSubmenuTimer();
+    setActiveSubmenu(name);
+  };
+
+  const handleSubmenuLeave = () => {
+    clearSubmenuTimer();
+    submenuTimeoutRef.current = setTimeout(() => {
+      setActiveSubmenu(null);
+    }, 180);
+  };
+
+  const handleCloseSubmenuImmediate = () => {
+    clearSubmenuTimer();
+    setActiveSubmenu(null);
+  };
 
   // Cerrar menú al hacer click fuera
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuBarRef.current && !menuBarRef.current.contains(event.target as Node)) {
         setActiveDropdown(null);
-        setActiveSubmenu(null);
+        handleCloseSubmenuImmediate();
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
+      clearSubmenuTimer();
     };
   }, []);
 
@@ -144,7 +168,7 @@ export default function MenuBar({
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setActiveDropdown(null);
-        setActiveSubmenu(null);
+        handleCloseSubmenuImmediate();
       }
     };
     document.addEventListener("keydown", handleKeyDown);
@@ -155,19 +179,19 @@ export default function MenuBar({
 
   const handleMenuClick = (menuName: string) => {
     setActiveDropdown((prev) => (prev === menuName ? null : menuName));
-    setActiveSubmenu(null);
+    handleCloseSubmenuImmediate();
   };
 
   const handleMenuMouseEnter = (menuName: string) => {
     if (activeDropdown !== null) {
       setActiveDropdown(menuName);
-      setActiveSubmenu(null);
+      handleCloseSubmenuImmediate();
     }
   };
 
   const handleAction = (action: () => void) => {
     setActiveDropdown(null);
-    setActiveSubmenu(null);
+    handleCloseSubmenuImmediate();
     action();
   };
 
@@ -194,7 +218,7 @@ export default function MenuBar({
     <div className="menu-bar" ref={menuBarRef}>
       <div className="menu-bar-brand">
         <span className="brand-logo">🎴</span>
-        <span className="brand-text">Card Deck Crafter v2.261003.1</span>
+        <span className="brand-text">Card Deck Crafter v2.261005.1</span>
       </div>
 
 
@@ -214,14 +238,14 @@ export default function MenuBar({
               <button
                 className="menu-item"
                 onClick={() => handleAction(onNuevoProyecto)}
-                onMouseEnter={() => setActiveSubmenu(null)}
+                onMouseEnter={handleCloseSubmenuImmediate}
               >
                 <span className="menu-item-icon">📄</span> Nuevo Proyecto
               </button>
               <button
                 className="menu-item"
                 onClick={() => handleAction(onAddDocumento)}
-                onMouseEnter={() => setActiveSubmenu(null)}
+                onMouseEnter={handleCloseSubmenuImmediate}
               >
                 <span className="menu-item-icon">➕</span> Nueva Página
               </button>
@@ -231,8 +255,8 @@ export default function MenuBar({
               {/* Submenú: Abrir Proyecto */}
               <div
                 className="menu-item-submenu"
-                onMouseEnter={() => setActiveSubmenu("abrir")}
-                onMouseLeave={() => setActiveSubmenu(null)}
+                onMouseEnter={() => handleSubmenuEnter("abrir")}
+                onMouseLeave={handleSubmenuLeave}
               >
                 <div
                   className={`menu-item ${activeSubmenu === "abrir" ? "hover" : ""}`}
@@ -291,8 +315,8 @@ export default function MenuBar({
               {/* Submenú: Guardar Proyecto */}
               <div
                 className="menu-item-submenu"
-                onMouseEnter={() => setActiveSubmenu("guardar")}
-                onMouseLeave={() => setActiveSubmenu(null)}
+                onMouseEnter={() => handleSubmenuEnter("guardar")}
+                onMouseLeave={handleSubmenuLeave}
               >
                 <div
                   className={`menu-item ${activeSubmenu === "guardar" ? "hover" : ""}`}
@@ -311,12 +335,6 @@ export default function MenuBar({
                   <div className="menu-submenu">
                     <button className="menu-item" onClick={() => handleAction(onGuardarProyecto)}>
                       <span className="menu-item-icon">💻</span> Exportar a PC (.cdc2)
-                    </button>
-                    <button
-                      className="menu-item"
-                      onClick={() => handleAction(onGuardarProyectoComo || (() => {}))}
-                    >
-                      <span className="menu-item-icon">📑</span> Exportar Proyecto Como... (.cdc2)
                     </button>
                     <button
                       className="menu-item"

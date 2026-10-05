@@ -309,7 +309,7 @@
   position: absolute;
   top: -4px;
   left: 100%;
-  margin-left: 4px;
+  margin-left: 0;
   background-color: #121424;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
@@ -321,6 +321,18 @@
   gap: 2px;
   animation: menuFadeIn 0.12s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   z-index: 1002;
+}
+
+/* Puente invisible entre el item padre y el submenú para evitar pérdida de hover (TKT-049) */
+.menu-submenu::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: -12px;
+  width: 14px;
+  background: transparent;
+  pointer-events: auto;
 }
 
 .menu-item-arrow {

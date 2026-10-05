@@ -56,7 +56,6 @@ describe("SRS-067: Plantillas de Proyecto (.cdc2), Flujo Local y Organización d
 
   it("RF-1 y RF-5: MenuBar organiza adecuadamente los submenús de Archivo y Recursos", () => {
     const mockOnAbrirComoPlantilla = vi.fn();
-    const mockOnGuardarComo = vi.fn();
     const mockOnExportarPlantilla = vi.fn();
     const mockOnImportarPlantilla = vi.fn();
 
@@ -68,7 +67,6 @@ describe("SRS-067: Plantillas de Proyecto (.cdc2), Flujo Local y Organización d
             onCargarProyectoClick: vi.fn(),
             onAbrirComoPlantillaClick: mockOnAbrirComoPlantilla,
             onGuardarProyecto: vi.fn(),
-            onGuardarProyectoComo: mockOnGuardarComo,
             onExportarPlantillaProyecto: mockOnExportarPlantilla,
             onImportarPlantillaClick: mockOnImportarPlantilla,
             documentos: [],
@@ -113,20 +111,11 @@ describe("SRS-067: Plantillas de Proyecto (.cdc2), Flujo Local y Organización d
     const guardarProyectoItem = screen.getByText("Guardar Proyecto");
     fireEvent.mouseEnter(guardarProyectoItem.parentElement!);
 
-    const guardarComoBtn = screen.getByText("Exportar Proyecto Como... (.cdc2)");
-    expect(guardarComoBtn).toBeTruthy();
-
     const exportarPlantillaBtn = screen.getByText("Exportar Plantilla de Proyecto (.cdc2)");
     expect(exportarPlantillaBtn).toBeTruthy();
 
     fireEvent.click(exportarPlantillaBtn);
     expect(mockOnExportarPlantilla).toHaveBeenCalledTimes(1);
-
-    fireEvent.click(archivoBtn); // Reabrir el menú Archivo
-    const guardarProyectoItem2 = screen.getByText("Guardar Proyecto");
-    fireEvent.mouseEnter(guardarProyectoItem2.parentElement!);
-    fireEvent.click(screen.getByText("Exportar Proyecto Como... (.cdc2)"));
-    expect(mockOnGuardarComo).toHaveBeenCalledTimes(1);
 
     // 3. Menú Recursos ▶ Importar Plantilla (.cdc2t)... (RF-1: Reubicado en Recursos)
     const recursosBtn = screen.getByText("Recursos");

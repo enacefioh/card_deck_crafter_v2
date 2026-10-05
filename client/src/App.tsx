@@ -1525,37 +1525,6 @@ function AppContent() {
     }
   };
 
-  // --- Guardar Proyecto Como... (.cdc2) (SRS-067) ---
-  const handleGuardarProyectoComo = async () => {
-    const sugerido = `${nombreProyecto} (Copia)`;
-    const nuevoNombre = window.prompt("Introduce el nombre para la nueva copia del proyecto:", sugerido);
-    if (nuevoNombre === null) return;
-    const nombreFinal = nuevoNombre.trim() || sugerido;
-    const nuevaId = generateProjectId();
-
-    try {
-      const zipContentBlob = await generarProyectoZip({ newId: nuevaId, newName: nombreFinal });
-      const downloadUrl = URL.createObjectURL(zipContentBlob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      const cleanName = nombreFinal
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "_")
-        .replace(/^_+|_+$/g, "");
-      link.download = `${cleanName || "proyecto"}_${Date.now()}.cdc2`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(downloadUrl);
-
-      setCurrentProjectId(nuevaId);
-      setNombreProyectoInternal(nombreFinal);
-      setIsDirty(false);
-    } catch (error: any) {
-      alert(`Error al guardar copia del proyecto: ${error.message || error}`);
-    }
-  };
 
   // --- Exportar Plantilla de Proyecto (.cdc2) (SRS-067) ---
   const handleExportarPlantillaProyecto = async () => {
@@ -2941,7 +2910,6 @@ function AppContent() {
         onAbrirComoPlantillaClick={() => fileInputPlantillaProyectoRef.current?.click()}
         onImportarPlantillaClick={() => fileInputTemplateRef.current?.click()}
         onGuardarProyecto={handleGuardarProyecto}
-        onGuardarProyectoComo={handleGuardarProyectoComo}
         onExportarPlantillaProyecto={handleExportarPlantillaProyecto}
         storageInfo={storageInfo}
         onOpenCloudProjects={() => {
