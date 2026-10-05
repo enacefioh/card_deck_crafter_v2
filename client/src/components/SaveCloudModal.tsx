@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import type { UserStorageInfo } from "shared";
+import { useSafeBackdrop } from "../utils/modalUtils";
 
 interface SaveCloudModalProps {
   isOpen: boolean;
@@ -45,6 +46,10 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
     }
   }, [isOpen, initialName, defaultFallbackName]);
 
+  const backdropProps = useSafeBackdrop(() => {
+    if (!isSaving) onClose();
+  });
+
   if (!isOpen) return null;
 
   const estimatedMb =
@@ -86,7 +91,7 @@ export const SaveCloudModal: React.FC<SaveCloudModalProps> = ({
         justifyContent: "center",
         zIndex: 9999
       }}
-      onClick={() => !isSaving && onClose()}
+      {...backdropProps}
     >
       <div
         style={{

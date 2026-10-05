@@ -14,6 +14,7 @@ import { AdminPanel } from "./admin/AdminPanel";
 import { SaveCloudModal } from "./components/SaveCloudModal";
 import { CloudProjectsModal } from "./components/CloudProjectsModal";
 import { TemplatePreviewModal } from "./components/TemplatePreviewModal";
+import { createSafeBackdropProps } from "./utils/modalUtils";
 import {
   fetchUserStorage,
   uploadCloudProject,
@@ -91,6 +92,7 @@ function AppContent() {
   const [estimatedCloudSizeBytes, setEstimatedCloudSizeBytes] = useState<number | undefined>(undefined);
   const [isCalculatingCloudSize, setIsCalculatingCloudSize] = useState<boolean>(false);
   const [currentProjectId, setCurrentProjectId] = useState<string>(() => generateProjectId());
+  const backdropMouseDownRef = useRef(false);
 
   const refreshStorage = async () => {
     if (user) {
@@ -5759,7 +5761,7 @@ function AppContent() {
         />
       )}
       {showTemplateModal && (
-        <div className="template-modal-backdrop" onClick={() => setShowTemplateModal(false)}>
+        <div className="template-modal-backdrop" {...createSafeBackdropProps(backdropMouseDownRef, () => setShowTemplateModal(false))}>
           <div className="template-modal-container" onClick={(e) => e.stopPropagation()}>
             <header className="template-modal-header">
               <h2>{templateModalMode === "addCard" ? "Añadir Carta desde Plantilla" : "Asignar Reverso desde Plantilla"}</h2>
@@ -5927,7 +5929,7 @@ function AppContent() {
         />
       )}
       {showProjectGallery && (
-        <div className="gallery-popup-backdrop" onClick={() => setShowProjectGallery(false)}>
+        <div className="gallery-popup-backdrop" {...createSafeBackdropProps(backdropMouseDownRef, () => setShowProjectGallery(false))}>
           <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
               <h4 className="gallery-popup-title">Galería del Proyecto</h4>
@@ -6035,7 +6037,7 @@ function AppContent() {
       )}
 
       {showProjectColors && (
-        <div className="gallery-popup-backdrop" onClick={() => setShowProjectColors(false)}>
+        <div className="gallery-popup-backdrop" {...createSafeBackdropProps(backdropMouseDownRef, () => setShowProjectColors(false))}>
           <div className="gallery-popup-container" style={{ maxWidth: "500px" }} onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
               <h4 className="gallery-popup-title">Colores del Proyecto</h4>
@@ -6190,7 +6192,7 @@ function AppContent() {
       )}
 
       {showProjectFonts && (
-        <div className="gallery-popup-backdrop" onClick={() => setShowProjectFonts(false)}>
+        <div className="gallery-popup-backdrop" {...createSafeBackdropProps(backdropMouseDownRef, () => setShowProjectFonts(false))}>
           <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
               <h4 className="gallery-popup-title">Tipografías del Proyecto</h4>
@@ -6298,7 +6300,7 @@ function AppContent() {
       )}
 
       {showTemplatesManager && (
-        <div className="gallery-popup-backdrop" onClick={() => setShowTemplatesManager(false)}>
+        <div className="gallery-popup-backdrop" {...createSafeBackdropProps(backdropMouseDownRef, () => setShowTemplatesManager(false))}>
           <div className="gallery-popup-container" style={{ maxWidth: "800px" }} onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
               <h4 className="gallery-popup-title">Gestión de Plantillas</h4>
@@ -6401,7 +6403,7 @@ function AppContent() {
       )}
 
       {showSidebarGallerySelector && sidebarGalleryTargetField && (
-        <div className="gallery-popup-backdrop" style={{ zIndex: 5000 }} onClick={() => { setShowSidebarGallerySelector(false); setSidebarGalleryTargetField(null); }}>
+        <div className="gallery-popup-backdrop" style={{ zIndex: 5000 }} {...createSafeBackdropProps(backdropMouseDownRef, () => { setShowSidebarGallerySelector(false); setSidebarGalleryTargetField(null); })}>
           <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
               <h4 className="gallery-popup-title">Seleccionar de la Galería</h4>
@@ -7098,7 +7100,7 @@ function AppContent() {
       )}
 
       {showProjectConfig && (
-        <div className="template-modal-backdrop" style={{ zIndex: 3000 }} onClick={() => setShowProjectConfig(false)}>
+        <div className="template-modal-backdrop" style={{ zIndex: 3000 }} {...createSafeBackdropProps(backdropMouseDownRef, () => setShowProjectConfig(false))}>
           <div className="template-modal-container" style={{ maxWidth: "700px", padding: "24px" }} onClick={(e) => e.stopPropagation()}>
             <header className="template-modal-header" style={{ marginBottom: "16px" }}>
               <h2 style={{ margin: 0, fontSize: "20px" }}>Configuración del Proyecto</h2>

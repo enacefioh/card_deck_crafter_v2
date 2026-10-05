@@ -3,6 +3,7 @@ import "./DetailModal.css";
 import type { CanvasConfig, CardConfig, Carta } from "shared";
 import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle } from "shared";
 import { parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
+import { useSafeBackdrop } from "./utils/modalUtils";
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>): string {
   if (valoresCampos && valoresCampos[capa.nombre] !== undefined) {
@@ -53,8 +54,10 @@ export default function DetailModal({
   const templateFront = carta.plantilla || (carta.plantillaId && templatesMap ? templatesMap[carta.plantillaId] : null);
   const templateBack = carta.plantillaTrasera || (carta.plantillaTraseraId && templatesMap ? templatesMap[carta.plantillaTraseraId] : null);
 
+  const backdropProps = useSafeBackdrop(onClose);
+
   return (
-    <div className="detail-modal-backdrop" onClick={onClose}>
+    <div className="detail-modal-backdrop" {...backdropProps}>
       <div className="detail-modal-container" onClick={(e) => e.stopPropagation()}>
         <style>
           {((templateFront?.customFonts || []) as any[]).map((font) => `

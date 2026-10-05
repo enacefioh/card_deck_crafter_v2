@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useAuth } from "./AuthContext";
+import { createSafeBackdropProps } from "./utils/modalUtils";
 
 export const AuthModals: React.FC = () => {
   const {
@@ -31,6 +32,8 @@ export const AuthModals: React.FC = () => {
   const [actConfirm, setActConfirm] = useState("");
   const [actError, setActError] = useState("");
   const [actLoading, setActLoading] = useState(false);
+
+  const backdropMouseDownRef = useRef(false);
 
   // Handlers
   const handleLoginSubmit = async (e: React.FormEvent) => {
@@ -238,7 +241,7 @@ export const AuthModals: React.FC = () => {
             justifyContent: "center",
             zIndex: 9999
           }}
-          onClick={() => setShowLoginModal(false)}
+          {...createSafeBackdropProps(backdropMouseDownRef, () => setShowLoginModal(false))}
         >
           <div
             style={{
@@ -368,7 +371,7 @@ export const AuthModals: React.FC = () => {
             justifyContent: "center",
             zIndex: 99999
           }}
-          onClick={() => setActivationEmail(null)}
+          {...createSafeBackdropProps(backdropMouseDownRef, () => setActivationEmail(null))}
         >
           <div
             style={{

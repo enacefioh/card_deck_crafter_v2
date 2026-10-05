@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../AuthContext";
 import { getAvatarInitials, getAvatarColor } from "../utils/avatarUtils";
+import { createSafeBackdropProps } from "../utils/modalUtils";
 import type { UserSummary, UserRole } from "shared";
 
 interface DashboardData {
@@ -41,6 +42,8 @@ export const AdminPanel: React.FC = () => {
   const [userToEditQuota, setUserToEditQuota] = useState<UserSummary | null>(null);
   const [quotaInputMb, setQuotaInputMb] = useState<number | "">(100);
   const [quotaLoading, setQuotaLoading] = useState(false);
+
+  const backdropMouseDownRef = useRef(false);
 
   // Carga de datos
   const loadDashboard = async () => {
@@ -532,7 +535,7 @@ export const AdminPanel: React.FC = () => {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", fontSize: "13px" }}>
                   <div>
                     <span style={{ color: "#64748b", display: "block" }}>Versión Software:</span>
-                    <strong style={{ color: "#e2e8f0" }}>{dashboard?.version || "v2.261005.1"}</strong>
+                    <strong style={{ color: "#e2e8f0" }}>{dashboard?.version || "v2.261005.2"}</strong>
                   </div>
                   <div>
                     <span style={{ color: "#64748b", display: "block" }}>Motor de Base de Datos:</span>
@@ -887,7 +890,7 @@ export const AdminPanel: React.FC = () => {
             justifyContent: "center",
             zIndex: 9999
           }}
-          onClick={() => setShowAddModal(false)}
+          {...createSafeBackdropProps(backdropMouseDownRef, () => setShowAddModal(false))}
         >
           <div
             style={{
@@ -1005,7 +1008,7 @@ export const AdminPanel: React.FC = () => {
             justifyContent: "center",
             zIndex: 9999
           }}
-          onClick={() => setUserToReset(null)}
+          {...createSafeBackdropProps(backdropMouseDownRef, () => setUserToReset(null))}
         >
           <div
             style={{
@@ -1060,7 +1063,9 @@ export const AdminPanel: React.FC = () => {
             justifyContent: "center",
             zIndex: 9999
           }}
-          onClick={() => !quotaLoading && setUserToEditQuota(null)}
+          {...createSafeBackdropProps(backdropMouseDownRef, () => {
+            if (!quotaLoading) setUserToEditQuota(null);
+          })}
         >
           <div
             style={{
@@ -1196,7 +1201,7 @@ export const AdminPanel: React.FC = () => {
             justifyContent: "center",
             zIndex: 9999
           }}
-          onClick={() => setUserToDelete(null)}
+          {...createSafeBackdropProps(backdropMouseDownRef, () => setUserToDelete(null))}
         >
           <div
             style={{
@@ -1251,7 +1256,9 @@ export const AdminPanel: React.FC = () => {
             justifyContent: "center",
             zIndex: 9999
           }}
-          onClick={() => !isImportingBackup && setRestoreConfirmFile(null)}
+          {...createSafeBackdropProps(backdropMouseDownRef, () => {
+            if (!isImportingBackup) setRestoreConfirmFile(null);
+          })}
         >
           <div
             style={{

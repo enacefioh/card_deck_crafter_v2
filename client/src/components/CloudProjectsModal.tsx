@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import type { CloudProjectMetadata, CloudTemplateMetadata, UserStorageInfo } from "shared";
+import { useSafeBackdrop } from "../utils/modalUtils";
 import {
   fetchCloudProjects,
   deleteCloudProject,
@@ -71,6 +72,8 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
       setTemplateToDelete(null);
     }
   }, [isOpen, initialTab]);
+
+  const backdropProps = useSafeBackdrop(onClose);
 
   if (!isOpen) return null;
 
@@ -177,7 +180,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
         justifyContent: "center",
         zIndex: 9999
       }}
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         style={{

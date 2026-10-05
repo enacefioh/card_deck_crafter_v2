@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import type { CardConfig } from "shared";
+import { useSafeBackdrop } from "../utils/modalUtils";
 import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle } from "shared";
 import { parsearTextoConSimbolos, parseMarkdownToHtml } from "../utils/projectUtils";
 
@@ -40,6 +41,8 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
+
+  const backdropProps = useSafeBackdrop(onClose);
 
   if (!isOpen || !plantilla) return null;
 
@@ -247,7 +250,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
         padding: "20px",
         boxSizing: "border-box",
       }}
-      onClick={onClose}
+      {...backdropProps}
     >
       <div
         style={{
