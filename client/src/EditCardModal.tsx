@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import type { CardConfig, Carta, ExposedProperty, ChildTemplate } from "shared";
-import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle, cloneLayerTreeWithNewIds } from "shared";
+import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle, cloneLayerTreeWithNewIds, calculateAutoDimensionsForFreeContainer } from "shared";
 import JSZip from "jszip";
 import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
 import { generarMiniaturaPlantilla } from "./utils/thumbnailUtils";
@@ -635,7 +635,7 @@ export default function EditCardModal({
         xMm: Math.round((cardConfig.anchoMm * 0.1) * 10) / 10,
         yMm: Math.round((cardConfig.altoMm * 0.1) * 10) / 10,
         anchoMm: 50,
-        altoMm: "auto",
+        altoMm: 50,
         parentCapaId: null,
         layout: "vertical" as const,
         childTemplates: [],
@@ -1074,14 +1074,6 @@ export default function EditCardModal({
             ...c,
             [propKey]: propVal
           };
-          if (propKey === "layout") {
-            if (!isHorizontalLayout(propVal) && updatedObj.anchoMm === "auto") {
-              updatedObj.anchoMm = 40;
-            }
-            if (!isVerticalLayout(propVal) && updatedObj.altoMm === "auto") {
-              updatedObj.altoMm = 20;
-            }
-          }
           return updatedObj;
         }
         // Si cambiamos el layout de un contenedor, ponemos a 0 la X e Y de sus hijos directos
@@ -2406,6 +2398,15 @@ export default function EditCardModal({
                         const isEditActive = isSelected && canvasEditMode;
                         const isZeroRotationActive = canvasEditMode && isSelfOrAncestor(capa.id, selectedLayerId, layers);
 
+                        const isFreeContainer = (capa.tipo === "container" || capa.tipo === "list") && !isFlexLayout(resolvedCapa.layout);
+                        const autoDims = isFreeContainer ? calculateAutoDimensionsForFreeContainer(resolvedCapa, layers, tempCapasOverridesActivos) : null;
+                        const renderedWidth = resolvedCapa.anchoMm === "auto"
+                          ? (autoDims ? `${autoDims.autoWidthMm * scale}px` : "fit-content")
+                          : `${resolvedCapa.anchoMm * scale}px`;
+                        const renderedHeight = resolvedCapa.altoMm === "auto"
+                          ? (autoDims ? `${autoDims.autoHeightMm * scale}px` : "fit-content")
+                          : `${resolvedCapa.altoMm * scale}px`;
+
                         const layerStyle: React.CSSProperties = {
                           position: isParentFlex ? "relative" : "absolute",
                           left: isParentFlex 
@@ -2414,8 +2415,8 @@ export default function EditCardModal({
                           top: isParentFlex 
                             ? (isParentHorizontal ? `${resolvedCapa.yMm * scale}px` : undefined)
                             : `${resolvedCapa.yMm * scale}px`,
-                          width: resolvedCapa.anchoMm === "auto" ? "fit-content" : `${resolvedCapa.anchoMm * scale}px`,
-                          height: resolvedCapa.altoMm === "auto" ? "fit-content" : `${resolvedCapa.altoMm * scale}px`,
+                          width: renderedWidth,
+                          height: renderedHeight,
                           cursor: isEditActive ? "move" : (canvasEditMode ? "default" : "pointer"),
                           pointerEvents: (canvasEditMode && !isEditActive) ? "none" : "auto",
                           boxSizing: "border-box",
@@ -2976,52 +2977,41 @@ export default function EditCardModal({
                           </div>
                         </div>
 
-                        {/* Checkboxes de Dimensiones Automáticas (SRS-050) */}
-                        {(() => {
-                          const canAutoWidth = selectedCapa.tipo === "text" || ((selectedCapa.tipo === "container" || selectedCapa.tipo === "list") && isHorizontalLayout(selectedCapa.layout));
-                          const canAutoHeight = selectedCapa.tipo === "text" || ((selectedCapa.tipo === "container" || selectedCapa.tipo === "list") && isVerticalLayout(selectedCapa.layout));
-
-                          if (!canAutoWidth && !canAutoHeight) return null;
-
-                          return (
-                            <div style={{ display: "flex", gap: "12px", marginTop: "8px", justifyContent: "flex-end" }}>
-                              {canAutoWidth && (
-                                <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedCapa.anchoMm === "auto"}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        handleUpdateCapaProp(selectedCapa.id, "anchoMm", "auto");
-                                      } else {
-                                        handleUpdateCapaProp(selectedCapa.id, "anchoMm", 40);
-                                      }
-                                    }}
-                                    style={{ width: "auto", margin: 0 }}
-                                  />
-                                  Ancho Auto
-                                </label>
-                              )}
-                              {canAutoHeight && (
-                                <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
-                                  <input
-                                    type="checkbox"
-                                    checked={selectedCapa.altoMm === "auto"}
-                                    onChange={(e) => {
-                                      if (e.target.checked) {
-                                        handleUpdateCapaProp(selectedCapa.id, "altoMm", "auto");
-                                      } else {
-                                        handleUpdateCapaProp(selectedCapa.id, "altoMm", 20);
-                                      }
-                                    }}
-                                    style={{ width: "auto", margin: 0 }}
-                                  />
-                                  Alto Auto
-                                </label>
-                              )}
-                            </div>
-                          );
-                        })()}
+                        {/* Checkboxes de Dimensiones Automáticas (TKT-053 / SRS-050) */}
+                        {selectedCapa.tipo !== "background" && (
+                          <div style={{ display: "flex", gap: "12px", marginTop: "8px", justifyContent: "flex-end" }}>
+                            <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedCapa.anchoMm === "auto"}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    handleUpdateCapaProp(selectedCapa.id, "anchoMm", "auto");
+                                  } else {
+                                    handleUpdateCapaProp(selectedCapa.id, "anchoMm", 40);
+                                  }
+                                }}
+                                style={{ width: "auto", margin: 0 }}
+                              />
+                              Ancho Auto
+                            </label>
+                            <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
+                              <input
+                                type="checkbox"
+                                checked={selectedCapa.altoMm === "auto"}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    handleUpdateCapaProp(selectedCapa.id, "altoMm", "auto");
+                                  } else {
+                                    handleUpdateCapaProp(selectedCapa.id, "altoMm", 20);
+                                  }
+                                }}
+                                style={{ width: "auto", margin: 0 }}
+                              />
+                              Alto Auto
+                            </label>
+                          </div>
+                        )}
                       </div>
                     )}
 

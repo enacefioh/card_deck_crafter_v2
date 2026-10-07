@@ -394,3 +394,196 @@ export function cloneLayerTreeWithNewIds(
   return { newRoot, newDescendants, idMap };
 }
 
+/**
+ * Calcula las dimensiones efectivas (ancho y alto en mm) de una capa cualquiera,
+ * considerando si sus propiedades 'anchoMm' o 'altoMm' están en 'auto' o son numéricas.
+ */
+export function calculateLayerEffectiveDimensions(
+  layer: any,
+  allLayers: any[],
+  overrides?: Record<string, any>,
+  visited: Set<string> = new Set()
+): { widthMm: number; heightMm: number } {
+  if (!layer) return { widthMm: 0, heightMm: 0 };
+
+  const layerOverrides = overrides?.[layer.id];
+  const resolved = layerOverrides ? { ...layer, ...layerOverrides } : layer;
+
+  // Si ambas dimensiones son numéricas, retornar directamente
+  if (typeof resolved.anchoMm === "number" && typeof resolved.altoMm === "number") {
+    return { widthMm: resolved.anchoMm, heightMm: resolved.altoMm };
+  }
+
+  // 1. Contenedores y Listas
+  if (resolved.tipo === "container" || resolved.tipo === "list") {
+    if (!isFlexLayout(resolved.layout)) {
+      // Contenedor Libre: recursión de bounding box
+      const freeDims = calculateAutoDimensionsForFreeContainer(resolved, allLayers, overrides, visited);
+      return {
+        widthMm: typeof resolved.anchoMm === "number" ? resolved.anchoMm : freeDims.autoWidthMm,
+        heightMm: typeof resolved.altoMm === "number" ? resolved.altoMm : freeDims.autoHeightMm
+      };
+    } else {
+      // Contenedor Flex (vertical, horizontal, wrap)
+      const bW = (resolved.borderLeftWidth || 0) + (resolved.borderRightWidth || 0);
+      const bH = (resolved.borderTopWidth || 0) + (resolved.borderBottomWidth || 0);
+
+      const children = allLayers.filter((c: any) => {
+        if (c.parentCapaId !== resolved.id) return false;
+        const chOv = overrides?.[c.id];
+        const vis = chOv?.visibility !== undefined ? chOv.visibility : (c.visibility || "visible");
+        return vis !== "collapsed";
+      });
+
+      if (children.length === 0) {
+        return {
+          widthMm: typeof resolved.anchoMm === "number" ? resolved.anchoMm : bW,
+          heightMm: typeof resolved.altoMm === "number" ? resolved.altoMm : bH
+        };
+      }
+
+      const childDims = children.map(c => calculateLayerEffectiveDimensions(c, allLayers, overrides, new Set(visited)));
+
+      let flexAutoW = 0;
+      let flexAutoH = 0;
+
+      if (isVerticalLayout(resolved.layout)) {
+        flexAutoW = Math.max(...childDims.map(d => d.widthMm), 0) + bW;
+        flexAutoH = childDims.reduce((acc, d) => acc + d.heightMm, 0) + bH;
+      } else {
+        // Horizontal o wrap
+        flexAutoW = childDims.reduce((acc, d) => acc + d.widthMm, 0) + bW;
+        flexAutoH = Math.max(...childDims.map(d => d.heightMm), 0) + bH;
+      }
+
+      return {
+        widthMm: typeof resolved.anchoMm === "number" ? resolved.anchoMm : Number(flexAutoW.toFixed(2)),
+        heightMm: typeof resolved.altoMm === "number" ? resolved.altoMm : Number(flexAutoH.toFixed(2))
+      };
+    }
+  }
+
+  // 2. Capas de Texto
+  if (resolved.tipo === "text") {
+    const bW = (resolved.borderLeftWidth || 0) + (resolved.borderRightWidth || 0);
+    const bH = (resolved.borderTopWidth || 0) + (resolved.borderBottomWidth || 0);
+    const padW = (resolved.paddingLeftMm || 0) + (resolved.paddingRightMm || 0);
+    const padH = (resolved.paddingTopMm || 0) + (resolved.paddingBottomMm || 0);
+
+    const fontSizePt = typeof resolved.fontSizePt === "number" && resolved.fontSizePt > 0 ? resolved.fontSizePt : 12;
+    const fontSizeMm = (fontSizePt * 25.4) / 72; // ~4.233 mm para 12pt
+    const lineH = Math.max(fontSizeMm * 1.35, 5.0);
+    const charWidthMm = fontSizeMm * 0.55;
+
+    const text = resolved.contenidoRaw !== undefined ? resolved.contenidoRaw : (resolved.contenido !== undefined ? resolved.contenido : (resolved.nombre || ""));
+    const rawLines = (text ? String(text) : "Texto").split("\n");
+
+    let widthMm = typeof resolved.anchoMm === "number" ? resolved.anchoMm : 0;
+    if (resolved.anchoMm === "auto" || typeof resolved.anchoMm !== "number") {
+      const maxLineChars = Math.max(1, ...rawLines.map(l => l.length || 1));
+      const estimatedW = (maxLineChars * charWidthMm) + padW + bW;
+      widthMm = Number(Math.max(estimatedW, fontSizeMm * 2 + padW + bW).toFixed(2));
+    }
+
+    let heightMm = typeof resolved.altoMm === "number" ? resolved.altoMm : 0;
+    if (resolved.altoMm === "auto" || typeof resolved.altoMm !== "number") {
+      let visualLines = 0;
+      if (resolved.anchoMm !== "auto" && widthMm > 0) {
+        const innerW = Math.max(1, widthMm - padW - bW);
+        const charsPerLine = Math.max(1, Math.floor(innerW / charWidthMm));
+        for (const line of rawLines) {
+          const len = line.length || 1;
+          visualLines += Math.max(1, Math.ceil(len / charsPerLine));
+        }
+      } else {
+        visualLines = Math.max(1, rawLines.length);
+      }
+      const estimatedH = (visualLines * lineH) + padH + bH;
+      // Altura mínima para una línea de texto de 12pt con interlineado
+      const minTextHeight = (Math.round((fontSizePt * 25.4 / 72) * 100) / 100) * 2;
+      heightMm = Number(Math.max(estimatedH, minTextHeight + padH + bH).toFixed(2));
+    }
+
+    return { widthMm, heightMm };
+  }
+
+  // 3. Bloques
+  if (resolved.tipo === "block") {
+    const bW = (resolved.borderLeftWidth || 0) + (resolved.borderRightWidth || 0);
+    const bH = (resolved.borderTopWidth || 0) + (resolved.borderBottomWidth || 0);
+    const widthMm = typeof resolved.anchoMm === "number" ? resolved.anchoMm : (bW > 0 ? bW : 20);
+    const heightMm = typeof resolved.altoMm === "number" ? resolved.altoMm : (bH > 0 ? bH : 20);
+    return { widthMm, heightMm };
+  }
+
+  // 4. Imágenes y otros elementos
+  const widthMm = typeof resolved.anchoMm === "number" ? resolved.anchoMm : 20;
+  const heightMm = typeof resolved.altoMm === "number" ? resolved.altoMm : 20;
+  return { widthMm, heightMm };
+}
+
+/**
+ * Calcula las dimensiones automáticas (ancho y alto en mm) de un contenedor con layout libre ('none'),
+ * ajustándose a la posición y tamaño del hijo situado más a la derecha (x + width) y más hacia abajo (y + height),
+ * incluyendo los bordes del propio contenedor (box-sizing: border-box).
+ */
+export function calculateAutoDimensionsForFreeContainer(
+  container: any,
+  allLayers: any[],
+  overrides?: Record<string, any>,
+  visited: Set<string> = new Set()
+): { autoWidthMm: number; autoHeightMm: number } {
+  if (!container || !container.id || !Array.isArray(allLayers) || visited.has(container.id)) {
+    return { autoWidthMm: 0, autoHeightMm: 0 };
+  }
+  visited.add(container.id);
+
+  const containerOverrides = overrides?.[container.id];
+  const resolvedContainer = containerOverrides ? { ...container, ...containerOverrides } : container;
+
+  // Filtrar hijos directos que pertenezcan a este contenedor y no estén colapsados
+  const directChildren = allLayers.filter((c: any) => {
+    if (c.parentCapaId !== container.id) return false;
+    const childOverrides = overrides?.[c.id];
+    const vis = childOverrides?.visibility !== undefined ? childOverrides.visibility : (c.visibility || "visible");
+    return vis !== "collapsed";
+  });
+
+  const borderLeft = typeof resolvedContainer.borderLeftWidth === "number" ? resolvedContainer.borderLeftWidth : 0;
+  const borderRight = typeof resolvedContainer.borderRightWidth === "number" ? resolvedContainer.borderRightWidth : 0;
+  const borderTop = typeof resolvedContainer.borderTopWidth === "number" ? resolvedContainer.borderTopWidth : 0;
+  const borderBottom = typeof resolvedContainer.borderBottomWidth === "number" ? resolvedContainer.borderBottomWidth : 0;
+
+  if (directChildren.length === 0) {
+    return {
+      autoWidthMm: Number((borderLeft + borderRight).toFixed(2)),
+      autoHeightMm: Number((borderTop + borderBottom).toFixed(2))
+    };
+  }
+
+  let maxX = 0;
+  let maxY = 0;
+
+  for (const child of directChildren) {
+    const childOverrides = overrides?.[child.id];
+    const resolvedChild = childOverrides ? { ...child, ...childOverrides } : child;
+
+    const childX = typeof resolvedChild.xMm === "number" ? resolvedChild.xMm : 0;
+    const childY = typeof resolvedChild.yMm === "number" ? resolvedChild.yMm : 0;
+
+    const dims = calculateLayerEffectiveDimensions(resolvedChild, allLayers, overrides, new Set(visited));
+
+    const childW = typeof resolvedChild.anchoMm === "number" ? resolvedChild.anchoMm : dims.widthMm;
+    const childH = typeof resolvedChild.altoMm === "number" ? resolvedChild.altoMm : dims.heightMm;
+
+    maxX = Math.max(maxX, childX + childW);
+    maxY = Math.max(maxY, childY + childH);
+  }
+
+  return {
+    autoWidthMm: Number((maxX + borderLeft + borderRight).toFixed(2)),
+    autoHeightMm: Number((maxY + borderTop + borderBottom).toFixed(2))
+  };
+}
+
+

@@ -1,4 +1,5 @@
 import type { PlantillaCDC2 } from "shared";
+import { calculateAutoDimensionsForFreeContainer, isFlexLayout } from "shared";
 
 /**
  * Carga una imagen HTML a partir de un src (blob, dataUrl, o url) con timeout seguro.
@@ -87,8 +88,10 @@ export async function generarMiniaturaPlantilla(
     const { xMm, yMm } = calcularCoordenadasAbsolutas(capa, capas);
     const x = xMm * scaleX;
     const y = yMm * scaleY;
-    const w = (capa.anchoMm === "auto" ? wMm : (capa.anchoMm ?? wMm)) * scaleX;
-    const h = (capa.altoMm === "auto" ? hMm : (capa.altoMm ?? hMm)) * scaleY;
+    const isFreeContainer = (capa.tipo === "container" || capa.tipo === "list") && !isFlexLayout(capa.layout);
+    const autoDims = isFreeContainer ? calculateAutoDimensionsForFreeContainer(capa, capas) : null;
+    const w = (capa.anchoMm === "auto" ? (autoDims ? autoDims.autoWidthMm : wMm) : (capa.anchoMm ?? wMm)) * scaleX;
+    const h = (capa.altoMm === "auto" ? (autoDims ? autoDims.autoHeightMm : hMm) : (capa.altoMm ?? hMm)) * scaleY;
 
     ctx.save();
 

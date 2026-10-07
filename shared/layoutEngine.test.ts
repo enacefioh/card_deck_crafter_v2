@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { calcularDistribucion, cloneLayerTreeWithNewIds } from "./layoutEngine";
+import { calcularDistribucion, cloneLayerTreeWithNewIds, calculateAutoDimensionsForFreeContainer } from "./layoutEngine";
 import type { CanvasConfig, CardConfig, Carta } from "./layoutEngine";
 
 describe("layoutEngine - Motor de Maquetación", () => {
@@ -212,5 +212,268 @@ describe("layoutEngine - Motor de Maquetación", () => {
     expect(result.newDescendants[0].parentCapaId).toBe(result.newRoot.id);
     expect(result.newDescendants[1].id).not.toBe("child_2");
     expect(result.newDescendants[1].parentCapaId).toBe(result.newRoot.id);
+  });
+
+  describe("calculateAutoDimensionsForFreeContainer (TKT-053)", () => {
+    it("ajusta el ancho a la x del hijo más a la derecha + ancho, y el alto a la y más abajo + alto", () => {
+      const container = {
+        id: "cont_free",
+        tipo: "container",
+        layout: "none",
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        borderTopWidth: 2,
+        borderBottomWidth: 2,
+      };
+
+      const allLayers = [
+        container,
+        {
+          id: "child_1",
+          parentCapaId: "cont_free",
+          xMm: 10,
+          yMm: 5,
+          anchoMm: 30, // x + w = 40
+          altoMm: 20, // y + h = 25
+        },
+        {
+          id: "child_2",
+          parentCapaId: "cont_free",
+          xMm: 25,
+          yMm: 15,
+          anchoMm: 40, // x + w = 65 (máximo ancho)
+          altoMm: 10, // y + h = 25
+        },
+        {
+          id: "child_3",
+          parentCapaId: "cont_free",
+          xMm: 5,
+          yMm: 30,
+          anchoMm: 10, // x + w = 15
+          altoMm: 15, // y + h = 45 (máximo alto)
+        },
+        {
+          id: "child_other_parent",
+          parentCapaId: "other_container",
+          xMm: 100,
+          yMm: 100,
+          anchoMm: 50,
+          altoMm: 50,
+        }
+      ];
+
+      const dims = calculateAutoDimensionsForFreeContainer(container, allLayers);
+
+      // maxX = 65, borderLeft(1) + borderRight(1) = 2 => autoWidth = 67
+      expect(dims.autoWidthMm).toBe(67);
+      // maxY = 45, borderTop(2) + borderBottom(2) = 4 => autoHeight = 49
+      expect(dims.autoHeightMm).toBe(49);
+    });
+
+    it("ignora hijos con visibilidad 'collapsed'", () => {
+      const container = {
+        id: "cont_free",
+        tipo: "container",
+        layout: "none",
+      };
+
+      const allLayers = [
+        container,
+        {
+          id: "child_normal",
+          parentCapaId: "cont_free",
+          xMm: 0,
+          yMm: 0,
+          anchoMm: 20,
+          altoMm: 20,
+        },
+        {
+          id: "child_collapsed",
+          parentCapaId: "cont_free",
+          visibility: "collapsed",
+          xMm: 50,
+          yMm: 50,
+          anchoMm: 30,
+          altoMm: 30,
+        }
+      ];
+
+      const dims = calculateAutoDimensionsForFreeContainer(container, allLayers);
+      expect(dims.autoWidthMm).toBe(20);
+      expect(dims.autoHeightMm).toBe(20);
+    });
+
+    it("aplica overrides dinámicos en la posición y dimensiones de los hijos", () => {
+      const container = {
+        id: "cont_free",
+        tipo: "container",
+        layout: "none",
+      };
+
+      const allLayers = [
+        container,
+        {
+          id: "child_1",
+          parentCapaId: "cont_free",
+          xMm: 0,
+          yMm: 0,
+          anchoMm: 10,
+          altoMm: 10,
+        }
+      ];
+
+      const overrides = {
+        child_1: {
+          xMm: 15,
+          anchoMm: 25, // x + w = 40
+          altoMm: 35, // y + h = 35
+        }
+      };
+
+      const dims = calculateAutoDimensionsForFreeContainer(container, allLayers, overrides);
+      expect(dims.autoWidthMm).toBe(40);
+      expect(dims.autoHeightMm).toBe(35);
+    });
+
+    it("calcula recursivamente contenedores libres anidados", () => {
+      const parentContainer = {
+        id: "parent_cont",
+        tipo: "container",
+        layout: "none",
+      };
+
+      const childContainer = {
+        id: "child_cont",
+        parentCapaId: "parent_cont",
+        tipo: "container",
+        layout: "none",
+        xMm: 10,
+        yMm: 10,
+        anchoMm: "auto",
+        altoMm: "auto",
+      };
+
+      const grandChild = {
+        id: "grand_child",
+        parentCapaId: "child_cont",
+        xMm: 5,
+        yMm: 5,
+        anchoMm: 20,
+        altoMm: 25,
+      };
+
+      const allLayers = [parentContainer, childContainer, grandChild];
+
+      const parentDims = calculateAutoDimensionsForFreeContainer(parentContainer, allLayers);
+      // childCont: autoWidth = 5 + 20 = 25, autoHeight = 5 + 25 = 30
+      // parentCont: autoWidth = 10 + 25 = 35, autoHeight = 10 + 30 = 40
+      expect(parentDims.autoWidthMm).toBe(35);
+      expect(parentDims.autoHeightMm).toBe(40);
+    });
+
+    it("calcula dimensiones de contenedor libre con hijo texto en alto 'auto' sumando la posición inicial yMm", () => {
+      const container = {
+        id: "parent_cont",
+        tipo: "container",
+        layout: "none",
+        altoMm: "auto",
+        anchoMm: 60,
+      };
+
+      const textChild = {
+        id: "child_text",
+        parentCapaId: "parent_cont",
+        tipo: "text",
+        xMm: 5,
+        yMm: 10,
+        anchoMm: 50,
+        altoMm: "auto",
+        fontSizePt: 12,
+        contenidoRaw: "Texto de prueba",
+      };
+
+      const allLayers = [container, textChild];
+      const dims = calculateAutoDimensionsForFreeContainer(container, allLayers);
+
+      // El texto de 12pt tiene una altura estimada >= 8.46mm (línea con interlineado)
+      // El contenedor debe sumar yMm (10) + textHeight (>= 8.46) = >= 18.46mm
+      expect(dims.autoHeightMm).toBeGreaterThanOrEqual(18.46);
+      expect(dims.autoWidthMm).toBe(55); // xMm (5) + anchoMm (50)
+    });
+
+    it("calcula contenedor libre con hijo texto en ancho 'auto' y alto 'auto' sumando xMm e yMm", () => {
+      const container = {
+        id: "parent_cont",
+        tipo: "container",
+        layout: "none",
+        altoMm: "auto",
+        anchoMm: "auto",
+      };
+
+      const textChild = {
+        id: "child_text",
+        parentCapaId: "parent_cont",
+        tipo: "text",
+        xMm: 12,
+        yMm: 8,
+        anchoMm: "auto",
+        altoMm: "auto",
+        fontSizePt: 12,
+        contenidoRaw: "Texto corto",
+      };
+
+      const allLayers = [container, textChild];
+      const dims = calculateAutoDimensionsForFreeContainer(container, allLayers);
+
+      // xMm (12) + ancho estimado del texto (> 10mm)
+      expect(dims.autoWidthMm).toBeGreaterThan(22);
+      // yMm (8) + alto estimado del texto (>= 8.46mm)
+      expect(dims.autoHeightMm).toBeGreaterThanOrEqual(16.46);
+    });
+
+    it("calcula contenedor libre con hijo flex container que tiene alto 'auto'", () => {
+      const freeParent = {
+        id: "free_parent",
+        tipo: "container",
+        layout: "none",
+        altoMm: "auto",
+        anchoMm: "auto",
+      };
+
+      const flexChild = {
+        id: "flex_child",
+        parentCapaId: "free_parent",
+        tipo: "container",
+        layout: "vertical",
+        xMm: 4,
+        yMm: 6,
+        anchoMm: "auto",
+        altoMm: "auto",
+      };
+
+      const item1 = {
+        id: "item_1",
+        parentCapaId: "flex_child",
+        tipo: "block",
+        anchoMm: 30,
+        altoMm: 15,
+      };
+
+      const item2 = {
+        id: "item_2",
+        parentCapaId: "flex_child",
+        tipo: "block",
+        anchoMm: 25,
+        altoMm: 20,
+      };
+
+      const allLayers = [freeParent, flexChild, item1, item2];
+      const dims = calculateAutoDimensionsForFreeContainer(freeParent, allLayers);
+
+      // flexChild vertical: width = max(30, 25) = 30, height = 15 + 20 = 35
+      // freeParent: width = 4 + 30 = 34, height = 6 + 35 = 41
+      expect(dims.autoWidthMm).toBe(34);
+      expect(dims.autoHeightMm).toBe(41);
+    });
   });
 });

@@ -7,7 +7,7 @@ import fs from "fs-extra";
 import path from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
-import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexCssString } from "shared";
+import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexCssString, calculateAutoDimensionsForFreeContainer } from "shared";
 import type { CanvasConfig, ProyectoCDC2, Carta } from "shared";
 
 import cookieParser from "cookie-parser";
@@ -174,7 +174,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261005.3",
+      version: "v2.261007.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1023,8 +1023,16 @@ function generarHtmlImpresion(
                 }
               }
 
-              const widthPx = resolvedCapa.anchoMm === "auto" ? "fit-content" : `${resolvedCapa.anchoMm * MM_TO_PX}px`;
-              const heightPx = resolvedCapa.altoMm === "auto" ? "fit-content" : `${resolvedCapa.altoMm * MM_TO_PX}px`;
+              const isFreeContainer = (resolvedCapa.tipo === "container" || resolvedCapa.tipo === "list") && !isFlexLayout(resolvedCapa.layout);
+              const currentOverrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
+              const autoDims = isFreeContainer ? calculateAutoDimensionsForFreeContainer(resolvedCapa, capas, currentOverrides) : null;
+
+              const widthPx = resolvedCapa.anchoMm === "auto"
+                ? (autoDims ? `${autoDims.autoWidthMm * MM_TO_PX}px` : "fit-content")
+                : `${resolvedCapa.anchoMm * MM_TO_PX}px`;
+              const heightPx = resolvedCapa.altoMm === "auto"
+                ? (autoDims ? `${autoDims.autoHeightMm * MM_TO_PX}px` : "fit-content")
+                : `${resolvedCapa.altoMm * MM_TO_PX}px`;
 
               const activeVisibility = resolvedCapa.visibility || "visible";
               let visStyle = "";
@@ -1761,8 +1769,16 @@ function renderCardFaceContentHtml(
           }
         }
 
-        const widthPx = resolvedCapa.anchoMm === "auto" ? "fit-content" : `${resolvedCapa.anchoMm * MM_TO_PX}px`;
-        const heightPx = resolvedCapa.altoMm === "auto" ? "fit-content" : `${resolvedCapa.altoMm * MM_TO_PX}px`;
+        const isFreeContainer = (resolvedCapa.tipo === "container" || resolvedCapa.tipo === "list") && !isFlexLayout(resolvedCapa.layout);
+        const currentOverrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
+        const autoDims = isFreeContainer ? calculateAutoDimensionsForFreeContainer(resolvedCapa, capas, currentOverrides) : null;
+
+        const widthPx = resolvedCapa.anchoMm === "auto"
+          ? (autoDims ? `${autoDims.autoWidthMm * MM_TO_PX}px` : "fit-content")
+          : `${resolvedCapa.anchoMm * MM_TO_PX}px`;
+        const heightPx = resolvedCapa.altoMm === "auto"
+          ? (autoDims ? `${autoDims.autoHeightMm * MM_TO_PX}px` : "fit-content")
+          : `${resolvedCapa.altoMm * MM_TO_PX}px`;
 
         const activeVisibility = resolvedCapa.visibility || "visible";
         let visStyle = "";

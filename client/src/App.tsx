@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef, useEffect } from "react";
-import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle, cloneLayerTreeWithNewIds } from "shared";
+import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle, cloneLayerTreeWithNewIds, calculateAutoDimensionsForFreeContainer } from "shared";
 import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2, UserStorageInfo, CloudProjectMetadata, CloudTemplateMetadata, ChildTemplate } from "shared";
 import JSZip from "jszip";
 import MenuBar from "./MenuBar";
@@ -3545,6 +3545,15 @@ function AppContent() {
                                         const overrides = cardData.capasOverrides?.[capa.id];
                                         const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
 
+                                        const isFreeContainer = (capa.tipo === "container" || capa.tipo === "list") && !isFlexLayout(resolvedCapa.layout);
+                                        const autoDims = isFreeContainer ? calculateAutoDimensionsForFreeContainer(resolvedCapa, layers, cardData.capasOverrides) : null;
+                                        const renderedWidth = resolvedCapa.anchoMm === "auto"
+                                          ? (autoDims ? `${autoDims.autoWidthMm * zoomFactor}px` : "fit-content")
+                                          : `${resolvedCapa.anchoMm * zoomFactor}px`;
+                                        const renderedHeight = resolvedCapa.altoMm === "auto"
+                                          ? (autoDims ? `${autoDims.autoHeightMm * zoomFactor}px` : "fit-content")
+                                          : `${resolvedCapa.altoMm * zoomFactor}px`;
+
                                         const style: React.CSSProperties = {
                                           position: isParentFlex ? "relative" : "absolute",
                                           left: isParentFlex 
@@ -3553,8 +3562,8 @@ function AppContent() {
                                           top: isParentFlex 
                                             ? (isParentHorizontal ? `${resolvedCapa.yMm * zoomFactor}px` : undefined)
                                             : `${resolvedCapa.yMm * zoomFactor}px`,
-                                          width: resolvedCapa.anchoMm === "auto" ? "fit-content" : `${resolvedCapa.anchoMm * zoomFactor}px`,
-                                          height: resolvedCapa.altoMm === "auto" ? "fit-content" : `${resolvedCapa.altoMm * zoomFactor}px`,
+                                          width: renderedWidth,
+                                          height: renderedHeight,
                                           pointerEvents: (activeCanvasEditLayerId && !isEditActive) ? "none" : ((isCardSelected && !rightSidebarCollapsed) ? "auto" : "none"),
                                           cursor: isEditActive ? "move" : (activeCanvasEditLayerId ? "default" : ((isCardSelected && !rightSidebarCollapsed) ? "pointer" : "none")),
                                           boxSizing: "border-box",
@@ -4027,52 +4036,25 @@ function AppContent() {
 
 
 
+                                            const isFreeContainer = (capa.tipo === "container" || capa.tipo === "list") && !isFlexLayout(resolvedCapa.layout);
+                                            const autoDims = isFreeContainer ? calculateAutoDimensionsForFreeContainer(resolvedCapa, layers, cardData.capasOverridesTrasera) : null;
+                                            const renderedWidth = resolvedCapa.anchoMm === "auto"
+                                              ? (autoDims ? `${autoDims.autoWidthMm * zoomFactor}px` : "fit-content")
+                                              : `${resolvedCapa.anchoMm * zoomFactor}px`;
+                                            const renderedHeight = resolvedCapa.altoMm === "auto"
+                                              ? (autoDims ? `${autoDims.autoHeightMm * zoomFactor}px` : "fit-content")
+                                              : `${resolvedCapa.altoMm * zoomFactor}px`;
+
                                             const style: React.CSSProperties = {
-
-
-
-
                                               position: isParentFlex ? "relative" : "absolute",
-
-
-
-
                                               left: isParentFlex 
-
-
-
-
                                                 ? (isParentVertical ? `${resolvedCapa.xMm * zoomFactor}px` : undefined)
-
-
-
-
                                                 : `${resolvedCapa.xMm * zoomFactor}px`,
-
-
-
-
                                               top: isParentFlex 
-
-
-
-
                                                 ? (isParentHorizontal ? `${resolvedCapa.yMm * zoomFactor}px` : undefined)
-
-
-
-
                                                 : `${resolvedCapa.yMm * zoomFactor}px`,
-
-
-
-
-                                              width: resolvedCapa.anchoMm === "auto" ? "fit-content" : `${resolvedCapa.anchoMm * zoomFactor}px`,
-
-
-
-
-                                              height: resolvedCapa.altoMm === "auto" ? "fit-content" : `${resolvedCapa.altoMm * zoomFactor}px`,
+                                              width: renderedWidth,
+                                              height: renderedHeight,
 
 
 

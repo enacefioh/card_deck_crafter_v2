@@ -1,7 +1,7 @@
 import React, { useEffect } from "react";
 import type { CardConfig } from "shared";
 import { useSafeBackdrop } from "../utils/modalUtils";
-import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle } from "shared";
+import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle, calculateAutoDimensionsForFreeContainer } from "shared";
 import { parsearTextoConSimbolos, parseMarkdownToHtml } from "../utils/projectUtils";
 
 interface TemplatePreviewModalProps {
@@ -89,8 +89,14 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
 
       const layerX = (capa.xMm || 0) * previewScale;
       const layerY = (capa.yMm || 0) * previewScale;
-      const layerW = capa.anchoMm === "auto" ? "fit-content" : `${(capa.anchoMm || widthMm) * previewScale}px`;
-      const layerH = capa.altoMm === "auto" ? "fit-content" : `${(capa.altoMm || heightMm) * previewScale}px`;
+      const isFreeContainer = (capa.tipo === "container" || capa.tipo === "list") && !isFlexLayout(capa.layout);
+      const autoDims = isFreeContainer ? calculateAutoDimensionsForFreeContainer(capa, capas) : null;
+      const layerW = capa.anchoMm === "auto"
+        ? (autoDims ? `${autoDims.autoWidthMm * previewScale}px` : "fit-content")
+        : `${(capa.anchoMm || widthMm) * previewScale}px`;
+      const layerH = capa.altoMm === "auto"
+        ? (autoDims ? `${autoDims.autoHeightMm * previewScale}px` : "fit-content")
+        : `${(capa.altoMm || heightMm) * previewScale}px`;
 
       const rot = capa.rotacion ?? capa.rotation;
       const layerStyle: React.CSSProperties = {
