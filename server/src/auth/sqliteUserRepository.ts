@@ -170,6 +170,11 @@ export class SqliteUserRepository implements IUserRepository {
     }
     const now = new Date().toISOString();
     this.db.prepare("UPDATE users SET username = ?, updated_at = ? WHERE id = ?").run(clean, now, userId);
+    try {
+      this.db.prepare("UPDATE public_templates SET author_name = ?, updated_at = ? WHERE author_id = ?").run(clean, now, userId);
+    } catch {
+      // ignore if public_templates table does not exist in testing
+    }
   }
 
   public async deleteUser(userId: string): Promise<void> {

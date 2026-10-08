@@ -175,7 +175,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261008.3",
+      version: "v2.261008.4",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -820,6 +820,58 @@ app.get("/api/public-templates/:id/download", async (req, res) => {
       if (!user || (user.role !== "admin" && user.id !== template.authorId)) {
         return res.status(403).json({ error: "Esta plantilla está pendiente de moderación y solo puede ser descargada por administradores." });
       }
+    }
+
+    const safeFilename = `plantilla_${template.name.replace(/[^a-zA-Z0-9_\-\.]/g, "_")}.cdc2`;
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.sendFile(filePath);
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== TIENDA PÚBLICA DE PLANTILLAS COMUNITARIAS (SRS-076) ====================
+
+// Catálogo de plantillas aprobadas (acceso público sin autenticación requerida)
+app.get("/api/store/templates", async (req, res) => {
+  try {
+    const q = req.query.q as string | undefined;
+    const service = getPublicTemplateService();
+    const templates = await service.getStoreCatalog(q);
+    res.json({ templates });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Ficha detallada de plantilla aprobada (acceso público)
+app.get("/api/store/templates/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const service = getPublicTemplateService();
+    const template = await service.getStoreTemplateDetail(id);
+    if (!template) {
+      return res.status(404).json({ error: "La plantilla no existe o aún no ha sido aprobada." });
+    }
+    res.json({ template });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Descarga directa de plantilla desde la tienda
+app.get("/api/store/templates/:id/download", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const service = getPublicTemplateService();
+    const { filePath, template } = service.getPublicTemplateFilePath(id);
+
+    if (template.status !== "approved") {
+      return res.status(403).json({ error: "Esta plantilla aún no está disponible públicamente en la tienda." });
     }
 
     const safeFilename = `plantilla_${template.name.replace(/[^a-zA-Z0-9_\-\.]/g, "_")}.cdc2`;

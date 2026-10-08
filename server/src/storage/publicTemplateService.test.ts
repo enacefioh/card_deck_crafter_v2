@@ -147,4 +147,32 @@ describe("PublicTemplateService - SRS-075", () => {
     expect(fileInfo.template.id).toBe(pub.id);
     expect(fs.existsSync(fileInfo.filePath)).toBe(true);
   });
+
+  it("debe reflejar dinámicamente el nombre de usuario actualizado en el catálogo de la tienda (SRS-076)", async () => {
+    const pub = await service.publishTemplate(
+      testUserId,
+      "user-tmpl-1",
+      "Fantasy Deck",
+      "Desc"
+    );
+    await service.approveTemplate(pub.id);
+
+    // Cambiar nombre de usuario en la tabla users
+    db.prepare("UPDATE users SET username = 'nuevo_nombre_autor' WHERE id = ?").run(testUserId);
+
+    // El catálogo debe reflejar el nombre actual
+    const catalog = await service.getStoreCatalog();
+    expect(catalog.length).toBe(1);
+    expect(catalog[0].authorName).toBe("nuevo_nombre_autor");
+
+    // Y debe utilizar la miniatura de la primera plantilla como portada
+    expect(catalog[0].thumbnail).toBe("data:image/png;base64,abc");
+
+    // El detalle también debe reflejarlo
+    const detail = await service.getStoreTemplateDetail(pub.id);
+    expect(detail).not.toBeNull();
+    expect(detail!.authorName).toBe("nuevo_nombre_autor");
+    expect(detail!.previewCards?.length).toBe(1);
+    expect(detail!.thumbnail).toBe("data:image/png;base64,abc");
+  });
 });

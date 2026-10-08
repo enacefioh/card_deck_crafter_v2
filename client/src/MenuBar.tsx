@@ -39,6 +39,7 @@ interface MenuBarProps {
   onShowTemplatesManager?: () => void;
   onShowProjectColors?: () => void;
   onShowSymbolsGallery?: () => void;
+  onOpenStore?: () => void;
 
   // Acciones de Selección
   selectedCount: number;
@@ -116,6 +117,7 @@ export default function MenuBar({
   onSaveCloudProjectAs,
   onSaveCloudTemplate,
   onSaveCloudTemplateAs,
+  onOpenStore,
 }: MenuBarProps) {
   const [editingDocId, setEditingDocId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState<string>("");
@@ -218,7 +220,7 @@ export default function MenuBar({
     <div className="menu-bar" ref={menuBarRef}>
       <div className="menu-bar-brand">
         <span className="brand-logo">🎴</span>
-        <span className="brand-text">Card Deck Crafter v2.261008.3</span>
+        <span className="brand-text">Card Deck Crafter v2.261008.4</span>
       </div>
 
 
@@ -535,6 +537,17 @@ export default function MenuBar({
               >
                 <span className="menu-item-icon">🧸</span> Galería de Símbolos...
               </button>
+              {onOpenStore && (
+                <>
+                  <div className="menu-separator" />
+                  <button
+                    className="menu-item"
+                    onClick={() => handleAction(onOpenStore)}
+                  >
+                    <span className="menu-item-icon">🏪</span> Tienda de Plantillas...
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -669,6 +682,32 @@ export default function MenuBar({
         <span className="status-badge info-badge">Hojas: {paginasCount}</span>
         <span className="status-badge">Cartas: {cartasCount}</span>
         <span className="status-badge info-badge">Zoom: {zoomFactor.toFixed(1)}x</span>
+
+        {onOpenStore && (
+          <button
+            type="button"
+            className="btn-store-trigger"
+            onClick={onOpenStore}
+            style={{
+              marginLeft: "10px",
+              padding: "4px 10px",
+              borderRadius: "6px",
+              backgroundColor: "rgba(168, 85, 247, 0.15)",
+              color: "#c084fc",
+              border: "1px solid rgba(168, 85, 247, 0.35)",
+              fontSize: "12px",
+              fontWeight: "600",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: "5px",
+              transition: "all 0.2s ease"
+            }}
+            title="Explorar la Tienda Pública de Plantillas"
+          >
+            <span>🏪</span> Tienda
+          </button>
+        )}
 
         {/* Sección de Usuario / Autenticación (SRS-062) */}
         {!user ? (

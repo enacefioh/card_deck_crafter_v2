@@ -14,6 +14,7 @@ import { AdminPanel } from "./admin/AdminPanel";
 import { SaveCloudModal } from "./components/SaveCloudModal";
 import { CloudProjectsModal } from "./components/CloudProjectsModal";
 import { TemplatePreviewModal } from "./components/TemplatePreviewModal";
+import { StoreApp } from "./store/StoreApp";
 import { createSafeBackdropProps } from "./utils/modalUtils";
 import {
   fetchUserStorage,
@@ -22,6 +23,7 @@ import {
   uploadCloudTemplate,
   downloadCloudTemplateBlob
 } from "./services/storageService";
+import { generarMiniaturaPlantilla } from "./utils/thumbnailUtils";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -1366,6 +1368,18 @@ function AppContent() {
           }
         }
       }
+      // Generar miniatura de plantilla si no la tiene (SRS-074 / SRS-076)
+      if (!clonedTemplate.miniatura && typeof generarMiniaturaPlantilla === "function") {
+        try {
+          clonedTemplate.miniatura = await generarMiniaturaPlantilla(
+            clonedTemplate,
+            clonedTemplate.anchoMm,
+            clonedTemplate.altoMm
+          );
+        } catch (err) {
+          console.warn("[zip] Error al generar miniatura para plantilla:", err);
+        }
+      }
       templatesFolder.file(`${template.id}.json`, JSON.stringify(clonedTemplate, null, 2));
       processedImportedTemplates.push(clonedTemplate);
       processedTemplatesMap[template.id] = clonedTemplate;
@@ -1389,6 +1403,18 @@ function AppContent() {
               }
             }
           }
+        }
+      }
+      // Generar miniatura de plantilla si no la tiene (SRS-074 / SRS-076)
+      if (!clonedTemplate.miniatura && typeof generarMiniaturaPlantilla === "function") {
+        try {
+          clonedTemplate.miniatura = await generarMiniaturaPlantilla(
+            clonedTemplate,
+            clonedTemplate.anchoMm,
+            clonedTemplate.altoMm
+          );
+        } catch (err) {
+          console.warn("[zip] Error al generar miniatura para plantilla:", err);
         }
       }
       processedTemplatesMap[id] = clonedTemplate;
@@ -2978,8 +3004,39 @@ function AppContent() {
     return typeof window !== "undefined" && window.location.pathname.startsWith("/admin");
   });
 
+  // Detección de ruta de la tienda pública (/store) - SRS-076
+  const [isStorePath, setIsStorePath] = useState(() => {
+    return typeof window !== "undefined" && window.location.pathname.startsWith("/store");
+  });
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setIsStorePath(typeof window !== "undefined" && window.location.pathname.startsWith("/store"));
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   if (isAdminPath) {
     return <AdminPanel />;
+  }
+
+  if (isStorePath) {
+    return (
+      <StoreApp
+        onNavigateToEditor={() => {
+          if (typeof window !== "undefined") {
+            window.history.pushState({}, "", "/");
+          }
+          setIsStorePath(false);
+        }}
+        onOpenTemplateInEditor={(templateId) => {
+          if (typeof window !== "undefined") {
+            window.location.href = `/?openPublicTemplate=${encodeURIComponent(templateId)}`;
+          }
+        }}
+      />
+    );
   }
 
   return (
@@ -2999,6 +3056,12 @@ function AppContent() {
         onImportarPlantillaClick={() => fileInputTemplateRef.current?.click()}
         onGuardarProyecto={handleGuardarProyecto}
         onExportarPlantillaProyecto={handleExportarPlantillaProyecto}
+        onOpenStore={() => {
+          if (typeof window !== "undefined") {
+            window.history.pushState({}, "", "/store");
+          }
+          setIsStorePath(true);
+        }}
         storageInfo={storageInfo}
         onOpenCloudProjects={() => {
           if (user) {
