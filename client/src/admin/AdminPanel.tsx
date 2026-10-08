@@ -535,7 +535,7 @@ export const AdminPanel: React.FC = () => {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", fontSize: "13px" }}>
                   <div>
                     <span style={{ color: "#64748b", display: "block" }}>Versión Software:</span>
-                    <strong style={{ color: "#e2e8f0" }}>{dashboard?.version || "v2.261007.1"}</strong>
+                    <strong style={{ color: "#e2e8f0" }}>{dashboard?.version || "v2.261008.1"}</strong>
                   </div>
                   <div>
                     <span style={{ color: "#64748b", display: "block" }}>Motor de Base de Datos:</span>

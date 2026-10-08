@@ -271,6 +271,9 @@ export function prepararPlantillaParaExportacion(
   // Consolidar valores visibles y anulaciones en las capas de la plantilla (SRS-070)
   const updatedCapas = (plantilla.capas || []).map((c: any) => {
     let cap = { ...c };
+    if (capasOverrides && capasOverrides[c.id]) {
+      cap = { ...cap, ...capasOverrides[c.id] };
+    }
     if (c.tipo === "text" && valoresCarta) {
       if (valoresCarta[c.id] !== undefined) {
         cap.contenidoRaw = valoresCarta[c.id];
@@ -278,19 +281,49 @@ export function prepararPlantillaParaExportacion(
         cap.contenidoRaw = valoresCarta[c.nombre];
       }
     }
-    if (capasOverrides && capasOverrides[c.id]) {
-      cap = { ...cap, ...capasOverrides[c.id] };
-    }
     return cap;
   });
 
-  const updatedCamposConfig = (plantilla.camposConfig || []).map((campo: any) => {
-    const currentVal = valoresCarta ? valoresCarta[campo.clave] : undefined;
-    return {
+  const updatedCamposConfig: any[] = [];
+  const seenClaves = new Set<string>();
+
+  for (const campo of plantilla.camposConfig || []) {
+    if (!campo.clave || seenClaves.has(campo.clave)) continue;
+    seenClaves.add(campo.clave);
+
+    const matchingLayer = updatedCapas.find((c: any) => c.nombre === campo.clave || c.id === campo.clave);
+    let currentVal: string | undefined = undefined;
+    if (valoresCarta) {
+      if (matchingLayer && valoresCarta[matchingLayer.id] !== undefined) {
+        currentVal = valoresCarta[matchingLayer.id];
+      } else if (valoresCarta[campo.clave] !== undefined) {
+        currentVal = valoresCarta[campo.clave];
+      }
+    }
+    if (currentVal === undefined && matchingLayer && matchingLayer.contenidoRaw !== undefined) {
+      currentVal = matchingLayer.contenidoRaw;
+    }
+
+    updatedCamposConfig.push({
       ...campo,
       valorDefecto: currentVal !== undefined ? currentVal : (campo.valorDefecto || "")
-    };
-  });
+    });
+  }
+
+  for (const layer of updatedCapas) {
+    if (layer.tipo === "text" && layer.nombre && !seenClaves.has(layer.nombre)) {
+      seenClaves.add(layer.nombre);
+      const val = (valoresCarta && valoresCarta[layer.id] !== undefined)
+        ? valoresCarta[layer.id]
+        : (layer.contenidoRaw || "");
+      updatedCamposConfig.push({
+        clave: layer.nombre,
+        nombreLegible: layer.nombre,
+        tipo: "text",
+        valorDefecto: val
+      });
+    }
+  }
 
   return {
     ...plantilla,

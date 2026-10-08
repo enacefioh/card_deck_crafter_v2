@@ -3203,6 +3203,13 @@ export default function EditCardModal({
                                               setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: newVal }));
                                             }
                                             handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", newVal);
+                                            setTempCapasOverridesActivos((prev) => ({
+                                              ...prev,
+                                              [selectedCapa.id]: {
+                                                ...(prev[selectedCapa.id] || {}),
+                                                contenidoRaw: newVal,
+                                              },
+                                            }));
                                           });
                                         }}
                                       >
@@ -3229,6 +3236,13 @@ export default function EditCardModal({
                                   setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
                                 }
                                 handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
+                                setTempCapasOverridesActivos((prev) => ({
+                                  ...prev,
+                                  [selectedCapa.id]: {
+                                    ...(prev[selectedCapa.id] || {}),
+                                    contenidoRaw: val,
+                                  },
+                                }));
                               }}
                             />
                           ) : (
@@ -3245,6 +3259,13 @@ export default function EditCardModal({
                                   setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
                                 }
                                 handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
+                                setTempCapasOverridesActivos((prev) => ({
+                                  ...prev,
+                                  [selectedCapa.id]: {
+                                    ...(prev[selectedCapa.id] || {}),
+                                    contenidoRaw: val,
+                                  },
+                                }));
                               }}
                             />
                           )}

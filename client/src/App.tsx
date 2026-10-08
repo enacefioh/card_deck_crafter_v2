@@ -1770,66 +1770,57 @@ function AppContent() {
         doc.imagenTraseraComun = await resolverAssetBlob(doc.imagenTraseraComun);
       }
 
-      // Cargar plantillas del proyecto (desde carpeta templates/ o fallback proyecto.templates)
+      // Cargar plantillas del proyecto: dar prioridad a proyecto.templates definido en project.json,
+      // complementando con cualquier archivo adicional que pudiera existir en la carpeta templates/
       const newImported: any[] = [];
       const loadedTemplatesMap: Record<string, any> = {};
 
-      const templateFiles = zip.filter((path) => path.startsWith("templates/") && path.endsWith(".json"));
-      if (templateFiles.length > 0) {
-        for (const tFile of templateFiles) {
-          try {
-            const content = await tFile.async("text");
-            const tData = JSON.parse(content);
-            if (tData.id && tData.nombre) {
-              // Resolver assets de la plantilla
-              if (tData.capas) {
-                for (const capa of tData.capas) {
-                  if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
-                    const url = await resolverAssetBlob(capa.src);
-                    if (url) capa.src = url;
-                  }
-                  if (capa.tipo === "image-switch" && capa.options) {
-                    for (const opt of capa.options) {
-                      if (opt.src && matchesAssetScheme(opt.src)) {
-                        const url = await resolverAssetBlob(opt.src);
-                        if (url) opt.src = url;
-                      }
-                    }
-                  }
+      const resolverAssetsPlantilla = async (tData: any) => {
+        if (tData.capas) {
+          for (const capa of tData.capas) {
+            if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
+              const url = await resolverAssetBlob(capa.src);
+              if (url) capa.src = url;
+            }
+            if (capa.tipo === "image-switch" && capa.options) {
+              for (const opt of capa.options) {
+                if (opt.src && matchesAssetScheme(opt.src)) {
+                  const url = await resolverAssetBlob(opt.src);
+                  if (url) opt.src = url;
                 }
               }
-              newImported.push(tData);
-              loadedTemplatesMap[tData.id] = tData;
             }
-          } catch (err) {
-            console.error("Error al cargar plantilla desde ZIP:", err);
           }
         }
-      } else if (proyecto.templates) {
-        // Compatibilidad hacia atrás
-        for (const [id, template] of Object.entries(proyecto.templates)) {
+      };
+
+      if (proyecto.templates) {
+        const templatesEntries = Array.isArray(proyecto.templates)
+          ? proyecto.templates.map((t: any) => [t.id, t])
+          : Object.entries(proyecto.templates);
+
+        for (const [id, template] of templatesEntries) {
           const tData = JSON.parse(JSON.stringify(template));
           if (id !== "simple" && id !== "vacia" && tData.id && tData.nombre) {
-            // Resolver assets de la plantilla
-            if (tData.capas) {
-              for (const capa of tData.capas) {
-                if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && matchesAssetScheme(capa.src)) {
-                  const url = await resolverAssetBlob(capa.src);
-                  if (url) capa.src = url;
-                }
-                if (capa.tipo === "image-switch" && capa.options) {
-                  for (const opt of capa.options) {
-                    if (opt.src && matchesAssetScheme(opt.src)) {
-                      const url = await resolverAssetBlob(opt.src);
-                      if (url) opt.src = url;
-                    }
-                  }
-                }
-              }
-            }
+            await resolverAssetsPlantilla(tData);
             newImported.push(tData);
-            loadedTemplatesMap[id] = tData;
+            loadedTemplatesMap[tData.id] = tData;
           }
+        }
+      }
+
+      const templateFiles = zip.filter((path) => path.startsWith("templates/") && path.endsWith(".json"));
+      for (const tFile of templateFiles) {
+        try {
+          const content = await tFile.async("text");
+          const tData = JSON.parse(content);
+          if (tData.id && tData.nombre && !loadedTemplatesMap[tData.id]) {
+            await resolverAssetsPlantilla(tData);
+            newImported.push(tData);
+            loadedTemplatesMap[tData.id] = tData;
+          }
+        } catch (err) {
+          console.error("Error al cargar plantilla desde ZIP:", err);
         }
       }
 
@@ -2266,6 +2257,34 @@ function AppContent() {
         }
         return [...prev, templateData];
       });
+
+      setCartas((prev) =>
+        prev.map((c) => {
+          let updated = c;
+          if (c.plantillaId === templateData.id) {
+            updated = { ...updated, plantilla: JSON.parse(JSON.stringify(templateData)) };
+          }
+          if (c.plantillaTraseraId === templateData.id) {
+            updated = { ...updated, plantillaTrasera: JSON.parse(JSON.stringify(templateData)) };
+          }
+          return updated;
+        })
+      );
+      setDocumentos((prevDocs) =>
+        prevDocs.map((doc) => ({
+          ...doc,
+          cards: doc.cards.map((c) => {
+            let updated = c;
+            if (c.plantillaId === templateData.id) {
+              updated = { ...updated, plantilla: JSON.parse(JSON.stringify(templateData)) };
+            }
+            if (c.plantillaTraseraId === templateData.id) {
+              updated = { ...updated, plantillaTrasera: JSON.parse(JSON.stringify(templateData)) };
+            }
+            return updated;
+          })
+        }))
+      );
 
       alert(`Plantilla "${templateData.nombre}" importada con éxito.`);
     } catch (err: any) {
@@ -5762,6 +5781,33 @@ function AppContent() {
               }
               return [...prev, plantilla];
             });
+            setCartas((prev) =>
+              prev.map((c) => {
+                let updated = c;
+                if (c.plantillaId === plantilla.id) {
+                  updated = { ...updated, plantilla: JSON.parse(JSON.stringify(plantilla)) };
+                }
+                if (c.plantillaTraseraId === plantilla.id) {
+                  updated = { ...updated, plantillaTrasera: JSON.parse(JSON.stringify(plantilla)) };
+                }
+                return updated;
+              })
+            );
+            setDocumentos((prevDocs) =>
+              prevDocs.map((doc) => ({
+                ...doc,
+                cards: doc.cards.map((c) => {
+                  let updated = c;
+                  if (c.plantillaId === plantilla.id) {
+                    updated = { ...updated, plantilla: JSON.parse(JSON.stringify(plantilla)) };
+                  }
+                  if (c.plantillaTraseraId === plantilla.id) {
+                    updated = { ...updated, plantillaTrasera: JSON.parse(JSON.stringify(plantilla)) };
+                  }
+                  return updated;
+                })
+              }))
+            );
           }}
           projectAssets={projectAssets}
           projectFonts={projectFonts}

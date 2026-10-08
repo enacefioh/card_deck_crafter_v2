@@ -750,6 +750,47 @@ describe("projectUtils - Lógica de Selección y Edición Avanzada", () => {
       expect(tituloCampo.valorDefecto).toBe("Solo Titulo");
       expect(descCampo.valorDefecto).toBe(""); // Conserva el original o vacío
     });
+
+    it("debe actualizar valorDefecto cuando valoresCarta usa IDs de capa y deduplicar camposConfig duplicados", () => {
+      const plantillaConCapas = {
+        id: "plantilla_test",
+        nombre: "Plantilla Con Capas",
+        capas: [
+          { id: "layer_tit_1", tipo: "text", nombre: "titulo", contenidoRaw: "Viejo Titulo" },
+          { id: "layer_desc_2", tipo: "text", nombre: "descripcion", contenidoRaw: "Vieja Desc" },
+          { id: "layer_extra_3", tipo: "text", nombre: "extra", contenidoRaw: "Texto Extra" }
+        ],
+        camposConfig: [
+          { clave: "titulo", nombreLegible: "titulo", tipo: "text", valorDefecto: "Default 1" },
+          { clave: "titulo", nombreLegible: "titulo", tipo: "text", valorDefecto: "Default 1 Duplicado" },
+          { clave: "descripcion", nombreLegible: "descripcion", tipo: "text", valorDefecto: "Default 2" }
+        ]
+      };
+
+      const valoresCartaPorId = {
+        layer_tit_1: "Nuevo Titulo Por ID",
+        layer_desc_2: "Nueva Descripcion Por ID"
+      };
+
+      const res = prepararPlantillaParaExportacion(plantillaConCapas, "Test Actualizado", valoresCartaPorId);
+
+      // Debe haber deduplicado titulo
+      const titulos = res.camposConfig.filter((c: any) => c.clave === "titulo");
+      expect(titulos.length).toBe(1);
+      expect(titulos[0].valorDefecto).toBe("Nuevo Titulo Por ID");
+
+      const desc = res.camposConfig.find((c: any) => c.clave === "descripcion");
+      expect(desc.valorDefecto).toBe("Nueva Descripcion Por ID");
+
+      // Debe haber sincronizado layer_extra_3
+      const extra = res.camposConfig.find((c: any) => c.clave === "extra");
+      expect(extra).toBeDefined();
+      expect(extra.valorDefecto).toBe("Texto Extra");
+
+      // Capas deben reflejar el contenidoRaw actualizado
+      expect(res.capas.find((c: any) => c.id === "layer_tit_1").contenidoRaw).toBe("Nuevo Titulo Por ID");
+      expect(res.capas.find((c: any) => c.id === "layer_desc_2").contenidoRaw).toBe("Nueva Descripcion Por ID");
+    });
   });
 
   describe("Soporte de Capas de Imagen Switch (SRS-015)", () => {
