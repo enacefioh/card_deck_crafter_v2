@@ -14,6 +14,7 @@ import cookieParser from "cookie-parser";
 import { AuthService, SESSION_COOKIE_NAME, SESSION_DURATION_MS } from "./auth/authService.js";
 import { SqliteUserRepository } from "./auth/sqliteUserRepository.js";
 import { UserStorageService } from "./storage/userStorageService.js";
+import { PublicTemplateService } from "./storage/publicTemplateService.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,7 +75,7 @@ app.post("/api/auth/setup-admin", async (req, res) => {
     res.cookie(SESSION_COOKIE_NAME, session.id, cookieOptions);
     res.json({
       status: "OK",
-      user: { id: user.id, email: user.email, role: user.role }
+      user: { id: user.id, email: user.email, username: user.username, role: user.role }
     });
   } catch (err: any) {
     res.status(400).json({ error: err.message || "Error al configurar el administrador." });
@@ -92,7 +93,7 @@ app.post("/api/auth/login", async (req, res) => {
       res.json({
         status: "OK",
         email: result.email,
-        user: { id: result.user!.id, email: result.user!.email, role: result.user!.role }
+        user: { id: result.user!.id, email: result.user!.email, username: result.user!.username, role: result.user!.role }
       });
     }
   } catch (err: any) {
@@ -107,7 +108,7 @@ app.post("/api/auth/activate-password", async (req, res) => {
     res.cookie(SESSION_COOKIE_NAME, session.id, cookieOptions);
     res.json({
       status: "OK",
-      user: { id: user.id, email: user.email, role: user.role }
+      user: { id: user.id, email: user.email, username: user.username, role: user.role }
     });
   } catch (err: any) {
     res.status(400).json({ error: err.message || "Error al activar contraseña." });
@@ -126,7 +127,7 @@ app.get("/api/auth/me", async (req, res) => {
       return res.json({ user: null });
     }
     res.json({
-      user: { id: user.id, email: user.email, role: user.role }
+      user: { id: user.id, email: user.email, username: user.username, role: user.role }
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -174,7 +175,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261008.2",
+      version: "v2.261008.3",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -205,7 +206,7 @@ app.get("/api/admin/users", requireAdmin, async (_req, res) => {
 
 app.post("/api/admin/users", requireAdmin, async (req, res) => {
   try {
-    const { email, role } = req.body;
+    const { email, role, username } = req.body;
     const cleanEmail = (email || "").trim().toLowerCase();
     if (!cleanEmail || !cleanEmail.includes("@")) {
       return res.status(400).json({ error: "El correo electrónico no es válido." });
@@ -217,12 +218,13 @@ app.post("/api/admin/users", requireAdmin, async (req, res) => {
     }
 
     const assignedRole = role === "admin" ? "admin" : "user";
-    const user = await authService.getRepository().createUser(cleanEmail, assignedRole, null);
+    const user = await authService.getRepository().createUser(cleanEmail, assignedRole, null, 100, username);
     res.json({
       status: "OK",
       user: {
         id: user.id,
         email: user.email,
+        username: user.username,
         role: user.role,
         hasPassword: false,
         storageQuotaMb: user.storageQuotaMb,
@@ -316,6 +318,24 @@ app.delete("/api/admin/users/:id", requireAdmin, async (req, res) => {
     await authService.getRepository().deleteUser(id);
     res.json({ status: "OK" });
   } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put("/api/admin/users/:id/username", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { username } = req.body;
+    if (!username || !username.trim()) {
+      return res.status(400).json({ error: "El nombre de usuario es obligatorio." });
+    }
+    const repo = authService.getRepository() as SqliteUserRepository;
+    await repo.updateUsername(id, username.trim());
+    res.json({ status: "OK", username: username.trim() });
+  } catch (err: any) {
+    if (err.message && err.message.includes("UNIQUE constraint failed")) {
+      return res.status(409).json({ error: "Ese nombre de usuario ya está en uso por otra cuenta." });
+    }
     res.status(500).json({ error: err.message });
   }
 });
@@ -692,6 +712,120 @@ app.delete("/api/user/templates/:id", requireAuth, async (req, res) => {
     const storageService = getStorageService();
     const result = await storageService.deleteTemplate(user.id, user.storageQuotaMb || 100, id);
     res.json({ status: "OK", ...result });
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+const getPublicTemplateService = () => {
+  const repo = authService.getRepository() as SqliteUserRepository;
+  const dataDir = process.env.CDC2_DB_PATH
+    ? path.dirname(process.env.CDC2_DB_PATH)
+    : path.resolve(process.cwd(), process.cwd().endsWith("server") ? "data" : "server/data");
+  return new PublicTemplateService(repo.getDatabase(), dataDir);
+};
+
+// --- SRS-075: Publicación y Moderación de Plantillas Públicas ---
+
+// Publicar o actualizar plantilla en la nube (Usuario)
+app.post("/api/cloud/templates/:id/publish", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const { id } = req.params;
+    const { publicName, publicDescription } = req.body || {};
+    const service = getPublicTemplateService();
+    const publicTemplate = await service.publishTemplate(
+      user.id,
+      id,
+      publicName || "",
+      publicDescription || ""
+    );
+    res.json({ success: true, publicTemplate });
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND" || err.code === "FILE_MISSING") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message || "Error al publicar la plantilla." });
+  }
+});
+
+// Consultar publicaciones del usuario activo
+app.get("/api/cloud/templates/my-publications", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const service = getPublicTemplateService();
+    const publications = await service.getUserPublications(user.id);
+    res.json({ publications });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Listar plantillas públicas para moderación (Admin)
+app.get("/api/admin/public-templates", requireAdmin, async (req, res) => {
+  try {
+    const status = req.query.status as string | undefined;
+    const service = getPublicTemplateService();
+    const templates = await service.listPublicTemplates(status);
+    res.json({ templates });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Aprobar plantilla pública (Admin)
+app.post("/api/admin/public-templates/:id/approve", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const service = getPublicTemplateService();
+    const approved = await service.approveTemplate(id);
+    res.json({ status: "OK", publicTemplate: approved });
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Rechazar / eliminar plantilla pública (Admin)
+app.post("/api/admin/public-templates/:id/reject", requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const service = getPublicTemplateService();
+    await service.rejectTemplate(id);
+    res.json({ status: "OK" });
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND") {
+      return res.status(404).json({ error: err.message });
+    }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Descargar / Obtener archivo de plantilla pública (.cdc2t / .cdc2)
+app.get("/api/public-templates/:id/download", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const service = getPublicTemplateService();
+    const { filePath, template } = service.getPublicTemplateFilePath(id);
+
+    // Si la plantilla no está aprobada, solo el admin o el autor pueden descargarla
+    if (template.status !== "approved") {
+      const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
+      const user = sessionId ? await authService.getSessionUser(sessionId) : null;
+      if (!user || (user.role !== "admin" && user.id !== template.authorId)) {
+        return res.status(403).json({ error: "Esta plantilla está pendiente de moderación y solo puede ser descargada por administradores." });
+      }
+    }
+
+    const safeFilename = `plantilla_${template.name.replace(/[^a-zA-Z0-9_\-\.]/g, "_")}.cdc2`;
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.sendFile(filePath);
   } catch (err: any) {
     if (err.code === "NOT_FOUND") {
       return res.status(404).json({ error: err.message });

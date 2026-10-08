@@ -3,6 +3,7 @@ export type UserRole = 'admin' | 'user';
 export interface User {
   id: string;
   email: string;
+  username?: string;
   passwordHash: string | null;
   role: UserRole;
   storageQuotaMb: number;
@@ -13,6 +14,7 @@ export interface User {
 export interface UserSummary {
   id: string;
   email: string;
+  username?: string;
   role: UserRole;
   hasPassword: boolean;
   storageQuotaMb: number;
@@ -37,6 +39,7 @@ export interface AuthMeResponse {
   user: {
     id: string;
     email: string;
+    username?: string;
     role: UserRole;
   } | null;
 }
@@ -47,6 +50,7 @@ export interface LoginResponse {
   user?: {
     id: string;
     email: string;
+    username?: string;
     role: UserRole;
   };
   error?: string;
@@ -61,15 +65,38 @@ export interface DashboardMetrics {
 export interface IUserRepository {
   findByEmail(email: string): Promise<User | null>;
   findById(id: string): Promise<User | null>;
-  createUser(email: string, role?: UserRole, passwordHash?: string | null, storageQuotaMb?: number): Promise<User>;
+  createUser(email: string, role?: UserRole, passwordHash?: string | null, storageQuotaMb?: number, username?: string): Promise<User>;
   setPassword(userId: string, passwordHash: string): Promise<void>;
   resetPassword(userId: string): Promise<void>;
   updateRole(userId: string, role: UserRole): Promise<void>;
   updateStorageQuota(userId: string, quotaMb: number): Promise<void>;
+  updateUsername(userId: string, username: string): Promise<void>;
   deleteUser(userId: string): Promise<void>;
   countUsers(): Promise<number>;
   listUsers(): Promise<UserSummary[]>;
   getDashboardMetrics(): Promise<DashboardMetrics>;
+}
+
+export interface PublicTemplateMetadata {
+  id: string;
+  originalTemplateId: string;
+  authorId: string;
+  authorName: string;
+  name: string;
+  description: string;
+  filename: string;
+  status: 'pending' | 'approved';
+  documentCount: number;
+  templateCount: number;
+  fileSizeBytes: number;
+  metadataJson?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PublishTemplatePayload {
+  publicName: string;
+  publicDescription: string;
 }
 
 export interface CloudProjectMetadata {

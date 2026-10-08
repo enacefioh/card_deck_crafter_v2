@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../AuthContext";
 import { getAvatarInitials, getAvatarColor } from "../utils/avatarUtils";
 import { createSafeBackdropProps } from "../utils/modalUtils";
-import type { UserSummary, UserRole } from "shared";
+import type { UserSummary, UserRole, PublicTemplateMetadata } from "shared";
 
 interface DashboardData {
   totalUsers: number;
@@ -14,7 +14,7 @@ interface DashboardData {
 
 export const AdminPanel: React.FC = () => {
   const { user, loading: authLoading, logout, setShowLoginModal } = useAuth();
-  const [activeTab, setActiveTab] = useState<"inicio" | "usuarios">("inicio");
+  const [activeTab, setActiveTab] = useState<"inicio" | "usuarios" | "plantillas">("inicio");
 
   // Estados de Datos
   const [dashboard, setDashboard] = useState<DashboardData | null>(null);
@@ -23,14 +23,26 @@ export const AdminPanel: React.FC = () => {
   const [loadingData, setLoadingData] = useState(false);
   const [actionMessage, setActionMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
 
-  // Estados de Modales
+  // Estados de Modales Usuarios
   const [showAddModal, setShowAddModal] = useState(false);
   const [newEmail, setNewEmail] = useState("");
+  const [newUsername, setNewUsername] = useState("");
   const [newRole, setNewRole] = useState<UserRole>("user");
   const [addLoading, setAddLoading] = useState(false);
 
   const [userToReset, setUserToReset] = useState<UserSummary | null>(null);
   const [userToDelete, setUserToDelete] = useState<UserSummary | null>(null);
+
+  // Estado para modificación de nombre de usuario (SRS-075)
+  const [userToEditUsername, setUserToEditUsername] = useState<UserSummary | null>(null);
+  const [usernameInput, setUsernameInput] = useState("");
+  const [usernameLoading, setUsernameLoading] = useState(false);
+
+  // Estados de Plantillas Públicas (SRS-075)
+  const [publicTemplates, setPublicTemplates] = useState<PublicTemplateMetadata[]>([]);
+  const [publicTemplatesFilter, setPublicTemplatesFilter] = useState<"pending" | "approved" | "all">("pending");
+  const [publicTemplatesLoading, setPublicTemplatesLoading] = useState(false);
+  const [actionLoadingId, setActionLoadingId] = useState<string | null>(null);
 
   // Estado para exportación e importación de copias de seguridad (SRS-064)
   const [isExportingBackup, setIsExportingBackup] = useState(false);
@@ -73,10 +85,27 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  const loadPublicTemplates = async (status?: string) => {
+    try {
+      setPublicTemplatesLoading(true);
+      const query = status && status !== "all" ? `?status=${status}` : "";
+      const res = await fetch(`/api/admin/public-templates${query}`);
+      if (res.ok) {
+        const data = await res.json();
+        setPublicTemplates(data.templates || []);
+      }
+    } catch (err) {
+      console.error("Error al cargar plantillas públicas:", err);
+    } finally {
+      setPublicTemplatesLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (user?.role === "admin") {
       loadDashboard();
       loadUsers();
+      loadPublicTemplates(publicTemplatesFilter);
     }
   }, [user]);
 
@@ -94,7 +123,7 @@ export const AdminPanel: React.FC = () => {
       const res = await fetch("/api/admin/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: newEmail, role: newRole })
+        body: JSON.stringify({ email: newEmail, role: newRole, username: newUsername.trim() || undefined })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -102,6 +131,7 @@ export const AdminPanel: React.FC = () => {
       }
       showFeedback(`Usuario ${newEmail} registrado con éxito.`);
       setNewEmail("");
+      setNewUsername("");
       setShowAddModal(false);
       loadUsers();
       loadDashboard();
@@ -109,6 +139,74 @@ export const AdminPanel: React.FC = () => {
       showFeedback(err.message, "error");
     } finally {
       setAddLoading(false);
+    }
+  };
+
+  // Actualizar nombre de usuario
+  const handleUpdateUsername = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userToEditUsername) return;
+    try {
+      setUsernameLoading(true);
+      const res = await fetch(`/api/admin/users/${userToEditUsername.id}/username`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: usernameInput.trim() })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Error al actualizar el nombre de usuario.");
+      }
+      showFeedback("Nombre de usuario actualizado con éxito.");
+      setUserToEditUsername(null);
+      loadUsers();
+    } catch (err: any) {
+      showFeedback(err.message, "error");
+    } finally {
+      setUsernameLoading(false);
+    }
+  };
+
+  // Aprobar plantilla pública
+  const handleApproveTemplate = async (templateId: string) => {
+    try {
+      setActionLoadingId(templateId);
+      const res = await fetch(`/api/admin/public-templates/${templateId}/approve`, {
+        method: "POST"
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Error al aprobar la plantilla.");
+      }
+      showFeedback("Plantilla aprobada correctamente para la tienda pública.");
+      loadPublicTemplates(publicTemplatesFilter);
+    } catch (err: any) {
+      showFeedback(err.message, "error");
+    } finally {
+      setActionLoadingId(null);
+    }
+  };
+
+  // Rechazar / eliminar plantilla pública
+  const handleRejectTemplate = async (templateId: string) => {
+    if (!window.confirm("¿Seguro que deseas rechazar/eliminar esta plantilla pública? Se eliminará el archivo del servidor.")) {
+      return;
+    }
+    try {
+      setActionLoadingId(templateId);
+      const res = await fetch(`/api/admin/public-templates/${templateId}/reject`, {
+        method: "POST"
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || "Error al rechazar la plantilla.");
+      }
+      showFeedback("Plantilla eliminada del repositorio público.");
+      loadPublicTemplates(publicTemplatesFilter);
+    } catch (err: any) {
+      showFeedback(err.message, "error");
+    } finally {
+      setActionLoadingId(null);
     }
   };
 
@@ -391,6 +489,30 @@ export const AdminPanel: React.FC = () => {
           >
             <span>👥</span> Usuarios
           </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("plantillas");
+              loadPublicTemplates(publicTemplatesFilter);
+            }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              padding: "10px 14px",
+              borderRadius: "6px",
+              border: "none",
+              backgroundColor: activeTab === "plantillas" ? "#2b2b3b" : "transparent",
+              color: activeTab === "plantillas" ? "#fff" : "#a1a1aa",
+              fontSize: "14px",
+              fontWeight: activeTab === "plantillas" ? "600" : "500",
+              cursor: "pointer",
+              textAlign: "left",
+              transition: "all 0.15s"
+            }}
+          >
+            <span>📐</span> Plantillas Públicas
+          </button>
         </nav>
 
         {/* Pie Sidebar */}
@@ -431,7 +553,11 @@ export const AdminPanel: React.FC = () => {
           }}
         >
           <div style={{ fontSize: "16px", fontWeight: "600", color: "#fff" }}>
-            {activeTab === "inicio" ? "Panel de Control / Resumen" : "Gestión de Usuarios"}
+            {activeTab === "inicio"
+              ? "Panel de Control / Resumen"
+              : activeTab === "usuarios"
+              ? "Gestión de Usuarios"
+              : "Moderación de Plantillas Públicas"}
           </div>
 
           <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
@@ -535,7 +661,7 @@ export const AdminPanel: React.FC = () => {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "16px", fontSize: "13px" }}>
                   <div>
                     <span style={{ color: "#64748b", display: "block" }}>Versión Software:</span>
-                    <strong style={{ color: "#e2e8f0" }}>{dashboard?.version || "v2.261008.2"}</strong>
+                    <strong style={{ color: "#e2e8f0" }}>{dashboard?.version || "v2.261008.3"}</strong>
                   </div>
                   <div>
                     <span style={{ color: "#64748b", display: "block" }}>Motor de Base de Datos:</span>
@@ -678,6 +804,7 @@ export const AdminPanel: React.FC = () => {
                     <tr style={{ backgroundColor: "#18181f", borderBottom: "1px solid #2a2a35", color: "#94a3b8" }}>
                       <th style={{ padding: "12px 16px", width: "40px" }}></th>
                       <th style={{ padding: "12px 16px" }}>Email</th>
+                      <th style={{ padding: "12px 16px" }}>Usuario (@)</th>
                       <th style={{ padding: "12px 16px" }}>Rol</th>
                       <th style={{ padding: "12px 16px" }}>Estado Clave</th>
                       <th style={{ padding: "12px 16px" }}>Cuota (Uso / Límite)</th>
@@ -688,13 +815,13 @@ export const AdminPanel: React.FC = () => {
                   <tbody>
                     {loadingData ? (
                       <tr>
-                        <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
+                        <td colSpan={8} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
                           Cargando usuarios...
                         </td>
                       </tr>
                     ) : filteredUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={7} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
+                        <td colSpan={8} style={{ padding: "32px", textAlign: "center", color: "#64748b" }}>
                           {searchQuery ? "No se encontraron usuarios coincidentes." : "No hay usuarios registrados."}
                         </td>
                       </tr>
@@ -732,6 +859,33 @@ export const AdminPanel: React.FC = () => {
                                   (tú)
                                 </span>
                               )}
+                            </td>
+
+                            <td style={{ padding: "12px 16px" }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                <span style={{ color: u.username ? "#a5b4fc" : "#64748b", fontWeight: u.username ? "600" : "400" }}>
+                                  {u.username ? `@${u.username}` : "—"}
+                                </span>
+                                <button
+                                  type="button"
+                                  title="Editar nombre de usuario"
+                                  onClick={() => {
+                                    setUserToEditUsername(u);
+                                    setUsernameInput(u.username || "");
+                                  }}
+                                  style={{
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    fontSize: "12px",
+                                    padding: "2px 4px",
+                                    borderRadius: "3px",
+                                    color: "#94a3b8"
+                                  }}
+                                >
+                                  ✏️
+                                </button>
+                              </div>
                             </td>
 
                             <td style={{ padding: "12px 16px" }}>
@@ -874,6 +1028,318 @@ export const AdminPanel: React.FC = () => {
               </div>
             </div>
           )}
+
+          {activeTab === "plantillas" && (
+            <div style={{ maxWidth: "1100px" }}>
+              {/* Barra de Filtros y Controles */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px", gap: "16px", flexWrap: "wrap" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "13px", color: "#94a3b8", fontWeight: "600", marginRight: "4px" }}>
+                    Filtrar por:
+                  </span>
+                  {(
+                    [
+                      { key: "pending", label: "⏳ Pendientes de Aprobación" },
+                      { key: "approved", label: "✅ Aprobadas / Tienda" },
+                      { key: "all", label: "🌐 Todas" }
+                    ] as const
+                  ).map((f) => (
+                    <button
+                      key={f.key}
+                      onClick={() => {
+                        setPublicTemplatesFilter(f.key);
+                        loadPublicTemplates(f.key);
+                      }}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: "20px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        border: publicTemplatesFilter === f.key ? "1px solid #6366f1" : "1px solid #333340",
+                        backgroundColor: publicTemplatesFilter === f.key ? "#4f46e5" : "#1e1e24",
+                        color: publicTemplatesFilter === f.key ? "#fff" : "#94a3b8",
+                        cursor: "pointer",
+                        transition: "all 0.15s"
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={() => loadPublicTemplates(publicTemplatesFilter)}
+                  disabled={publicTemplatesLoading}
+                  style={{
+                    padding: "7px 14px",
+                    borderRadius: "6px",
+                    backgroundColor: "#2b2b36",
+                    color: "#cbd5e1",
+                    border: "1px solid #3f3f4e",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    cursor: publicTemplatesLoading ? "wait" : "pointer",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "6px"
+                  }}
+                >
+                  <span>🔄</span> {publicTemplatesLoading ? "Cargando..." : "Refrescar"}
+                </button>
+              </div>
+
+              {/* Lista de Plantillas */}
+              {publicTemplatesLoading ? (
+                <div style={{ backgroundColor: "#1e1e24", border: "1px solid #2a2a35", borderRadius: "10px", padding: "40px", textAlign: "center", color: "#64748b" }}>
+                  Cargando plantillas públicas...
+                </div>
+              ) : publicTemplates.length === 0 ? (
+                <div style={{ backgroundColor: "#1e1e24", border: "1px solid #2a2a35", borderRadius: "10px", padding: "40px", textAlign: "center", color: "#64748b" }}>
+                  No hay plantillas públicas disponibles con el filtro seleccionado.
+                </div>
+              ) : (
+                <div style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {publicTemplates.map((tmpl) => {
+                    let previewCards: any[] = [];
+                    if (tmpl.metadataJson) {
+                      try {
+                        const parsed = JSON.parse(tmpl.metadataJson);
+                        if (Array.isArray(parsed.previewCards)) {
+                          previewCards = parsed.previewCards;
+                        }
+                      } catch {
+                        // ignore json parse error
+                      }
+                    }
+
+                    const isPending = tmpl.status === "pending";
+                    const isActionLoading = actionLoadingId === tmpl.id;
+
+                    return (
+                      <div
+                        key={tmpl.id}
+                        style={{
+                          backgroundColor: "#1e1e24",
+                          border: `1px solid ${isPending ? "#eab308" : "#2a2a35"}`,
+                          borderRadius: "10px",
+                          padding: "20px 24px",
+                          display: "flex",
+                          flexDirection: "column",
+                          gap: "14px"
+                        }}
+                      >
+                        {/* Cabecera de la plantilla */}
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px", flexWrap: "wrap" }}>
+                          <div>
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px", flexWrap: "wrap" }}>
+                              <h3 style={{ margin: 0, fontSize: "17px", fontWeight: "700", color: "#fff" }}>
+                                {tmpl.name}
+                              </h3>
+                              <span
+                                style={{
+                                  padding: "2px 8px",
+                                  borderRadius: "12px",
+                                  fontSize: "11px",
+                                  fontWeight: "600",
+                                  backgroundColor: "rgba(99, 102, 241, 0.2)",
+                                  color: "#a5b4fc",
+                                  border: "1px solid rgba(99, 102, 241, 0.3)"
+                                }}
+                              >
+                                👤 @{tmpl.authorName || "anónimo"}
+                              </span>
+                              <span
+                                style={{
+                                  padding: "2px 8px",
+                                  borderRadius: "12px",
+                                  fontSize: "11px",
+                                  fontWeight: "600",
+                                  backgroundColor: isPending ? "rgba(234, 179, 8, 0.2)" : "rgba(34, 197, 94, 0.2)",
+                                  color: isPending ? "#facc15" : "#4ade80",
+                                  border: `1px solid ${isPending ? "rgba(234, 179, 8, 0.4)" : "rgba(34, 197, 94, 0.4)"}`
+                                }}
+                              >
+                                {isPending ? "⏳ Pendiente de Aprobación" : "✅ Aprobada para Tienda"}
+                              </span>
+                            </div>
+                            <p style={{ margin: "6px 0 0 0", fontSize: "13px", color: "#cbd5e1", lineHeight: "1.4" }}>
+                              {tmpl.description || "Sin descripción proporcionada."}
+                            </p>
+                          </div>
+
+                          {/* Acciones */}
+                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                            <button
+                              type="button"
+                              title="Abrir esta plantilla en el editor para probar cartas y diseño antes de aprobarla"
+                              onClick={() => {
+                                window.open(`/?openPublicTemplate=${encodeURIComponent(tmpl.id)}`, "_blank");
+                              }}
+                              style={{
+                                padding: "8px 14px",
+                                borderRadius: "6px",
+                                border: "1px solid #38bdf8",
+                                backgroundColor: "rgba(56, 189, 248, 0.15)",
+                                color: "#38bdf8",
+                                fontWeight: "600",
+                                fontSize: "12px",
+                                cursor: "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px",
+                                transition: "background-color 0.15s"
+                              }}
+                            >
+                              <span>👁️</span> Abrir Plantilla
+                            </button>
+
+                            {isPending && (
+                              <button
+                                type="button"
+                                disabled={isActionLoading}
+                                onClick={() => handleApproveTemplate(tmpl.id)}
+                                style={{
+                                  padding: "8px 14px",
+                                  borderRadius: "6px",
+                                  border: "none",
+                                  backgroundColor: "#16a34a",
+                                  color: "#fff",
+                                  fontWeight: "600",
+                                  fontSize: "12px",
+                                  cursor: isActionLoading ? "wait" : "pointer",
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: "6px",
+                                  boxShadow: "0 2px 6px rgba(22, 163, 74, 0.3)"
+                                }}
+                              >
+                                <span>✅</span> {isActionLoading ? "Procesando..." : "Aprobar Publicación"}
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              disabled={isActionLoading}
+                              onClick={() => handleRejectTemplate(tmpl.id)}
+                              style={{
+                                padding: "8px 14px",
+                                borderRadius: "6px",
+                                border: "1px solid rgba(239, 68, 68, 0.4)",
+                                backgroundColor: "rgba(239, 68, 68, 0.15)",
+                                color: "#f87171",
+                                fontWeight: "600",
+                                fontSize: "12px",
+                                cursor: isActionLoading ? "wait" : "pointer",
+                                display: "flex",
+                                alignItems: "center",
+                                gap: "6px"
+                              }}
+                            >
+                              <span>{isPending ? "❌" : "🗑️"}</span> {isPending ? "Rechazar" : "Retirar / Despublicar"}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Metadatos y Estadísticas */}
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "16px",
+                            flexWrap: "wrap",
+                            fontSize: "12px",
+                            color: "#94a3b8",
+                            paddingTop: "8px",
+                            borderTop: "1px solid #282834"
+                          }}
+                        >
+                          <span>📄 {tmpl.documentCount} {tmpl.documentCount === 1 ? "documento" : "documentos"}</span>
+                          <span>🎴 {tmpl.templateCount} {tmpl.templateCount === 1 ? "plantilla de carta" : "plantillas de carta"}</span>
+                          <span>💾 {((tmpl.fileSizeBytes || 0) / (1024 * 1024)).toFixed(2)} MB</span>
+                          <span>📅 Publicado: {new Date(tmpl.createdAt).toLocaleDateString()}</span>
+                        </div>
+
+                        {/* Miniaturas de vista previa */}
+                        {previewCards.length > 0 && (
+                          <div style={{ marginTop: "4px" }}>
+                            <div style={{ fontSize: "11px", fontWeight: "600", color: "#64748b", textTransform: "uppercase", marginBottom: "8px" }}>
+                              Miniaturas contenidas en la plantilla:
+                            </div>
+                            <div style={{ display: "flex", gap: "12px", overflowX: "auto", paddingBottom: "6px" }}>
+                              {previewCards.map((p, idx) => (
+                                <div
+                                  key={idx}
+                                  style={{
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    backgroundColor: "#16161c",
+                                    border: "1px solid #2a2a35",
+                                    borderRadius: "6px",
+                                    padding: "6px",
+                                    minWidth: "70px",
+                                    maxWidth: "90px"
+                                  }}
+                                >
+                                  {p.miniatura ? (
+                                    <img
+                                      src={p.miniatura}
+                                      alt={p.nombre || "Miniatura"}
+                                      style={{
+                                        width: "56px",
+                                        height: "78px",
+                                        objectFit: "contain",
+                                        backgroundColor: "#0d0d11",
+                                        borderRadius: "3px"
+                                      }}
+                                    />
+                                  ) : (
+                                    <div
+                                      style={{
+                                        width: "56px",
+                                        height: "78px",
+                                        display: "flex",
+                                        alignItems: "center",
+                                        justifyContent: "center",
+                                        backgroundColor: "#0d0d11",
+                                        borderRadius: "3px",
+                                        color: "#475569",
+                                        fontSize: "18px"
+                                      }}
+                                    >
+                                      🎴
+                                    </div>
+                                  )}
+                                  <span
+                                    title={p.nombre}
+                                    style={{
+                                      fontSize: "10px",
+                                      color: "#cbd5e1",
+                                      marginTop: "4px",
+                                      whiteSpace: "nowrap",
+                                      overflow: "hidden",
+                                      textOverflow: "ellipsis",
+                                      width: "100%",
+                                      textAlign: "center"
+                                    }}
+                                  >
+                                    {p.nombre || "Carta"}
+                                  </span>
+                                  <span style={{ fontSize: "9px", color: "#64748b" }}>
+                                    {p.anchoMm}×{p.altoMm}mm
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </main>
       </div>
 
@@ -936,6 +1402,36 @@ export const AdminPanel: React.FC = () => {
 
               <div>
                 <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "6px" }}>
+                  Nombre de Usuario (Opcional)
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <span style={{ fontSize: "14px", color: "#94a3b8", fontWeight: "600" }}>@</span>
+                  <input
+                    type="text"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    placeholder="ej. juan_perez"
+                    pattern="^[a-zA-Z0-9_\-\.]{3,30}$"
+                    title="Entre 3 y 30 caracteres alfanuméricos, guiones o puntos."
+                    style={{
+                      flex: 1,
+                      padding: "9px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid #444452",
+                      backgroundColor: "#121216",
+                      color: "#fff",
+                      fontSize: "14px",
+                      boxSizing: "border-box"
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px", display: "block" }}>
+                  Si se omite, se generará uno aleatorio (user_xxxxxx).
+                </span>
+              </div>
+
+              <div>
+                <label style={{ display: "block", fontSize: "12px", fontWeight: "600", marginBottom: "6px" }}>
                   Rol Asignado
                 </label>
                 <select
@@ -988,6 +1484,116 @@ export const AdminPanel: React.FC = () => {
                   }}
                 >
                   {addLoading ? "Creando..." : "Crear Usuario"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: MODIFICAR NOMBRE DE USUARIO (SRS-075) */}
+      {userToEditUsername && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.65)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 9999
+          }}
+          {...createSafeBackdropProps(backdropMouseDownRef, () => {
+            if (!usernameLoading) setUserToEditUsername(null);
+          })}
+        >
+          <div
+            style={{
+              backgroundColor: "#1e1e24",
+              border: "1px solid #333340",
+              borderRadius: "10px",
+              padding: "24px 28px",
+              width: "100%",
+              maxWidth: "420px",
+              boxShadow: "0 20px 40px rgba(0,0,0,0.5)"
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "14px" }}>
+              <span style={{ fontSize: "24px" }}>👤</span>
+              <div>
+                <h3 style={{ margin: 0, fontSize: "17px", color: "#6366f1" }}>Modificar Nombre de Usuario</h3>
+                <span style={{ fontSize: "12px", color: "#94a3b8" }}>{userToEditUsername.email}</span>
+              </div>
+            </div>
+
+            <form onSubmit={handleUpdateUsername}>
+              <div style={{ marginBottom: "16px" }}>
+                <label style={{ display: "block", fontSize: "13px", color: "#cbd5e1", marginBottom: "6px", fontWeight: "500" }}>
+                  Nombre de Usuario (Único)
+                </label>
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span style={{ fontSize: "14px", color: "#94a3b8", fontWeight: "600" }}>@</span>
+                  <input
+                    type="text"
+                    required
+                    pattern="^[a-zA-Z0-9_\-\.]{3,30}$"
+                    title="Entre 3 y 30 caracteres alfanuméricos, guiones o puntos."
+                    value={usernameInput}
+                    onChange={(e) => setUsernameInput(e.target.value)}
+                    disabled={usernameLoading}
+                    placeholder="nombre_usuario"
+                    style={{
+                      flex: 1,
+                      padding: "9px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid #3f3f4e",
+                      backgroundColor: "#141418",
+                      color: "#fff",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      outline: "none"
+                    }}
+                  />
+                </div>
+                <span style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px", display: "block" }}>
+                  Solo letras, números, guiones y puntos (3-30 caracteres). Este nombre será visible como autor en plantillas públicas.
+                </span>
+              </div>
+
+              <div style={{ display: "flex", gap: "10px", justifyContent: "flex-end" }}>
+                <button
+                  type="button"
+                  disabled={usernameLoading}
+                  onClick={() => setUserToEditUsername(null)}
+                  style={{
+                    padding: "8px 14px",
+                    borderRadius: "6px",
+                    border: "1px solid #3f3f4e",
+                    backgroundColor: "transparent",
+                    color: "#cbd5e1",
+                    fontSize: "13px",
+                    cursor: usernameLoading ? "not-allowed" : "pointer"
+                  }}
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={usernameLoading}
+                  style={{
+                    padding: "8px 18px",
+                    borderRadius: "6px",
+                    border: "none",
+                    backgroundColor: usernameLoading ? "#4338ca" : "#6366f1",
+                    color: "#fff",
+                    fontWeight: "600",
+                    fontSize: "13px",
+                    cursor: usernameLoading ? "wait" : "pointer"
+                  }}
+                >
+                  {usernameLoading ? "Guardando..." : "Guardar Nombre"}
                 </button>
               </div>
             </form>

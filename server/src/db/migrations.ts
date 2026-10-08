@@ -85,8 +85,51 @@ export const migrations: Migration[] = [
           FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
           UNIQUE(user_id, filename)
         );
+      `);
+    }
+  },
+  {
+    version: 5,
+    description: "Añadir columna username a users y crear tabla public_templates para repositorio público (SRS-075)",
+    up: (db: DatabaseType) => {
+      // 1. Añadir columna username si no existe
+      const userColumns = db.prepare("PRAGMA table_info(users)").all() as any[];
+      const hasUsername = userColumns.some((col: any) => col.name === "username");
+      if (!hasUsername) {
+        db.exec("ALTER TABLE users ADD COLUMN username TEXT NULL;");
+        db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username);");
+      }
 
-        CREATE INDEX IF NOT EXISTS idx_user_templates_user_updated ON user_templates(user_id, updated_at DESC);
+      // 2. Rellenar username para usuarios preexistentes que lo tengan null o vacío
+      const usersWithoutUsername = db.prepare("SELECT id FROM users WHERE username IS NULL OR username = ''").all() as any[];
+      const updateStmt = db.prepare("UPDATE users SET username = ? WHERE id = ?");
+      for (const u of usersWithoutUsername) {
+        const randSuffix = Math.floor(100000 + Math.random() * 900000);
+        updateStmt.run(`user_${randSuffix}`, u.id);
+      }
+
+      // 3. Crear tabla public_templates
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS public_templates (
+          id TEXT PRIMARY KEY,
+          original_template_id TEXT NOT NULL,
+          author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          author_name TEXT NOT NULL,
+          name TEXT NOT NULL,
+          description TEXT DEFAULT '',
+          filename TEXT NOT NULL,
+          status TEXT NOT NULL DEFAULT 'pending',
+          document_count INTEGER NOT NULL DEFAULT 0,
+          template_count INTEGER NOT NULL DEFAULT 0,
+          file_size_bytes INTEGER NOT NULL,
+          metadata_json TEXT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL,
+          UNIQUE(author_id, original_template_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_public_templates_status ON public_templates(status);
+        CREATE INDEX IF NOT EXISTS idx_public_templates_author ON public_templates(author_id);
       `);
     }
   }

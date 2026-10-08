@@ -1,18 +1,22 @@
 import React, { useState, useEffect } from "react";
-import type { CloudProjectMetadata, CloudTemplateMetadata, UserStorageInfo } from "shared";
+import type { CloudProjectMetadata, CloudTemplateMetadata, PublicTemplateMetadata, UserStorageInfo } from "shared";
 import { useSafeBackdrop } from "../utils/modalUtils";
 import {
   fetchCloudProjects,
   deleteCloudProject,
   fetchCloudTemplates,
-  deleteCloudTemplate
+  deleteCloudTemplate,
+  publishCloudTemplate,
+  fetchMyTemplatePublications
 } from "../services/storageService";
+import { PublishTemplateModal } from "./PublishTemplateModal";
 
 interface CloudProjectsModalProps {
   isOpen: boolean;
   onClose: () => void;
   storageInfo: UserStorageInfo | null;
   initialTab?: "projects" | "templates";
+  authorUsername?: string;
   onOpenProject: (project: CloudProjectMetadata) => Promise<void>;
   onExportProject: (project: CloudProjectMetadata) => Promise<void>;
   onUseTemplate?: (template: CloudTemplateMetadata) => Promise<void>;
@@ -25,6 +29,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
   onClose,
   storageInfo,
   initialTab = "projects",
+  authorUsername,
   onOpenProject,
   onExportProject,
   onUseTemplate,
@@ -34,6 +39,8 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
   const [activeTab, setActiveTab] = useState<"projects" | "templates">(initialTab);
   const [projects, setProjects] = useState<CloudProjectMetadata[]>([]);
   const [templates, setTemplates] = useState<CloudTemplateMetadata[]>([]);
+  const [publications, setPublications] = useState<Record<string, PublicTemplateMetadata>>({});
+  const [templateToPublish, setTemplateToPublish] = useState<CloudTemplateMetadata | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
@@ -50,12 +57,14 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
     try {
       setIsLoading(true);
       setActionError(null);
-      const [projList, tmplList] = await Promise.all([
+      const [projList, tmplList, pubMap] = await Promise.all([
         fetchCloudProjects(),
-        fetchCloudTemplates().catch(() => [])
+        fetchCloudTemplates().catch(() => []),
+        fetchMyTemplatePublications().catch(() => ({}))
       ]);
       setProjects(projList);
       setTemplates(tmplList);
+      setPublications(pubMap);
     } catch (err: any) {
       setActionError(err.message || "Error al cargar la lista desde la nube.");
     } finally {
@@ -162,6 +171,16 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
       setActionError(err.message || "Error al exportar la plantilla.");
     } finally {
       setIsExportingId(null);
+    }
+  };
+
+  const handlePublishConfirm = async (templateId: string, payload: { publicName: string; publicDescription: string }) => {
+    try {
+      await publishCloudTemplate(templateId, payload);
+      await loadData();
+    } catch (err: any) {
+      setActionError(err.message || "Error al publicar la plantilla.");
+      throw err;
     }
   };
 
@@ -487,11 +506,12 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                 )}
               </div>
             ) : (
-              <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                 {filteredTemplates.map((t) => {
                   const sizeMb = (t.fileSizeBytes / (1024 * 1024)).toFixed(2);
                   const isUsing = isUsingTemplateId === t.id;
                   const isExporting = isExportingId === t.id;
+                  const pub = publications[t.id];
 
                   return (
                     <div
@@ -512,6 +532,16 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                           <span style={{ fontWeight: "600", fontSize: "14px", color: "#fff", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                             {t.name}
                           </span>
+                          {pub && pub.status === "pending" && (
+                            <span style={{ padding: "1px 6px", borderRadius: "4px", backgroundColor: "rgba(245, 158, 11, 0.15)", color: "#fbbf24", border: "1px solid rgba(245, 158, 11, 0.3)", fontSize: "11px", fontWeight: "600" }}>
+                              ⏳ En revisión
+                            </span>
+                          )}
+                          {pub && pub.status === "approved" && (
+                            <span style={{ padding: "1px 6px", borderRadius: "4px", backgroundColor: "rgba(16, 185, 129, 0.15)", color: "#34d399", border: "1px solid rgba(16, 185, 129, 0.3)", fontSize: "11px", fontWeight: "600" }}>
+                              🌐 Publicada
+                            </span>
+                          )}
                         </div>
 
                         {t.description && (
@@ -541,6 +571,29 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
 
                       {/* Acciones Plantilla */}
                       <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                        <button
+                          type="button"
+                          onClick={() => setTemplateToPublish(t)}
+                          disabled={isUsing || isExporting}
+                          title={pub ? "Actualizar plantilla en la tienda comunitaria" : "Publicar plantilla en la tienda comunitaria"}
+                          style={{
+                            padding: "6px 10px",
+                            borderRadius: "4px",
+                            border: "1px solid #3f3f4e",
+                            backgroundColor: pub ? "#27273a" : "rgba(244, 63, 94, 0.15)",
+                            borderColor: pub ? "#4b5563" : "rgba(244, 63, 94, 0.4)",
+                            color: pub ? "#cbd5e1" : "#fda4af",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                            cursor: "pointer",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "4px"
+                          }}
+                        >
+                          {pub ? "🔄 Actualizar" : "📢 Publicar"}
+                        </button>
+
                         <button
                           type="button"
                           onClick={() => handleUseTemplate(t)}
@@ -741,6 +794,15 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
             </div>
           </div>
         )}
+        {/* Modal de Publicar / Actualizar Plantilla en la Tienda (SRS-075) */}
+        <PublishTemplateModal
+          isOpen={Boolean(templateToPublish)}
+          onClose={() => setTemplateToPublish(null)}
+          template={templateToPublish}
+          existingPublication={templateToPublish ? publications[templateToPublish.id] : undefined}
+          authorUsername={authorUsername}
+          onPublish={handlePublishConfirm}
+        />
       </div>
     </div>
   );

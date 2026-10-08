@@ -2006,6 +2006,38 @@ function AppContent() {
     e.target.value = "";
   };
 
+  // --- Carga automática de plantilla pública vía URL (?openPublicTemplate=xxx) - SRS-075 / SRS-076 ---
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const params = new URLSearchParams(window.location.search);
+    const publicTemplateId = params.get("openPublicTemplate");
+    if (!publicTemplateId) return;
+
+    // Limpiar el parámetro de la barra de direcciones para evitar recargas accidentales
+    const cleanUrl = window.location.pathname;
+    window.history.replaceState({}, document.title, cleanUrl);
+
+    const loadPublicTemplateFromParam = async () => {
+      try {
+        const res = await fetch(`/api/public-templates/${encodeURIComponent(publicTemplateId)}/download`, {
+          credentials: "include"
+        });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || "No se pudo descargar la plantilla pública del servidor.");
+        }
+        const blob = await res.blob();
+        const file = new File([blob], `plantilla_${publicTemplateId}.cdc2`, { type: "application/octet-stream" });
+        await handleCargarProyecto(file, { asTemplate: true });
+      } catch (err: any) {
+        console.error("Error al cargar plantilla pública desde URL:", err);
+        alert(`Error al abrir la plantilla pública: ${err.message}`);
+      }
+    };
+
+    loadPublicTemplateFromParam();
+  }, []);
+
   // --- Handlers de Proyectos y Plantillas en la Nube (SRS-066 / SRS-068) ---
   const handleTriggerSaveCloud = () => {
     if (!user) {
@@ -7462,6 +7494,7 @@ function AppContent() {
         onClose={() => setShowCloudProjectsModal(false)}
         storageInfo={storageInfo}
         initialTab={cloudProjectsModalInitialTab}
+        authorUsername={user?.username}
         onOpenProject={handleOpenCloudProject}
         onExportProject={handleExportCloudProject}
         onUseTemplate={handleUseCloudTemplate}

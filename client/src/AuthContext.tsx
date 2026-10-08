@@ -4,6 +4,7 @@ import type { UserRole, AuthStatusResponse } from "shared";
 export interface AuthUser {
   id: string;
   email: string;
+  username?: string;
   role: UserRole;
 }
 

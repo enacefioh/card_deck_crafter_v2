@@ -75,13 +75,14 @@ export class SqliteUserRepository implements IUserRepository {
   public async findByEmail(email: string): Promise<User | null> {
     const cleanEmail = email.trim().toLowerCase();
     const row = this.db.prepare(
-      "SELECT id, email, password_hash, role, storage_quota_mb, created_at, updated_at FROM users WHERE email = ?"
+      "SELECT id, email, username, password_hash, role, storage_quota_mb, created_at, updated_at FROM users WHERE email = ?"
     ).get(cleanEmail) as any;
 
     if (!row) return null;
     return {
       id: row.id,
       email: row.email,
+      username: row.username || undefined,
       passwordHash: row.password_hash,
       role: row.role as UserRole,
       storageQuotaMb: row.storage_quota_mb !== undefined && row.storage_quota_mb !== null ? Number(row.storage_quota_mb) : 100,
@@ -92,13 +93,14 @@ export class SqliteUserRepository implements IUserRepository {
 
   public async findById(id: string): Promise<User | null> {
     const row = this.db.prepare(
-      "SELECT id, email, password_hash, role, storage_quota_mb, created_at, updated_at FROM users WHERE id = ?"
+      "SELECT id, email, username, password_hash, role, storage_quota_mb, created_at, updated_at FROM users WHERE id = ?"
     ).get(id) as any;
 
     if (!row) return null;
     return {
       id: row.id,
       email: row.email,
+      username: row.username || undefined,
       passwordHash: row.password_hash,
       role: row.role as UserRole,
       storageQuotaMb: row.storage_quota_mb !== undefined && row.storage_quota_mb !== null ? Number(row.storage_quota_mb) : 100,
@@ -111,19 +113,22 @@ export class SqliteUserRepository implements IUserRepository {
     email: string,
     role: UserRole = "user",
     passwordHash: string | null = null,
-    storageQuotaMb: number = 100
+    storageQuotaMb: number = 100,
+    username?: string
   ): Promise<User> {
     const cleanEmail = email.trim().toLowerCase();
     const id = randomUUID();
     const now = new Date().toISOString();
+    const cleanUsername = username?.trim() || `user_${Math.floor(100000 + Math.random() * 900000)}`;
 
     this.db.prepare(
-      "INSERT INTO users (id, email, password_hash, role, storage_quota_mb, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    ).run(id, cleanEmail, passwordHash, role, storageQuotaMb, now, now);
+      "INSERT INTO users (id, email, username, password_hash, role, storage_quota_mb, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    ).run(id, cleanEmail, cleanUsername, passwordHash, role, storageQuotaMb, now, now);
 
     return {
       id,
       email: cleanEmail,
+      username: cleanUsername,
       passwordHash,
       role,
       storageQuotaMb,
@@ -158,6 +163,15 @@ export class SqliteUserRepository implements IUserRepository {
     this.db.prepare("UPDATE users SET storage_quota_mb = ?, updated_at = ? WHERE id = ?").run(quotaMb, now, userId);
   }
 
+  public async updateUsername(userId: string, username: string): Promise<void> {
+    const clean = username.trim();
+    if (!clean) {
+      throw new Error("El nombre de usuario no puede estar vacío.");
+    }
+    const now = new Date().toISOString();
+    this.db.prepare("UPDATE users SET username = ?, updated_at = ? WHERE id = ?").run(clean, now, userId);
+  }
+
   public async deleteUser(userId: string): Promise<void> {
     this.db.prepare("DELETE FROM users WHERE id = ?").run(userId);
   }
@@ -169,12 +183,13 @@ export class SqliteUserRepository implements IUserRepository {
 
   public async listUsers(): Promise<UserSummary[]> {
     const rows = this.db.prepare(
-      "SELECT id, email, role, password_hash, storage_quota_mb, created_at FROM users ORDER BY created_at ASC"
+      "SELECT id, email, username, role, password_hash, storage_quota_mb, created_at FROM users ORDER BY created_at ASC"
     ).all() as any[];
 
     return rows.map(r => ({
       id: r.id,
       email: r.email,
+      username: r.username || undefined,
       role: r.role as UserRole,
       hasPassword: r.password_hash !== null && r.password_hash !== "",
       storageQuotaMb: r.storage_quota_mb !== undefined && r.storage_quota_mb !== null ? Number(r.storage_quota_mb) : 100,
@@ -216,7 +231,7 @@ export class SqliteUserRepository implements IUserRepository {
     const row = this.db.prepare(`
       SELECT 
         s.id as s_id, s.user_id, s.expires_at, s.created_at as s_created,
-        u.id as u_id, u.email, u.password_hash, u.role, u.storage_quota_mb, u.created_at as u_created, u.updated_at
+        u.id as u_id, u.email, u.username, u.password_hash, u.role, u.storage_quota_mb, u.created_at as u_created, u.updated_at
       FROM sessions s
       JOIN users u ON s.user_id = u.id
       WHERE s.id = ?
@@ -240,6 +255,7 @@ export class SqliteUserRepository implements IUserRepository {
       user: {
         id: row.u_id,
         email: row.email,
+        username: row.username || undefined,
         passwordHash: row.password_hash,
         role: row.role as UserRole,
         storageQuotaMb: row.storage_quota_mb !== undefined && row.storage_quota_mb !== null ? Number(row.storage_quota_mb) : 100,

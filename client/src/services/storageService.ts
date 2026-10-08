@@ -1,4 +1,4 @@
-import type { CloudProjectMetadata, CloudTemplateMetadata, UserStorageInfo } from "shared";
+import type { CloudProjectMetadata, CloudTemplateMetadata, PublicTemplateMetadata, UserStorageInfo } from "shared";
 
 export async function fetchUserStorage(): Promise<UserStorageInfo> {
   const res = await fetch("/api/user/storage");
@@ -140,3 +140,33 @@ export async function deleteCloudTemplate(templateId: string): Promise<UserStora
   }
   return data.storage;
 }
+
+// --- Publicación de Plantillas Públicas (SRS-075) ---
+
+export async function publishCloudTemplate(
+  templateId: string,
+  payload: { publicName: string; publicDescription: string }
+): Promise<{ success: boolean; publicTemplate: PublicTemplateMetadata }> {
+  const res = await fetch(`/api/cloud/templates/${templateId}/publish`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    throw new Error(data.error || "Error al publicar la plantilla.");
+  }
+  return data;
+}
+
+export async function fetchMyTemplatePublications(): Promise<Record<string, PublicTemplateMetadata>> {
+  const res = await fetch("/api/cloud/templates/my-publications");
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || "Error al consultar publicaciones.");
+  }
+  const data = await res.json();
+  return data.publications || {};
+}
+
