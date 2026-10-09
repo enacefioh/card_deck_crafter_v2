@@ -220,7 +220,7 @@ export default function MenuBar({
     <div className="menu-bar" ref={menuBarRef}>
       <div className="menu-bar-brand">
         <span className="brand-logo">🎴</span>
-        <span className="brand-text">Card Deck Crafter v2.261008.4</span>
+        <span className="brand-text">Card Deck Crafter v2.261009.1</span>
       </div>
 
 
@@ -595,6 +595,44 @@ export default function MenuBar({
               >
                 <span className="menu-item-checkbox">{marcasCorteEsquinas ? "✓" : ""}</span>
                 Marcas de Corte en Esquinas
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Menú Ayuda & API */}
+        <div className={`menu-group ${activeDropdown === "ayuda" ? "active" : ""}`}>
+          <button
+            className="menu-trigger"
+            onClick={() => handleMenuClick("ayuda")}
+            onMouseEnter={() => handleMenuMouseEnter("ayuda")}
+          >
+            Ayuda
+          </button>
+          {activeDropdown === "ayuda" && (
+            <div className="menu-dropdown">
+              <button
+                className="menu-item"
+                onClick={() =>
+                  handleAction(() => {
+                    if (typeof window !== "undefined") {
+                      window.history.pushState({}, "", "/developers");
+                      window.dispatchEvent(new PopStateEvent("popstate"));
+                    }
+                  })
+                }
+              >
+                <span className="menu-item-icon">🔌</span> Documentación API & IA...
+              </button>
+              <button
+                className="menu-item"
+                onClick={() =>
+                  handleAction(() => {
+                    if (onOpenStore) onOpenStore();
+                  })
+                }
+              >
+                <span className="menu-item-icon">🏪</span> Tienda Comunitaria de Plantillas...
               </button>
             </div>
           )}

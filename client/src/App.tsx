@@ -15,6 +15,7 @@ import { SaveCloudModal } from "./components/SaveCloudModal";
 import { CloudProjectsModal } from "./components/CloudProjectsModal";
 import { TemplatePreviewModal } from "./components/TemplatePreviewModal";
 import { StoreApp } from "./store/StoreApp";
+import { DeveloperDocs } from "./docs/DeveloperDocs";
 import { createSafeBackdropProps } from "./utils/modalUtils";
 import {
   fetchUserStorage,
@@ -3009,9 +3010,23 @@ function AppContent() {
     return typeof window !== "undefined" && window.location.pathname.startsWith("/store");
   });
 
+  // Detección de ruta de documentación para desarrolladores (/developers, /docs, /api-docs)
+  const [isDocsPath, setIsDocsPath] = useState(() => {
+    return typeof window !== "undefined" && (
+      window.location.pathname.startsWith("/developers") ||
+      window.location.pathname.startsWith("/docs") ||
+      window.location.pathname.startsWith("/api-docs")
+    );
+  });
+
   useEffect(() => {
     const handlePopState = () => {
       setIsStorePath(typeof window !== "undefined" && window.location.pathname.startsWith("/store"));
+      setIsDocsPath(typeof window !== "undefined" && (
+        window.location.pathname.startsWith("/developers") ||
+        window.location.pathname.startsWith("/docs") ||
+        window.location.pathname.startsWith("/api-docs")
+      ));
     };
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
@@ -3019,6 +3034,27 @@ function AppContent() {
 
   if (isAdminPath) {
     return <AdminPanel />;
+  }
+
+  if (isDocsPath) {
+    return (
+      <DeveloperDocs
+        onBackToStore={() => {
+          if (typeof window !== "undefined") {
+            window.history.pushState({}, "", "/store");
+          }
+          setIsDocsPath(false);
+          setIsStorePath(true);
+        }}
+        onBackToEditor={() => {
+          if (typeof window !== "undefined") {
+            window.history.pushState({}, "", "/");
+          }
+          setIsDocsPath(false);
+          setIsStorePath(false);
+        }}
+      />
+    );
   }
 
   if (isStorePath) {

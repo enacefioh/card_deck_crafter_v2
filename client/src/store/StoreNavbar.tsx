@@ -109,35 +109,71 @@ export const StoreNavbar: React.FC<StoreNavbarProps> = ({
         </div>
       )}
 
-      {/* Botón de retorno al Editor */}
-      <button
-        type="button"
-        onClick={onGoToEditor}
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          backgroundColor: "#2b2b36",
-          color: "#e2e8f0",
-          border: "1px solid #3f3f4e",
-          borderRadius: "6px",
-          padding: "7px 14px",
-          fontSize: "13px",
-          fontWeight: "600",
-          cursor: "pointer",
-          transition: "all 0.15s"
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.backgroundColor = "#353544";
-          e.currentTarget.style.color = "#fff";
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.backgroundColor = "#2b2b36";
-          e.currentTarget.style.color = "#e2e8f0";
-        }}
-      >
-        <span>🎴</span> Ir al Editor de Cartas
-      </button>
+      <div style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+        <button
+          type="button"
+          onClick={() => {
+            if (typeof window !== "undefined") {
+              window.history.pushState({}, "", "/developers");
+              window.dispatchEvent(new PopStateEvent("popstate"));
+            }
+          }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "6px",
+            backgroundColor: "rgba(99, 102, 241, 0.15)",
+            color: "#a5b4fc",
+            border: "1px solid rgba(99, 102, 241, 0.35)",
+            borderRadius: "6px",
+            padding: "7px 12px",
+            fontSize: "13px",
+            fontWeight: "600",
+            cursor: "pointer",
+            transition: "all 0.15s"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(99, 102, 241, 0.25)";
+            e.currentTarget.style.color = "#fff";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "rgba(99, 102, 241, 0.15)";
+            e.currentTarget.style.color = "#a5b4fc";
+          }}
+        >
+          <span>🔌</span> API para Desarrolladores & IA
+        </button>
+
+        {/* Botón de retorno al Editor */}
+        <button
+          type="button"
+          onClick={onGoToEditor}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            backgroundColor: "#2b2b36",
+            color: "#e2e8f0",
+            border: "1px solid #3f3f4e",
+            borderRadius: "6px",
+            padding: "7px 14px",
+            fontSize: "13px",
+            fontWeight: "600",
+            cursor: "pointer",
+            transition: "all 0.15s"
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = "#353544";
+            e.currentTarget.style.color = "#fff";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = "#2b2b36";
+            e.currentTarget.style.color = "#e2e8f0";
+          }}
+        >
+          <span>🎴</span> Ir al Editor de Cartas
+        </button>
+      </div>
     </header>
   );
 };

@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import type { StoreTemplateDetail as StoreTemplateDetailType, StorePreviewCard } from "shared";
 import { getStoreTemplateDownloadUrl } from "../services/storeService";
 
@@ -17,6 +17,50 @@ export const StoreTemplateDetail: React.FC<StoreTemplateDetailProps> = ({
 }) => {
   const downloadUrl = getStoreTemplateDownloadUrl(template.id);
   const previewCards = template.previewCards || [];
+
+  const [activeApiTab, setActiveApiTab] = useState<"schema" | "render">("schema");
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const origin = typeof window !== "undefined" && window.location?.origin
+    ? window.location.origin
+    : "http://localhost:3000";
+
+  const schemaUrl = `${origin}/api/v1/templates/${template.id}/schema`;
+  const renderUrl = `${origin}/api/v1/cards/render`;
+  const sampleDesignId = previewCards.length > 0 && previewCards[0].id ? previewCards[0].id : "template_design_id";
+
+  const schemaCurl = `curl -X GET "${schemaUrl}"`;
+
+  const renderPayload = JSON.stringify(
+    {
+      templateId: template.id,
+      cardDesignId: sampleDesignId,
+      fields: {
+        titulo: "Ejemplo de Carta",
+        descripcion: "Generada programáticamente vía API REST"
+      },
+      images: {
+        ilustracion: "https://images.unsplash.com/photo-1579783902614-a3fb3927b675?w=500"
+      }
+    },
+    null,
+    2
+  );
+
+  const renderCurl = `curl -X POST "${renderUrl}" \\
+  -H "Content-Type: application/json" \\
+  -d '${renderPayload.replace(/'/g, "'\\''")}' \\
+  --output carta.png`;
+
+  const handleCopy = (text: string, key: string) => {
+    if (navigator?.clipboard?.writeText) {
+      navigator.clipboard.writeText(text).catch(() => {});
+    }
+    setCopiedKey(key);
+    setTimeout(() => {
+      setCopiedKey((prev) => (prev === key ? null : prev));
+    }, 2000);
+  };
 
   return (
     <div style={{ maxWidth: "1080px", margin: "0 auto", padding: "28px 24px" }}>
@@ -378,6 +422,326 @@ export const StoreTemplateDetail: React.FC<StoreTemplateDetailProps> = ({
         >
           {template.description || "El autor no ha proporcionado una descripción detallada para esta plantilla."}
         </div>
+      </div>
+
+      {/* Sección: Integración con Agentes de IA / API REST (SRS-077) */}
+      <div
+        data-testid="api-integration-section"
+        style={{
+          backgroundColor: "#1a1a24",
+          border: "1px solid #282836",
+          borderRadius: "14px",
+          padding: "28px 32px",
+          marginTop: "28px"
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "8px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span style={{ fontSize: "22px" }}>🔌</span>
+            <h2 style={{ margin: 0, fontSize: "18px", fontWeight: "700", color: "#fff" }}>
+              Integración con Agentes de IA / API REST
+            </h2>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: "700",
+                textTransform: "uppercase",
+                backgroundColor: "rgba(99, 102, 241, 0.2)",
+                color: "#a5b4fc",
+                border: "1px solid rgba(99, 102, 241, 0.35)",
+                padding: "2px 8px",
+                borderRadius: "12px",
+                letterSpacing: "0.5px"
+              }}
+            >
+              API v1
+            </span>
+          </div>
+
+          <button
+            type="button"
+            data-testid="open-dev-docs-btn"
+            onClick={() => {
+              if (typeof window !== "undefined") {
+                window.history.pushState({}, "", "/developers");
+                window.dispatchEvent(new PopStateEvent("popstate"));
+              }
+            }}
+            style={{
+              backgroundColor: "#20202e",
+              color: "#38bdf8",
+              border: "1px solid #33334d",
+              borderRadius: "6px",
+              padding: "6px 12px",
+              fontSize: "12px",
+              fontWeight: "600",
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "6px",
+              transition: "all 0.15s"
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = "#272738";
+              e.currentTarget.style.color = "#fff";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = "#20202e";
+              e.currentTarget.style.color = "#38bdf8";
+            }}
+          >
+            <span>📖</span> Ver Guía Completa de la API & Ejemplos
+          </button>
+        </div>
+
+        <p style={{ margin: "0 0 20px 0", fontSize: "13px", color: "#94a3b8", lineHeight: "1.6" }}>
+          Permite a agentes inteligentes (OpenAI, Claude, Gemini, scripts locales) inspeccionar este diseño y renderizar cartas automáticamente en imágenes PNG de 300 DPI con Chromium headless.
+        </p>
+
+        {/* Selector de pestañas */}
+        <div style={{ display: "flex", gap: "10px", marginBottom: "20px", borderBottom: "1px solid #282836", paddingBottom: "12px" }}>
+          <button
+            type="button"
+            data-testid="tab-schema"
+            onClick={() => setActiveApiTab("schema")}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "8px",
+              border: activeApiTab === "schema" ? "none" : "1px solid #2e2e42",
+              backgroundColor: activeApiTab === "schema" ? "#6366f1" : "#20202d",
+              color: activeApiTab === "schema" ? "#fff" : "#94a3b8",
+              fontSize: "13px",
+              fontWeight: "600",
+              cursor: "pointer",
+              transition: "all 0.15s"
+            }}
+          >
+            📋 1. Obtener Esquema (GET)
+          </button>
+          <button
+            type="button"
+            data-testid="tab-render"
+            onClick={() => setActiveApiTab("render")}
+            style={{
+              padding: "8px 16px",
+              borderRadius: "8px",
+              border: activeApiTab === "render" ? "none" : "1px solid #2e2e42",
+              backgroundColor: activeApiTab === "render" ? "#6366f1" : "#20202d",
+              color: activeApiTab === "render" ? "#fff" : "#94a3b8",
+              fontSize: "13px",
+              fontWeight: "600",
+              cursor: "pointer",
+              transition: "all 0.15s"
+            }}
+          >
+            🎨 2. Renderizar Carta en PNG (POST)
+          </button>
+        </div>
+
+        {/* Contenido Pestaña 1: Esquema */}
+        {activeApiTab === "schema" && (
+          <div data-testid="schema-panel" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: "600", color: "#cbd5e1", marginBottom: "6px" }}>
+                Endpoint de Inspección de Esquema:
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  backgroundColor: "#111118",
+                  border: "1px solid #28283a",
+                  borderRadius: "8px",
+                  padding: "8px 12px",
+                  gap: "10px",
+                  overflowX: "auto"
+                }}
+              >
+                <span
+                  style={{
+                    backgroundColor: "#065f46",
+                    color: "#34d399",
+                    fontSize: "11px",
+                    fontWeight: "800",
+                    padding: "3px 8px",
+                    borderRadius: "4px"
+                  }}
+                >
+                  GET
+                </span>
+                <code style={{ color: "#e2e8f0", fontSize: "13px", flex: 1, fontFamily: "monospace" }}>
+                  {schemaUrl}
+                </code>
+                <button
+                  type="button"
+                  data-testid="copy-schema-url-btn"
+                  onClick={() => handleCopy(schemaUrl, "schema-url")}
+                  style={{
+                    backgroundColor: copiedKey === "schema-url" ? "#10b981" : "#28283a",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "6px 12px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "background-color 0.15s",
+                    flexShrink: 0
+                  }}
+                >
+                  {copiedKey === "schema-url" ? "✓ ¡Copiado!" : "📋 Copiar URL"}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <span style={{ fontSize: "13px", fontWeight: "600", color: "#cbd5e1" }}>
+                  Comando de Ejemplo (cURL):
+                </span>
+                <button
+                  type="button"
+                  data-testid="copy-schema-curl-btn"
+                  onClick={() => handleCopy(schemaCurl, "schema-curl")}
+                  style={{
+                    backgroundColor: copiedKey === "schema-curl" ? "#10b981" : "#28283a",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "4px 10px",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "background-color 0.15s"
+                  }}
+                >
+                  {copiedKey === "schema-curl" ? "✓ ¡Copiado!" : "📋 Copiar cURL"}
+                </button>
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  backgroundColor: "#111118",
+                  border: "1px solid #28283a",
+                  borderRadius: "8px",
+                  padding: "14px",
+                  color: "#38bdf8",
+                  fontSize: "12px",
+                  fontFamily: "monospace",
+                  overflowX: "auto"
+                }}
+              >
+                {schemaCurl}
+              </pre>
+            </div>
+            <div style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.5" }}>
+              💡 Este endpoint devuelve un JSON con todos los diseños de carta incluidos, sus dimensiones (mm) y la definición de campos expuestos (texto, imágenes, números, etc.) que tu agente puede rellenar.
+            </div>
+          </div>
+        )}
+
+        {/* Contenido Pestaña 2: Renderizado */}
+        {activeApiTab === "render" && (
+          <div data-testid="render-panel" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+            <div>
+              <div style={{ fontSize: "13px", fontWeight: "600", color: "#cbd5e1", marginBottom: "6px" }}>
+                Endpoint de Renderizado PNG:
+              </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  backgroundColor: "#111118",
+                  border: "1px solid #28283a",
+                  borderRadius: "8px",
+                  padding: "8px 12px",
+                  gap: "10px",
+                  overflowX: "auto"
+                }}
+              >
+                <span
+                  style={{
+                    backgroundColor: "#1e3a8a",
+                    color: "#60a5fa",
+                    fontSize: "11px",
+                    fontWeight: "800",
+                    padding: "3px 8px",
+                    borderRadius: "4px"
+                  }}
+                >
+                  POST
+                </span>
+                <code style={{ color: "#e2e8f0", fontSize: "13px", flex: 1, fontFamily: "monospace" }}>
+                  {renderUrl}
+                </code>
+                <button
+                  type="button"
+                  data-testid="copy-render-url-btn"
+                  onClick={() => handleCopy(renderUrl, "render-url")}
+                  style={{
+                    backgroundColor: copiedKey === "render-url" ? "#10b981" : "#28283a",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "6px 12px",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "background-color 0.15s",
+                    flexShrink: 0
+                  }}
+                >
+                  {copiedKey === "render-url" ? "✓ ¡Copiado!" : "📋 Copiar URL"}
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                <span style={{ fontSize: "13px", fontWeight: "600", color: "#cbd5e1" }}>
+                  Comando cURL de Ejemplo con Payload JSON:
+                </span>
+                <button
+                  type="button"
+                  data-testid="copy-render-curl-btn"
+                  onClick={() => handleCopy(renderCurl, "render-curl")}
+                  style={{
+                    backgroundColor: copiedKey === "render-curl" ? "#10b981" : "#28283a",
+                    color: "#fff",
+                    border: "none",
+                    borderRadius: "6px",
+                    padding: "4px 10px",
+                    fontSize: "11px",
+                    fontWeight: "600",
+                    cursor: "pointer",
+                    transition: "background-color 0.15s"
+                  }}
+                >
+                  {copiedKey === "render-curl" ? "✓ ¡Copiado!" : "📋 Copiar cURL"}
+                </button>
+              </div>
+              <pre
+                style={{
+                  margin: 0,
+                  backgroundColor: "#111118",
+                  border: "1px solid #28283a",
+                  borderRadius: "8px",
+                  padding: "14px",
+                  color: "#38bdf8",
+                  fontSize: "12px",
+                  fontFamily: "monospace",
+                  overflowX: "auto",
+                  whiteSpace: "pre-wrap"
+                }}
+              >
+                {renderCurl}
+              </pre>
+            </div>
+            <div style={{ fontSize: "12px", color: "#64748b", lineHeight: "1.5" }}>
+              🖼️ El servidor procesará la carta cargando automáticamente las fuentes y símbolos de la plantilla comunitaria, descargando las imágenes de URLs o Base64 y devolviendo la imagen PNG a 300 DPI lista para imprimir.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

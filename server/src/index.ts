@@ -8,13 +8,15 @@ import path from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
 import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexCssString, calculateAutoDimensionsForFreeContainer } from "shared";
-import type { CanvasConfig, ProyectoCDC2, Carta } from "shared";
+import type { CanvasConfig, ProyectoCDC2, Carta, CardRenderRequest } from "shared";
 
 import cookieParser from "cookie-parser";
 import { AuthService, SESSION_COOKIE_NAME, SESSION_DURATION_MS } from "./auth/authService.js";
 import { SqliteUserRepository } from "./auth/sqliteUserRepository.js";
 import { UserStorageService } from "./storage/userStorageService.js";
 import { PublicTemplateService } from "./storage/publicTemplateService.js";
+import { getPublicTemplateSchema, renderCardToPng } from "./engine/cardEngineService.js";
+import { generarHtmlExportacionPng } from "./engine/cardRenderer.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -27,7 +29,8 @@ app.use(cors({
   origin: true,
   credentials: true
 }));
-app.use(express.json());
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 app.use(cookieParser());
 
 const authService = new AuthService();
@@ -175,7 +178,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261008.4",
+      version: "v2.261009.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -883,6 +886,51 @@ app.get("/api/store/templates/:id/download", async (req, res) => {
       return res.status(404).json({ error: err.message });
     }
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== MOTOR API REST PARA GENERACIÓN HEADLESS DE CARTAS (SRS-077) ====================
+
+// RF-1: Obtener Esquema Técnico y Campos Expuestos de Plantilla Pública
+app.get("/api/v1/templates/:id/schema", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const service = getPublicTemplateService();
+    const manifest = await getPublicTemplateSchema(id, service);
+    res.json(manifest);
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND" || err.status === 404) {
+      return res.status(404).json({ error: err.message || "Plantilla no encontrada o no aprobada." });
+    }
+    if (err.status === 400) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error("[api/v1/templates/:id/schema] Error:", err);
+    res.status(500).json({ error: err.message || "Error al obtener el esquema de la plantilla." });
+  }
+});
+
+// RF-2: Renderizado Headless de Carta Individual en PNG (300 DPI)
+app.post("/api/v1/cards/render", async (req, res) => {
+  try {
+    const body: CardRenderRequest = req.body;
+    if (!body || !body.templateId || !body.cardDesignId) {
+      return res.status(400).json({ error: "Parámetros obligatorios faltantes: templateId y cardDesignId son requeridos." });
+    }
+    const service = getPublicTemplateService();
+    const pngBuffer = await renderCardToPng(body, service);
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Content-Disposition", `inline; filename="card_${body.cardDesignId}.png"`);
+    res.send(pngBuffer);
+  } catch (err: any) {
+    if (err.code === "NOT_FOUND" || err.status === 404) {
+      return res.status(404).json({ error: err.message || "Recurso no encontrado." });
+    }
+    if (err.status === 400) {
+      return res.status(400).json({ error: err.message });
+    }
+    console.error("[api/v1/cards/render] Error:", err);
+    res.status(500).json({ error: err.message || "Error al renderizar la carta." });
   }
 });
 
@@ -1857,490 +1905,8 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
 });
 
 // --- EXPORTADOR DE IMÁGENES PNG (SRS-054) ---
+// Lógica de composición HTML modularizada en ./engine/cardRenderer.js
 
-function sanitizarNombreCarpeta(nombre: string, index: number): string {
-  if (!nombre) return `Documento_${index + 1}`;
-  let clean = nombre.trim().replace(/[\\/:*?"<>|]/g, "_").replace(/\s+/g, "_");
-  clean = clean.replace(/^_+|_+$/g, "");
-  return clean || `Documento_${index + 1}`;
-}
-
-function renderCardFaceContentHtml(
-  cardData: Carta,
-  esTrasera: boolean,
-  doc: any,
-  tempDir: string,
-  proyecto: ProyectoCDC2
-): string {
-  const cardConfig = doc.cardConfig || { anchoMm: 63.5, altoMm: 88.9 };
-  const MM_TO_PX = 3.779527559;
-
-  let plantilla = esTrasera ? cardData.plantillaTrasera : cardData.plantilla;
-  if (!plantilla) {
-    const plantillaId = esTrasera ? cardData.plantillaTraseraId : cardData.plantillaId;
-    if (plantillaId && proyecto.templates && proyecto.templates[plantillaId]) {
-      plantilla = proyecto.templates[plantillaId];
-    }
-  }
-
-  let staticImgSrc: string | null = null;
-  if (esTrasera) {
-    if (doc.modoTraseras === "comun") {
-      staticImgSrc = cardData.imagenTrasera || doc.imagenTraseraComun;
-    } else if (doc.modoTraseras === "individual") {
-      staticImgSrc = cardData.imagenTrasera || doc.imagenTraseraComun;
-    }
-  } else {
-    staticImgSrc = cardData.imagenFrontal || null;
-  }
-
-  const resolverAssetPath = (src: string | null) => {
-    if (!src) return "";
-    if (src.startsWith("symbol_asset://")) {
-      const filename = src.replace("symbol_asset://", "");
-      const absPath = path.join(tempDir, "symbols", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    if (src.startsWith("user_asset://")) {
-      const filename = src.replace("user_asset://", "");
-      const absPath = path.join(tempDir, "user_assets", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    if (src.startsWith("project_asset://")) {
-      const filename = src.replace("project_asset://", "");
-      const absPath = path.join(tempDir, "project_assets", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    if (src.startsWith("asset://")) {
-      const filename = src.replace("asset://", "");
-      const absPath = path.join(tempDir, "assets", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    return src;
-  };
-
-  if (plantilla) {
-    const capas = plantilla.capas || [];
-    const renderCapaRecursiva = (parentId: string | null): string => {
-      const filteredLayers = capas.filter((c: any) => {
-        if (parentId === null) {
-          return !c.parentCapaId;
-        }
-        return c.parentCapaId === parentId;
-      });
-
-      return filteredLayers.map((capa: any) => {
-        const overrides = esTrasera ? cardData.capasOverridesTrasera?.[capa.id] : cardData.capasOverrides?.[capa.id];
-        const resolvedCapa = overrides ? { ...capa, ...overrides } : capa;
-
-        const parentCapa = capas.find((p: any) => p.id === resolvedCapa.parentCapaId);
-        const isParentFlex = parentCapa && isFlexLayout(parentCapa.layout);
-
-        const positionCss = isParentFlex ? "position: relative;" : "position: absolute;";
-        
-        let leftPx = "";
-        let topPx = "";
-        const isParentVertical = parentCapa && isVerticalLayout(parentCapa.layout);
-        const isParentHorizontal = parentCapa && isHorizontalLayout(parentCapa.layout);
-
-        if (!isParentFlex) {
-          leftPx = `left: ${resolvedCapa.xMm * MM_TO_PX}px;`;
-          topPx = `top: ${resolvedCapa.yMm * MM_TO_PX}px;`;
-        } else {
-          if (isParentVertical) {
-            leftPx = `left: ${resolvedCapa.xMm * MM_TO_PX}px;`;
-          }
-          if (isParentHorizontal) {
-            topPx = `top: ${resolvedCapa.yMm * MM_TO_PX}px;`;
-          }
-        }
-
-        const isFreeContainer = (resolvedCapa.tipo === "container" || resolvedCapa.tipo === "list") && !isFlexLayout(resolvedCapa.layout);
-        const currentOverrides = esTrasera ? cardData.capasOverridesTrasera : cardData.capasOverrides;
-        const autoDims = isFreeContainer ? calculateAutoDimensionsForFreeContainer(resolvedCapa, capas, currentOverrides) : null;
-
-        const widthPx = resolvedCapa.anchoMm === "auto"
-          ? (autoDims ? `${autoDims.autoWidthMm * MM_TO_PX}px` : "fit-content")
-          : `${resolvedCapa.anchoMm * MM_TO_PX}px`;
-        const heightPx = resolvedCapa.altoMm === "auto"
-          ? (autoDims ? `${autoDims.autoHeightMm * MM_TO_PX}px` : "fit-content")
-          : `${resolvedCapa.altoMm * MM_TO_PX}px`;
-
-        const activeVisibility = resolvedCapa.visibility || "visible";
-        let visStyle = "";
-        if (activeVisibility === "hidden") {
-          visStyle = "visibility: hidden;";
-        } else if (activeVisibility === "collapsed") {
-          visStyle = "display: none;";
-        }
-
-        const rotationStyle = resolvedCapa.rotacion ? `transform: rotate(${resolvedCapa.rotacion}deg); transform-origin: center center;` : "";
-        const baseStyle = `${positionCss} ${leftPx} ${topPx} width: ${widthPx}; height: ${heightPx}; pointer-events: none; box-sizing: border-box; flex-shrink: 0; ${visStyle} ${rotationStyle}`;
-
-        if (resolvedCapa.tipo === "background") {
-          const colorFill = resolvedCapa.colorFill || "#ffffff";
-          return `<div style="position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: ${colorFill};"></div>`;
-        }
-
-        if (capa.tipo === "block") {
-          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
-          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
-          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
-          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
-
-          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
-          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
-          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
-          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
-
-          const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
-          const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
-          const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
-          const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
-
-          const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
-          const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
-
-          return `<div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; overflow: hidden; ${borderCornersCss}"></div>`;
-        }
-
-        if (capa.tipo === "container" || capa.tipo === "list") {
-          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
-          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
-          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
-          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
-
-          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
-          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
-          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
-          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
-
-          const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
-          const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
-          const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
-          const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
-
-          const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
-          const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
-
-          const isFlex = isFlexLayout(resolvedCapa.layout);
-          const flexStyle = isFlex ? getContainerFlexCssString(resolvedCapa.layout) : "";
-
-          const innerContentHtml = renderCapaRecursiva(capa.id);
-          const displayStyle = activeVisibility === "collapsed" ? "display: none;" : (isFlex ? "display: flex;" : "");
-
-          return `
-            <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; overflow: hidden; ${borderCornersCss} ${flexStyle} ${displayStyle}">
-              ${innerContentHtml}
-            </div>
-          `;
-        }
-
-        if (capa.tipo === "text") {
-          const valores = esTrasera ? cardData.valoresCamposTrasera : cardData.valoresCampos;
-          const textoInterp = renderizarTextoCapa(resolvedCapa, valores, plantilla?.capas);
-          const htmlTextWithMarkdown = parseMarkdownToHtml(textoInterp);
-          const htmlText = parsearTextoConSimbolos(htmlTextWithMarkdown, proyecto.projectSymbols || [], tempDir);
-          const fontSizePt = resolvedCapa.fontSizePt || 12;
-          const align = resolvedCapa.alineacion === "center" ? "center" : resolvedCapa.alineacion === "right" ? "right" : resolvedCapa.alineacion === "justify" ? "justify" : "left";
-          const weight = resolvedCapa.bold ? "bold" : "normal";
-          const styleOpt = resolvedCapa.italic ? "italic" : "normal";
-          const decoration = resolvedCapa.underline ? "underline" : "none";
-          
-          const fontSizePx = fontSizePt * 0.352778 * MM_TO_PX;
-
-          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
-          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
-          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
-          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
-
-          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
-          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
-          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
-          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
-
-          const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
-          const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
-          const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
-          const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
-
-          const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
-          const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
-
-          const paddingTopMm = resolvedCapa.paddingTopMm !== undefined ? resolvedCapa.paddingTopMm : 0;
-          const paddingRightMm = resolvedCapa.paddingRightMm !== undefined ? resolvedCapa.paddingRightMm : 0;
-          const paddingBottomMm = resolvedCapa.paddingBottomMm !== undefined ? resolvedCapa.paddingBottomMm : 0;
-          const paddingLeftMm = resolvedCapa.paddingLeftMm !== undefined ? resolvedCapa.paddingLeftMm : 0;
-
-          const paddingCss = (paddingTopMm > 0 || paddingRightMm > 0 || paddingBottomMm > 0 || paddingLeftMm > 0)
-            ? `padding: ${paddingTopMm}mm ${paddingRightMm}mm ${paddingBottomMm}mm ${paddingLeftMm}mm;`
-            : "padding: 2px;";
-
-          const textOutlinePx = (resolvedCapa.textOutlineWidth || 0) * MM_TO_PX;
-          const textOutlineCss = textOutlinePx > 0
-            ? `-webkit-text-stroke-width: ${textOutlinePx}px; -webkit-text-stroke-color: ${resolvedCapa.textOutlineColor || '#000000'}; paint-order: stroke fill;`
-            : '';
-
-          return `<div style="${baseStyle} font-family: ${resolvedCapa.fontFamily === 'sans-serif' || !resolvedCapa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : resolvedCapa.fontFamily}; font-size: ${fontSizePx}px; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; ${paddingCss} ${borderCornersCss} ${textOutlineCss}">${htmlText}</div>`;
-        }
-
-        if (capa.tipo === "image" || capa.tipo === "image-switch") {
-          const rawSrc = resolvedCapa.src;
-          const imgPath = resolverAssetPath(rawSrc);
-
-          const borderTopPx = (resolvedCapa.borderTopWidth || 0) * MM_TO_PX;
-          const borderRightPx = (resolvedCapa.borderRightWidth || 0) * MM_TO_PX;
-          const borderBottomPx = (resolvedCapa.borderBottomWidth || 0) * MM_TO_PX;
-          const borderLeftPx = (resolvedCapa.borderLeftWidth || 0) * MM_TO_PX;
-
-          const radiusTopLeftPx = (resolvedCapa.borderTopLeftRadius || 0) * MM_TO_PX;
-          const radiusTopRightPx = (resolvedCapa.borderTopRightRadius || 0) * MM_TO_PX;
-          const radiusBottomRightPx = (resolvedCapa.borderBottomRightRadius || 0) * MM_TO_PX;
-          const radiusBottomLeftPx = (resolvedCapa.borderBottomLeftRadius || 0) * MM_TO_PX;
-
-          const borderTopStyle = borderTopPx > 0 ? `border-top: ${borderTopPx}px solid ${resolvedCapa.borderTopColor || "#000000"};` : "border-top: none;";
-          const borderRightStyle = borderRightPx > 0 ? `border-right: ${borderRightPx}px solid ${resolvedCapa.borderRightColor || "#000000"};` : "border-right: none;";
-          const borderBottomStyle = borderBottomPx > 0 ? `border-bottom: ${borderBottomPx}px solid ${resolvedCapa.borderBottomColor || "#000000"};` : "border-bottom: none;";
-          const borderLeftStyle = borderLeftPx > 0 ? `border-left: ${borderLeftPx}px solid ${resolvedCapa.borderLeftColor || "#000000"};` : "border-left: none;";
-
-          const borderRadiusStyle = `border-top-left-radius: ${radiusTopLeftPx}px; border-top-right-radius: ${radiusTopRightPx}px; border-bottom-right-radius: ${radiusBottomRightPx}px; border-bottom-left-radius: ${radiusBottomLeftPx}px;`;
-          const borderCornersCss = `${borderTopStyle} ${borderRightStyle} ${borderBottomStyle} ${borderLeftStyle} ${borderRadiusStyle}`;
-
-          if (imgPath) {
-            const objectFit = resolvedCapa.modoAjuste === "stretch" ? "fill" : (resolvedCapa.modoAjuste || "cover");
-            return `
-              <div style="${baseStyle} background-color: ${resolvedCapa.backgroundColor || 'transparent'}; ${borderCornersCss}">
-                <img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block; border-radius: inherit;" />
-              </div>
-            `;
-          } else {
-            const emojiSize = Math.min(resolvedCapa.anchoMm, resolvedCapa.altoMm) * 0.4 * MM_TO_PX;
-            return `
-              <div style="${baseStyle} background-color: #e2e8f0; border: 1px dashed #cbd5e1; display: flex; align-items: center; justify-content: center; ${borderCornersCss}">
-                <span style="font-size: ${emojiSize}px; line-height: 1; font-family: sans-serif;">🖼️</span>
-              </div>
-            `;
-          }
-        }
-
-        return "";
-      }).join("\n");
-    };
-
-    return renderCapaRecursiva(null);
-  }
-
-  const imgPath = resolverAssetPath(staticImgSrc);
-  if (imgPath) {
-    const fitMode = cardConfig.modoAjuste || "cover";
-    const objectFit = fitMode === "cover" ? "cover" : "contain";
-    return `<img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block;" />`;
-  }
-
-  return "";
-}
-
-function generarHtmlExportacionPng(
-  proyecto: ProyectoCDC2,
-  tempDir: string
-): {
-  html: string;
-  metadataDoc: Array<{
-    docIndex: number;
-    docName: string;
-    folderName: string;
-    cardItems: Array<{ cardIndexStr: string; hasFront: boolean; hasBack: boolean }>;
-    cardConfig: any;
-    uniqueCardsCount: number;
-    totalCardsCount: number;
-  }>;
-} {
-  const tipografiasMap = new Map<string, { nombre: string; type: string; data: string }>();
-
-  if (proyecto.customFonts) {
-    for (const font of proyecto.customFonts) {
-      if (font.nombre && font.data) {
-        tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
-      }
-    }
-  }
-
-  if (proyecto.templates) {
-    for (const template of Object.values(proyecto.templates)) {
-      if (template && (template as any).customFonts) {
-        for (const font of (template as any).customFonts) {
-          if (font.nombre && font.data) {
-            tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
-          }
-        }
-      }
-    }
-  }
-
-  if (proyecto.documentos) {
-    for (const doc of proyecto.documentos) {
-      if (doc.cards) {
-        for (const card of doc.cards) {
-          if (card.plantilla && card.plantilla.customFonts) {
-            for (const font of card.plantilla.customFonts) {
-              if (font.nombre && font.data) {
-                tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
-              }
-            }
-          }
-          if (card.plantillaTrasera && card.plantillaTrasera.customFonts) {
-            for (const font of card.plantillaTrasera.customFonts) {
-              if (font.nombre && font.data) {
-                tipografiasMap.set(font.nombre, { nombre: font.nombre, type: font.type, data: font.data });
-              }
-            }
-          }
-        }
-      }
-    }
-  }
-
-  const fontRules = Array.from(tipografiasMap.values()).map((font) => `
-    @font-face {
-      font-family: '${font.nombre}';
-      src: url('data:${font.type};base64,${font.data}');
-    }
-  `).join("\n");
-
-  const metadataDoc: Array<{
-    docIndex: number;
-    docName: string;
-    folderName: string;
-    cardItems: Array<{ cardIndexStr: string; hasFront: boolean; hasBack: boolean }>;
-    cardConfig: any;
-    uniqueCardsCount: number;
-    totalCardsCount: number;
-  }> = [];
-
-  const cardsContainersHtml: string[] = [];
-  const usedFolderNames = new Set<string>();
-
-  const documentos = proyecto.documentos || [];
-  documentos.forEach((doc: any, dIndex: number) => {
-    let folderName = sanitizarNombreCarpeta(doc.nombre, dIndex);
-    let altSuffix = 1;
-    let baseFolderName = folderName;
-    while (usedFolderNames.has(folderName)) {
-      altSuffix++;
-      folderName = `${baseFolderName}_${altSuffix}`;
-    }
-    usedFolderNames.add(folderName);
-
-    const cardConfig = doc.cardConfig || { anchoMm: 63.5, altoMm: 88.9, sangradoMm: 0.5 };
-    const anchoPx = Math.round((cardConfig.anchoMm / 25.4) * 300);
-    const altoPx = Math.round((cardConfig.altoMm / 25.4) * 300);
-    const cssWidthPx = anchoPx / 3.125;
-    const cssHeightPx = altoPx / 3.125;
-
-    const cards = doc.cards || [];
-    const uniqueCardsCount = cards.length;
-    let totalCardsCount = 0;
-
-    const cardItems: Array<{ cardIndexStr: string; hasFront: boolean; hasBack: boolean }> = [];
-    let physicalCardIndex = 1;
-
-    cards.forEach((card: Carta) => {
-      const count = Math.max(1, card.cantidad || 1);
-      for (let c = 0; c < count; c++) {
-        totalCardsCount++;
-        const cardIndexStr = String(physicalCardIndex).padStart(3, "0");
-        physicalCardIndex++;
-
-        // Render Front
-        const frontContentHtml = renderCardFaceContentHtml(card, false, doc, tempDir, proyecto);
-        const frontContainerId = `card_${dIndex}_${cardIndexStr}_D`;
-        cardsContainersHtml.push(`
-          <div id="${frontContainerId}" class="card-export-frame" style="width: ${cssWidthPx}px; height: ${cssHeightPx}px;">
-            ${frontContentHtml}
-          </div>
-        `);
-
-        // Check if Back exists
-        let hasBack = false;
-        if (doc.modoTraseras === "comun") {
-          hasBack = true;
-        } else if (doc.modoTraseras === "individual") {
-          let plantillaT = card.plantillaTrasera;
-          if (!plantillaT && card.plantillaTraseraId && proyecto.templates) {
-            plantillaT = proyecto.templates[card.plantillaTraseraId];
-          }
-          if (plantillaT || card.imagenTrasera || doc.imagenTraseraComun) {
-            hasBack = true;
-          }
-        }
-
-        if (hasBack) {
-          const backContentHtml = renderCardFaceContentHtml(card, true, doc, tempDir, proyecto);
-          const backContainerId = `card_${dIndex}_${cardIndexStr}_T`;
-          cardsContainersHtml.push(`
-            <div id="${backContainerId}" class="card-export-frame" style="width: ${cssWidthPx}px; height: ${cssHeightPx}px;">
-              ${backContentHtml}
-            </div>
-          `);
-        }
-
-        cardItems.push({
-          cardIndexStr,
-          hasFront: true,
-          hasBack
-        });
-      }
-    });
-
-    metadataDoc.push({
-      docIndex: dIndex,
-      docName: doc.nombre || `Documento ${dIndex + 1}`,
-      folderName,
-      cardItems,
-      cardConfig,
-      uniqueCardsCount,
-      totalCardsCount
-    });
-  });
-
-  const fullHtml = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="utf-8">
-      <link rel="preconnect" href="https://fonts.googleapis.com">
-      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-      <style>
-        ${fontRules}
-        * {
-          box-sizing: border-box;
-        }
-        html, body {
-          margin: 0;
-          padding: 0;
-          background-color: #ffffff;
-          -webkit-print-color-adjust: exact;
-          print-color-adjust: exact;
-        }
-        .card-export-frame {
-          position: relative;
-          overflow: hidden;
-          background-color: #ffffff;
-          display: inline-block;
-          margin: 10px;
-          vertical-align: top;
-        }
-      </style>
-    </head>
-    <body>
-      ${cardsContainersHtml.join("\n")}
-    </body>
-    </html>
-  `;
-
-  return { html: fullHtml, metadataDoc };
-}
 
 app.post("/api/exportar/png", upload.single("archivoProyecto"), async (req, res) => {
   const sessionUuid = randomUUID();
