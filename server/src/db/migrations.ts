@@ -132,6 +132,26 @@ export const migrations: Migration[] = [
         CREATE INDEX IF NOT EXISTS idx_public_templates_author ON public_templates(author_id);
       `);
     }
+  },
+  {
+    version: 6,
+    description: "Crear tabla user_api_keys para autenticación programática de agentes de IA (SRS-078)",
+    up: (db: DatabaseType) => {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS user_api_keys (
+          id TEXT PRIMARY KEY,
+          user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+          name TEXT NOT NULL,
+          key_hash TEXT NOT NULL UNIQUE,
+          prefix TEXT NOT NULL,
+          last_used_at TEXT NULL,
+          created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_user_api_keys_hash ON user_api_keys(key_hash);
+        CREATE INDEX IF NOT EXISTS idx_user_api_keys_user ON user_api_keys(user_id, created_at DESC);
+      `);
+    }
   }
 ];
 

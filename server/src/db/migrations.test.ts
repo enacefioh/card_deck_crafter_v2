@@ -14,13 +14,13 @@ describe("Motor de Migraciones SQLite - SRS-064", () => {
     expect(manager.getCurrentVersion()).toBe(0);
   });
 
-  it("debe aplicar las migraciones base (v1 a v5) y actualizar user_version a 5", () => {
+  it("debe aplicar las migraciones base (v1 a v6) y actualizar user_version a 6", () => {
     const manager = new MigrationManager(db);
     const result = manager.runMigrations();
 
-    expect(result.applied).toBe(5);
-    expect(result.currentVersion).toBe(5);
-    expect(manager.getCurrentVersion()).toBe(5);
+    expect(result.applied).toBe(6);
+    expect(result.currentVersion).toBe(6);
+    expect(manager.getCurrentVersion()).toBe(6);
 
     // Comprobar que las tablas existen
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map((r: any) => r.name);
@@ -29,6 +29,7 @@ describe("Motor de Migraciones SQLite - SRS-064", () => {
     expect(tables).toContain("user_projects");
     expect(tables).toContain("user_templates");
     expect(tables).toContain("public_templates");
+    expect(tables).toContain("user_api_keys");
 
     // Comprobar que la columna storage_quota_mb y username existen en users
     const columns = db.prepare("PRAGMA table_info(users)").all().map((c: any) => c.name);
@@ -56,6 +57,16 @@ describe("Motor de Migraciones SQLite - SRS-064", () => {
     expect(pubTmplColumns).toContain("author_name");
     expect(pubTmplColumns).toContain("status");
     expect(pubTmplColumns).toContain("metadata_json");
+
+    // Comprobar columnas de user_api_keys (SRS-078)
+    const apiKeyColumns = db.prepare("PRAGMA table_info(user_api_keys)").all().map((c: any) => c.name);
+    expect(apiKeyColumns).toContain("id");
+    expect(apiKeyColumns).toContain("user_id");
+    expect(apiKeyColumns).toContain("name");
+    expect(apiKeyColumns).toContain("key_hash");
+    expect(apiKeyColumns).toContain("prefix");
+    expect(apiKeyColumns).toContain("last_used_at");
+    expect(apiKeyColumns).toContain("created_at");
   });
 
   it("debe ser idempotente si se vuelve a ejecutar sin cambios", () => {
@@ -64,7 +75,7 @@ describe("Motor de Migraciones SQLite - SRS-064", () => {
 
     const secondRun = manager.runMigrations();
     expect(secondRun.applied).toBe(0);
-    expect(secondRun.currentVersion).toBe(5);
+    expect(secondRun.currentVersion).toBe(6);
   });
 
   it("debe aplicar migraciones incrementales secuencialmente (v1 -> v2) sin perder datos", () => {

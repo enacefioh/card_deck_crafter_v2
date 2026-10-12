@@ -135,3 +135,20 @@ export interface UserStorageInfo {
   availableMb: number;
   percentUsed: number;
 }
+
+export interface UserApiKeyMetadata {
+  id: string;
+  userId: string;
+  name: string;
+  prefix: string;
+  lastUsedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreateApiKeyResponse {
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  apiKey: string;
+}

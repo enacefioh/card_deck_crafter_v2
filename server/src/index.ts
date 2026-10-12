@@ -13,6 +13,7 @@ import type { CanvasConfig, ProyectoCDC2, Carta, CardRenderRequest } from "share
 import cookieParser from "cookie-parser";
 import { AuthService, SESSION_COOKIE_NAME, SESSION_DURATION_MS } from "./auth/authService.js";
 import { SqliteUserRepository } from "./auth/sqliteUserRepository.js";
+import { ApiKeyService } from "./auth/apiKeyService.js";
 import { UserStorageService } from "./storage/userStorageService.js";
 import { PublicTemplateService } from "./storage/publicTemplateService.js";
 import { getPublicTemplateSchema, renderCardToPng } from "./engine/cardEngineService.js";
@@ -150,23 +151,114 @@ app.post("/api/auth/logout", async (req, res) => {
   }
 });
 
-// ==================== ENDPOINTS DE ADMINISTRACIÓN (SRS-063) ====================
+// Helper para instanciar ApiKeyService usando la base de datos de SqliteUserRepository
+const getApiKeyService = () => {
+  const repo = authService.getRepository() as SqliteUserRepository;
+  return new ApiKeyService(repo.getDatabase());
+};
 
-const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+// Middleware unificado de autenticación por API Key (cabeceras X-API-Key / Authorization) o Cookie de Sesión (SRS-078)
+const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
   try {
+    // 1. Detección de API Key en cabeceras HTTP
+    const headerKey = req.headers["x-api-key"] as string | undefined;
+    const authHeader = req.headers.authorization;
+    let rawApiKey: string | undefined = headerKey;
+    if (!rawApiKey && authHeader && authHeader.startsWith("Bearer ")) {
+      rawApiKey = authHeader.slice(7).trim();
+    }
+
+    if (rawApiKey && rawApiKey.startsWith("cdc2_live_")) {
+      const apiKeyService = getApiKeyService();
+      const validation = await apiKeyService.validateApiKey(rawApiKey);
+      if (!validation) {
+        return res.status(401).json({ error: "API Key inválida o revocada." });
+      }
+      (req as any).currentUser = validation.user;
+      (req as any).apiKeyId = validation.keyId;
+      return next();
+    }
+
+    // 2. Verificación de sesión por cookie
     const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
     if (!sessionId) {
-      return res.status(401).json({ error: "No autenticado. Inicia sesión como administrador." });
+      return res.status(401).json({ error: "No autenticado. Por favor inicia sesión o proporciona una API Key válida." });
     }
     const user = await authService.getSessionUser(sessionId);
     if (!user) {
       res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
       return res.status(401).json({ error: "Sesión inválida o expirada." });
     }
+    (req as any).currentUser = user;
+    next();
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+};
+
+// ==================== GESTIÓN DE API KEYS PARA USUARIOS Y AGENTES IA (SRS-078) ====================
+
+app.get("/api/auth/api-keys", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const apiKeyService = getApiKeyService();
+    const keys = await apiKeyService.listApiKeys(user.id);
+    res.json({ keys });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post("/api/auth/api-keys", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const { name } = req.body;
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "El nombre de la API Key es obligatorio." });
+    }
+    const apiKeyService = getApiKeyService();
+    const created = await apiKeyService.createApiKey(user.id, name.trim());
+    res.status(201).json(created);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/auth/api-keys/:id", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const { id } = req.params;
+    const apiKeyService = getApiKeyService();
+    const deleted = await apiKeyService.revokeApiKey(user.id, id);
+    if (!deleted) {
+      return res.status(404).json({ error: "API Key no encontrada o no pertenece a tu cuenta." });
+    }
+    res.json({ status: "OK", message: "API Key revocada exitosamente." });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ==================== ENDPOINTS DE ADMINISTRACIÓN (SRS-063) ====================
+
+const requireAdmin = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+  try {
+    let user = (req as any).currentUser;
+    if (!user) {
+      const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
+      if (!sessionId) {
+        return res.status(401).json({ error: "No autenticado. Inicia sesión como administrador." });
+      }
+      user = await authService.getSessionUser(sessionId);
+      if (!user) {
+        res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
+        return res.status(401).json({ error: "Sesión inválida o expirada." });
+      }
+      (req as any).currentUser = user;
+    }
     if (user.role !== "admin") {
       return res.status(403).json({ error: "Acceso denegado. Se requiere rol de Administrador." });
     }
-    (req as any).currentUser = user;
     next();
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -178,7 +270,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261009.1",
+      version: "v2.261012.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -501,24 +593,6 @@ app.post("/api/admin/backup/import", requireAdmin, multer({ storage: multer.memo
 });
 
 // ==================== ALMACENAMIENTO DE PROYECTOS EN LA NUBE Y CUOTA (SRS-066) ====================
-
-const requireAuth = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
-  try {
-    const sessionId = req.cookies?.[SESSION_COOKIE_NAME];
-    if (!sessionId) {
-      return res.status(401).json({ error: "No autenticado. Por favor inicia sesión." });
-    }
-    const user = await authService.getSessionUser(sessionId);
-    if (!user) {
-      res.clearCookie(SESSION_COOKIE_NAME, { path: "/" });
-      return res.status(401).json({ error: "Sesión inválida o expirada." });
-    }
-    (req as any).currentUser = user;
-    next();
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-};
 
 const getStorageService = () => {
   const repo = authService.getRepository() as SqliteUserRepository;
