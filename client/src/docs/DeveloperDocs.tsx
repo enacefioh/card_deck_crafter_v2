@@ -10,7 +10,192 @@ export const DeveloperDocs: React.FC<DeveloperDocsProps> = ({
   onBackToEditor
 }) => {
   const [activeCodeLang, setActiveCodeLang] = useState<"curl" | "python" | "node">("curl");
+  const [activeProjectLang, setActiveProjectLang] = useState<"curl" | "python" | "node">("curl");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const curlProjectExample = `# 1. Crear proyecto nuevo clonando una plantilla base (requiere API Key)
+curl -X POST "http://localhost:3000/api/v1/projects" \\
+  -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "templateId": "ce50cc07-7014-49c4-8026-ae7268491269",
+    "name": "Expansión Fantasía - 5 Mazos",
+    "description": "5 mazos temáticos balanceados por Agente de IA"
+  }'
+
+# 2. Añadir un documento adicional para estructurar el mazo (ej. Mazo Rojo)
+curl -X POST "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/documents" \\
+  -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "nombre": "Mazo Rojo - Fuego y Dragones"
+  }'
+
+# 3. Añadir cartas con ilustraciones en Base64 o URLs externas
+curl -X POST "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/cards" \\
+  -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "documentId": "ID_DEL_DOCUMENTO",
+    "cards": [
+      {
+        "cardTemplateId": "template_1791468472459_okugs",
+        "name": "Dragón Carmesí Devorador",
+        "count": 2,
+        "fields": {
+          "campo_2613": "**DRAGÓN CARMESÍ**\\n\\nVuelo. Prisa.\\nCuando entra al campo, inflige 3 puntos de daño."
+        },
+        "images": {
+          "ilustracion": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        }
+      }
+    ]
+  }'
+
+# 4. Corregir erratas o ajustar estadísticas de una carta específica
+curl -X PUT "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/cards/ID_DE_LA_CARTA" \\
+  -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "Dragón Carmesí Ancestral",
+    "count": 3
+  }'
+
+# 5. Obtener previsualización en tiempo real de la carta renderizada a PNG (300 DPI)
+curl "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/cards/ID_DE_LA_CARTA/preview?dpi=300" \\
+  -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
+  --output dragon_preview.png
+
+# 6. Descargar el archivo binario completo .cdc2 empaquetado para abrir en el editor web
+curl "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/download" \\
+  -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
+  --output expansion_fantasia.cdc2`;
+
+  const pythonProjectExample = `import requests
+
+API_KEY = "cdc2_live_TU_API_KEY_AQUI"
+BASE_URL = "http://localhost:3000"
+HEADERS = {
+    "X-API-Key": API_KEY,
+    "Content-Type": "application/json"
+}
+
+# 1. Crear un proyecto nuevo basado en una plantilla
+resp_proj = requests.post(f"{BASE_URL}/api/v1/projects", headers=HEADERS, json={
+    "templateId": "ce50cc07-7014-49c4-8026-ae7268491269",
+    "name": "Expansión Fantasía - 5 Mazos",
+    "description": "5 mazos generados por Agente de IA"
+})
+project = resp_proj.json()
+project_id = project["id"]
+print(f"Proyecto creado en la nube: {project_id}")
+
+# 2. Crear documento para un mazo temático (ej. Mazo Rojo)
+resp_doc = requests.post(f"{BASE_URL}/api/v1/projects/{project_id}/documents", headers=HEADERS, json={
+    "nombre": "Mazo Rojo - Fuego"
+})
+doc_id = resp_doc.json()["id"]
+
+# 3. Inyectar cartas con campos de texto e ilustraciones en Base64
+dummy_base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+cards_payload = {
+    "documentId": doc_id,
+    "cards": [
+        {
+            "cardTemplateId": "template_1791468472459_okugs",
+            "name": "Dragón Carmesí",
+            "count": 2,
+            "fields": {
+                "campo_2613": "**DRAGÓN CARMESÍ**\\nVuelo. Prisa."
+            },
+            "images": {
+                "ilustracion": dummy_base64
+            }
+        }
+    ]
+}
+resp_cards = requests.post(f"{BASE_URL}/api/v1/projects/{project_id}/cards", headers=HEADERS, json=cards_payload)
+cards_data = resp_cards.json()
+card_id = cards_data["cards"][0]["id"]
+print(f"Cartas añadidas con éxito: {len(cards_data['cards'])}")
+
+# 4. Modificar o balancear una carta existente
+requests.put(f"{BASE_URL}/api/v1/projects/{project_id}/cards/{card_id}", headers=HEADERS, json={
+    "name": "Dragón Carmesí Ancestral",
+    "count": 3
+})
+
+# 5. Obtener previsualización PNG de la carta generada
+resp_prev = requests.get(f"{BASE_URL}/api/v1/projects/{project_id}/cards/{card_id}/preview", headers={"X-API-Key": API_KEY})
+if resp_prev.status_code == 200:
+    with open("dragon.png", "wb") as f:
+        f.write(resp_prev.content)
+    print("¡Previsualización PNG de 300 DPI descargada exitosamente!")
+`;
+
+  const nodeProjectExample = `const BASE_URL = "http://localhost:3000";
+const API_KEY = "cdc2_live_TU_API_KEY_AQUI";
+const headers = {
+  "X-API-Key": API_KEY,
+  "Content-Type": "application/json"
+};
+
+// 1. Crear proyecto desde plantilla
+const projRes = await fetch(\`\${BASE_URL}/api/v1/projects\`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    templateId: "ce50cc07-7014-49c4-8026-ae7268491269",
+    name: "Expansión Fantasía - 5 Mazos",
+    description: "5 mazos generados por IA"
+  })
+});
+const project = await projRes.json();
+const projectId = project.id;
+console.log("Proyecto creado:", projectId);
+
+// 2. Crear documento para un mazo específico
+const docRes = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/documents\`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({ nombre: "Mazo Rojo - Fuego" })
+});
+const { id: docId } = await docRes.json();
+
+// 3. Añadir cartas con ilustraciones Base64 Data URL
+const cardsRes = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards\`, {
+  method: "POST",
+  headers,
+  body: JSON.stringify({
+    documentId: docId,
+    cards: [
+      {
+        cardTemplateId: "template_1791468472459_okugs",
+        name: "Dragón Carmesí",
+        count: 2,
+        fields: { campo_2613: "**DRAGÓN CARMESÍ**\nVuelo. Prisa." },
+        images: { ilustracion: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" }
+      }
+    ]
+  })
+});
+const { cards } = await cardsRes.json();
+const cardId = cards[0].id;
+
+// 4. Corregir una carta
+await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards/\${cardId}\`, {
+  method: "PUT",
+  headers,
+  body: JSON.stringify({ name: "Dragón Carmesí Ancestral", count: 3 })
+});
+
+// 5. Descargar previsualización PNG de la carta
+const prevRes = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards/\${cardId}/preview?dpi=300\`, {
+  headers: { "X-API-Key": API_KEY }
+});
+const pngBuffer = Buffer.from(await prevRes.arrayBuffer());
+console.log("Bytes de imagen PNG recibidos:", pngBuffer.length);
+`;
 
   const origin = typeof window !== "undefined" && window.location?.origin
     ? window.location.origin
@@ -322,6 +507,162 @@ if (renderResp.ok) {
           </div>
         </div>
 
+        {/* ==================== SECCIÓN DESTACADA: PROYECTOS EN LA NUBE Y MAZOS CON IA (SRS-079) ==================== */}
+        <div style={{ backgroundColor: "#141420", border: "1px solid #3730a3", borderRadius: "14px", padding: "30px", marginBottom: "36px", boxShadow: "0 6px 20px rgba(99, 102, 241, 0.12)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
+            <span style={{ fontSize: "22px" }}>🚀</span>
+            <h2 style={{ fontSize: "22px", fontWeight: "800", color: "#fff", margin: 0 }}>
+              Gestión de Proyectos en la Nube y Mazos con IA
+            </h2>
+          </div>
+          <p style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.7", margin: "0 0 20px 0" }}>
+            Este módulo permite a la IA colaborar de forma híbrida con el usuario. La IA crea un proyecto a partir de una plantilla base, divide el proyecto en documentos (por ejemplo, <strong>5 documentos para 5 mazos monocolor estilo Magic</strong>), añade cartas completas con ilustraciones generadas en Base64 o URLs remotas, y realiza ajustes o correcciones puntuales sin perder nada del trabajo anterior.
+          </p>
+
+          {/* Autenticación por API Key */}
+          <div style={{ backgroundColor: "#1c1c2b", border: "1px solid #2d2d44", borderRadius: "10px", padding: "18px", marginBottom: "24px" }}>
+            <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#a5b4fc", margin: "0 0 10px 0", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>🔑</span> Autenticación con API Key
+            </h3>
+            <p style={{ fontSize: "13px", color: "#94a3b8", lineHeight: "1.6", margin: "0 0 10px 0" }}>
+              Para utilizar los endpoints de gestión de proyectos, incluye tu API Key en la cabecera HTTP <code>X-API-Key</code> o <code>Authorization: Bearer</code>:
+            </p>
+            <pre style={{ margin: 0, backgroundColor: "#0c0c12", padding: "10px 14px", borderRadius: "6px", color: "#38bdf8", fontSize: "13px", fontFamily: "monospace" }}>
+              X-API-Key: cdc2_live_f1bad79e2c65a4...
+            </pre>
+            <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 0 0" }}>
+              💡 Puedes generar y administrar tus claves en cualquier momento desde el modal de <strong>Mis Proyectos en la Nube &gt; pestaña 🔑 Acceso API</strong>.
+            </p>
+          </div>
+
+          {/* Resumen de Endpoints de Proyectos */}
+          <div style={{ marginBottom: "26px" }}>
+            <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#fff", margin: "0 0 14px 0" }}>
+              Endpoints del Módulo de Proyectos (<code>/api/v1/projects</code>)
+            </h3>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px", color: "#cbd5e1", textAlign: "left" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid #33334d", color: "#94a3b8" }}>
+                    <th style={{ padding: "8px 10px" }}>Método</th>
+                    <th style={{ padding: "8px 10px" }}>Ruta</th>
+                    <th style={{ padding: "8px 10px" }}>Descripción</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#1e3a8a", color: "#60a5fa", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>POST</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects</td>
+                    <td style={{ padding: "8px 10px" }}>Crea un proyecto .cdc2 en la nube clonando una plantilla</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects</td>
+                    <td style={{ padding: "8px 10px" }}>Lista los proyectos en la nube del usuario</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id</td>
+                    <td style={{ padding: "8px 10px" }}>Obtiene detalle del proyecto, documentos y esquemas de plantillas</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#1e3a8a", color: "#60a5fa", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>POST</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/documents</td>
+                    <td style={{ padding: "8px 10px" }}>Crea un nuevo documento dentro del proyecto (multidocumento)</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/documents</td>
+                    <td style={{ padding: "8px 10px" }}>Lista los documentos de un proyecto</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#1e3a8a", color: "#60a5fa", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>POST</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/cards</td>
+                    <td style={{ padding: "8px 10px" }}>Añade una o más cartas con textos e ilustraciones Base64</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#7c2d12", color: "#fb923c", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>PUT</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/cards/:cardId</td>
+                    <td style={{ padding: "8px 10px" }}>Modifica o corrige una carta existente de forma granular</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#831843", color: "#f472b6", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>DELETE</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/cards/:cardId</td>
+                    <td style={{ padding: "8px 10px" }}>Elimina una carta del proyecto</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/cards/:cardId/preview</td>
+                    <td style={{ padding: "8px 10px" }}>Previsualiza la carta en PNG a 300 DPI</td>
+                  </tr>
+                  <tr>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/download</td>
+                    <td style={{ padding: "8px 10px" }}>Descarga directa del archivo binario .cdc2 empaquetado</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Selector de Ejemplos de Código para Proyectos */}
+          <div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "14px", flexWrap: "wrap", gap: "10px" }}>
+              <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#fff", margin: 0 }}>
+                💻 Ejemplos de Código para Agentes IA (Flujo Completo de Mazos)
+              </h3>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {(["curl", "python", "node"] as const).map((lang) => (
+                  <button
+                    key={lang}
+                    type="button"
+                    onClick={() => setActiveProjectLang(lang)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      border: activeProjectLang === lang ? "none" : "1px solid #33334d",
+                      backgroundColor: activeProjectLang === lang ? "#6366f1" : "#1c1c28",
+                      color: activeProjectLang === lang ? "#fff" : "#94a3b8",
+                      fontSize: "12px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      textTransform: "uppercase"
+                    }}
+                  >
+                    {lang === "curl" ? "cURL (Proyectos)" : lang === "python" ? "Python (Proyectos)" : "Node.js (Proyectos)"}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ position: "relative" }}>
+              <pre style={{ margin: 0, backgroundColor: "#0a0a10", border: "1px solid #232334", borderRadius: "10px", padding: "20px", color: "#38bdf8", fontSize: "12px", fontFamily: "monospace", overflowX: "auto", lineHeight: "1.6" }}>
+                {activeProjectLang === "curl" ? curlProjectExample : activeProjectLang === "python" ? pythonProjectExample : nodeProjectExample}
+              </pre>
+              <button
+                type="button"
+                onClick={() => handleCopy(activeProjectLang === "curl" ? curlProjectExample : activeProjectLang === "python" ? pythonProjectExample : nodeProjectExample, "project-snippet")}
+                style={{
+                  position: "absolute",
+                  top: "14px",
+                  right: "14px",
+                  backgroundColor: copiedKey === "project-snippet" ? "#10b981" : "#222230",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "6px 12px",
+                  fontSize: "12px",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                  boxShadow: "0 2px 6px rgba(0,0,0,0.3)"
+                }}
+              >
+                {copiedKey === "project-snippet" ? "✓ ¡Copiado!" : "📋 Copiar Código"}
+              </button>
+            </div>
+          </div>
+        </div>
+
         {/* Especificación de Endpoints */}
         <div style={{ marginBottom: "36px" }}>
           <h2 style={{ fontSize: "20px", fontWeight: "700", color: "#fff", marginBottom: "16px" }}>
@@ -514,8 +855,11 @@ if (renderResp.ok) {
           </h2>
           <ul style={{ margin: 0, paddingLeft: "20px", fontSize: "13px", color: "#94a3b8", lineHeight: "1.8" }}>
             <li><strong style={{ color: "#34d399" }}>200 OK</strong>: Petición exitosa. Devuelve el JSON con el esquema o el binario <code>image/png</code>.</li>
-            <li><strong style={{ color: "#f87171" }}>400 Bad Request</strong>: Parámetros obligatorios faltantes (ej. falta <code>templateId</code> o <code>cardDesignId</code>).</li>
-            <li><strong style={{ color: "#f87171" }}>404 Not Found</strong>: La plantilla solicitada no existe, no ha sido aprobada por un administrador, o el diseño de carta especificado no se encuentra en el archivo.</li>
+            <li><strong style={{ color: "#34d399" }}>201 Created</strong>: Recurso creado exitosamente (proyecto, documento o cartas añadidas).</li>
+            <li><strong style={{ color: "#f87171" }}>400 Bad Request</strong>: Parámetros obligatorios faltantes o con formato inválido.</li>
+            <li><strong style={{ color: "#f87171" }}>401 Unauthorized</strong>: Clave API ausente, inválida o revocada. Incluye <code>X-API-Key: cdc2_live_...</code>.</li>
+            <li><strong style={{ color: "#f87171" }}>404 Not Found</strong>: La plantilla, proyecto, documento o carta solicitada no existe o no se tiene permiso de acceso.</li>
+            <li><strong style={{ color: "#f87171" }}>413 Payload Too Large / QUOTA_EXCEEDED</strong>: Operación cancelada porque el archivo resultante excede la cuota de almacenamiento del usuario.</li>
             <li><strong style={{ color: "#f87171" }}>500 Internal Server Error</strong>: Error interno del motor Chromium o al procesar recursos corruptos. Se devuelve un objeto JSON <code>{"{ error: \"...\" }"}</code>.</li>
           </ul>
         </div>

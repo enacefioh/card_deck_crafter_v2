@@ -17,6 +17,7 @@ import { ApiKeyService } from "./auth/apiKeyService.js";
 import { UserStorageService } from "./storage/userStorageService.js";
 import { PublicTemplateService } from "./storage/publicTemplateService.js";
 import { getPublicTemplateSchema, renderCardToPng } from "./engine/cardEngineService.js";
+import { ProjectArchiveService } from "./engine/projectArchiveService.js";
 import { generarHtmlExportacionPng } from "./engine/cardRenderer.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -270,7 +271,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261012.1",
+      version: "v2.261012.2",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1005,6 +1006,168 @@ app.post("/api/v1/cards/render", async (req, res) => {
     }
     console.error("[api/v1/cards/render] Error:", err);
     res.status(500).json({ error: err.message || "Error al renderizar la carta." });
+  }
+});
+
+// ==================== MOTOR REST DE GESTIÓN DE PROYECTOS EN LA NUBE (.CDC2), MULTIDOCUMENTO Y CARTAS (SRS-079) ====================
+
+const getProjectArchiveService = () => {
+  return new ProjectArchiveService(getStorageService(), getPublicTemplateService());
+};
+
+function handleProjectArchiveError(err: any, res: express.Response, defaultMsg: string) {
+  if (err.code === "QUOTA_EXCEEDED") {
+    return res.status(413).json({
+      error: err.message || "Cuota de almacenamiento excedida",
+      code: "QUOTA_EXCEEDED",
+      details: err.details
+    });
+  }
+  if (err.code === "NOT_FOUND" || err.status === 404) {
+    return res.status(404).json({ error: err.message || "Recurso no encontrado." });
+  }
+  if (err.status === 400) {
+    return res.status(400).json({ error: err.message });
+  }
+  console.error(`[ProjectArchiveService] ${defaultMsg}:`, err);
+  return res.status(500).json({ error: err.message || defaultMsg });
+}
+
+// RF-1: Crear proyecto en la nube clonando una plantilla base
+app.post("/api/v1/projects", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const freshUser = await authService.getRepository().findById(user.id);
+    const quota = freshUser?.storageQuotaMb ?? user.storageQuotaMb ?? 100;
+    const service = getProjectArchiveService();
+    const project = await service.createProjectFromTemplate(user.id, quota, req.body);
+    res.status(201).json(project);
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al crear proyecto desde plantilla");
+  }
+});
+
+// RF-1 / RF-2: Listar proyectos en la nube del usuario
+app.get("/api/v1/projects", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const storageService = getStorageService();
+    const projects = storageService.listProjects(user.id);
+    res.json({ projects });
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al listar proyectos");
+  }
+});
+
+// RF-2: Detalle del proyecto, documentos y esquemas de plantillas
+app.get("/api/v1/projects/:id", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const service = getProjectArchiveService();
+    const detail = await service.getProjectDetail(user.id, req.params.id);
+    res.json(detail);
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al obtener detalle del proyecto");
+  }
+});
+
+// RF-2: Listar documentos de un proyecto
+app.get("/api/v1/projects/:id/documents", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const service = getProjectArchiveService();
+    const documents = await service.listProjectDocuments(user.id, req.params.id);
+    res.json({ documents });
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al listar documentos del proyecto");
+  }
+});
+
+// RF-2: Añadir nuevo documento al proyecto (multidocumento)
+app.post("/api/v1/projects/:id/documents", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const freshUser = await authService.getRepository().findById(user.id);
+    const quota = freshUser?.storageQuotaMb ?? user.storageQuotaMb ?? 100;
+    const service = getProjectArchiveService();
+    const document = await service.createDocument(user.id, quota, req.params.id, req.body);
+    res.status(201).json(document);
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al crear documento en el proyecto");
+  }
+});
+
+// RF-3: Añadir cartas a un documento del proyecto
+app.post("/api/v1/projects/:id/cards", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const freshUser = await authService.getRepository().findById(user.id);
+    const quota = freshUser?.storageQuotaMb ?? user.storageQuotaMb ?? 100;
+    const service = getProjectArchiveService();
+    const result = await service.addCardsToProject(user.id, quota, req.params.id, req.body);
+    res.status(201).json(result);
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al añadir cartas al proyecto");
+  }
+});
+
+// RF-4: Modificar o corregir una carta existente
+app.put("/api/v1/projects/:id/cards/:cardId", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const freshUser = await authService.getRepository().findById(user.id);
+    const quota = freshUser?.storageQuotaMb ?? user.storageQuotaMb ?? 100;
+    const service = getProjectArchiveService();
+    const result = await service.updateCardInProject(user.id, quota, req.params.id, req.params.cardId, req.body);
+    res.json(result);
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al actualizar carta");
+  }
+});
+
+// RF-5: Eliminar una carta del proyecto
+app.delete("/api/v1/projects/:id/cards/:cardId", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const freshUser = await authService.getRepository().findById(user.id);
+    const quota = freshUser?.storageQuotaMb ?? user.storageQuotaMb ?? 100;
+    const service = getProjectArchiveService();
+    const result = await service.deleteCardFromProject(user.id, quota, req.params.id, req.params.cardId);
+    res.json(result);
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al eliminar carta");
+  }
+});
+
+// RF-6: Previsualización en tiempo real de una carta del proyecto en PNG (300 DPI)
+app.get("/api/v1/projects/:id/cards/:cardId/preview", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const dpi = req.query.dpi ? parseInt(String(req.query.dpi), 10) : 300;
+    const service = getProjectArchiveService();
+    const pngBuffer = await service.previewCardInProject(user.id, req.params.id, req.params.cardId, dpi);
+    res.setHeader("Content-Type", "image/png");
+    res.setHeader("Content-Disposition", `inline; filename="card_${req.params.cardId}.png"`);
+    res.send(pngBuffer);
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al previsualizar la carta");
+  }
+});
+
+// Descarga directa del archivo binario .cdc2 del proyecto
+app.get("/api/v1/projects/:id/download", requireAuth, async (req, res) => {
+  try {
+    const user = (req as any).currentUser;
+    const { id } = req.params;
+    const storageService = getStorageService();
+    const { filePath, project } = await storageService.getProjectFilePath(user.id, id);
+
+    const safeFilename = encodeURIComponent(project.name.replace(/[^a-zA-Z0-9_\-\.]/g, "_")) + ".cdc2";
+    res.setHeader("Content-Disposition", `attachment; filename="${safeFilename}"`);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.sendFile(filePath);
+  } catch (err: any) {
+    handleProjectArchiveError(err, res, "Error al descargar el proyecto");
   }
 });
 
