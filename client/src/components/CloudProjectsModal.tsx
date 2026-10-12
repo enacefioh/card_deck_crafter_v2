@@ -63,6 +63,17 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
   const [keyToDelete, setKeyToDelete] = useState<UserApiKeyMetadata | null>(null);
   const [isDeletingKey, setIsDeletingKey] = useState(false);
   const [copiedEndpoint, setCopiedEndpoint] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyId = async (id: string) => {
+    try {
+      await navigator.clipboard.writeText(id);
+      setCopiedId(id);
+      setTimeout(() => setCopiedId((prev) => (prev === id ? null : prev)), 2000);
+    } catch {
+      // Fallback
+    }
+  };
 
   const [projectToDelete, setProjectToDelete] = useState<CloudProjectMetadata | null>(null);
   const [templateToDelete, setTemplateToDelete] = useState<CloudTemplateMetadata | null>(null);
@@ -529,7 +540,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                           </p>
                         )}
 
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", fontSize: "11px" }}>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", fontSize: "11px", alignItems: "center" }}>
                           <span style={{ padding: "2px 6px", borderRadius: "4px", backgroundColor: "#272733", color: "#cbd5e1" }}>
                             🃏 {p.cardCount} cartas
                           </span>
@@ -542,6 +553,30 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                           <span style={{ padding: "2px 6px", borderRadius: "4px", backgroundColor: "#272733", color: "#94a3b8" }}>
                             📅 {new Date(p.updatedAt).toLocaleDateString()}
                           </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyId(p.id);
+                            }}
+                            title={`Copiar ID del proyecto (${p.id}) para la API REST / Agentes IA`}
+                            style={{
+                              padding: "2px 7px",
+                              borderRadius: "4px",
+                              border: copiedId === p.id ? "1px solid #10b981" : "1px solid #3b3b52",
+                              backgroundColor: copiedId === p.id ? "rgba(16, 185, 129, 0.2)" : "#212130",
+                              color: copiedId === p.id ? "#34d399" : "#a5b4fc",
+                              fontSize: "11px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              fontFamily: "monospace"
+                            }}
+                          >
+                            <span>{copiedId === p.id ? "✓ Copiado" : "📋 ID:"}</span>
+                            <span>{p.id.slice(0, 8)}...</span>
+                          </button>
                         </div>
                       </div>
 
@@ -666,7 +701,7 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                           </p>
                         )}
 
-                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", fontSize: "11px" }}>
+                        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", fontSize: "11px", alignItems: "center" }}>
                           <span style={{ padding: "2px 6px", borderRadius: "4px", backgroundColor: "#272733", color: "#a7f3d0" }}>
                             📐 {t.templateCount} diseños
                           </span>
@@ -682,6 +717,30 @@ export const CloudProjectsModal: React.FC<CloudProjectsModalProps> = ({
                           <span style={{ padding: "2px 6px", borderRadius: "4px", backgroundColor: "#272733", color: "#94a3b8" }}>
                             📅 {new Date(t.updatedAt).toLocaleDateString()}
                           </span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyId(t.id);
+                            }}
+                            title={`Copiar ID de la plantilla (${t.id}) para la API REST / Agentes IA`}
+                            style={{
+                              padding: "2px 7px",
+                              borderRadius: "4px",
+                              border: copiedId === t.id ? "1px solid #10b981" : "1px solid #3b3b52",
+                              backgroundColor: copiedId === t.id ? "rgba(16, 185, 129, 0.2)" : "#212130",
+                              color: copiedId === t.id ? "#34d399" : "#a5b4fc",
+                              fontSize: "11px",
+                              cursor: "pointer",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: "4px",
+                              fontFamily: "monospace"
+                            }}
+                          >
+                            <span>{copiedId === t.id ? "✓ Copiado" : "📋 ID:"}</span>
+                            <span>{t.id.slice(0, 8)}...</span>
+                          </button>
                         </div>
                       </div>
 

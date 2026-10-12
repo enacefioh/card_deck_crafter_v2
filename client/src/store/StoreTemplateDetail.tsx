@@ -223,6 +223,29 @@ export const StoreTemplateDetail: React.FC<StoreTemplateDetailProps> = ({
             >
               💾 {((template.fileSizeBytes || 0) / (1024 * 1024)).toFixed(2)} MB
             </span>
+            <button
+              type="button"
+              onClick={() => handleCopy(template.id, "template_id")}
+              title={`Copiar ID público (${template.id}) para la API REST / Agentes IA`}
+              style={{
+                fontSize: "12px",
+                fontWeight: "600",
+                backgroundColor: copiedKey === "template_id" ? "rgba(16, 185, 129, 0.2)" : "#20202d",
+                color: copiedKey === "template_id" ? "#34d399" : "#a5b4fc",
+                border: copiedKey === "template_id" ? "1px solid #10b981" : "1px solid #3b3b52",
+                padding: "4px 10px",
+                borderRadius: "6px",
+                cursor: "pointer",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "5px",
+                fontFamily: "monospace",
+                transition: "all 0.15s"
+              }}
+            >
+              <span>{copiedKey === "template_id" ? "✓ ID Copiado" : "📋 ID:"}</span>
+              <span>{template.id.slice(0, 8)}...</span>
+            </button>
           </div>
 
           {/* Botones de acción principales */}
