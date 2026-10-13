@@ -16,7 +16,7 @@ describe("SRS-079: Documentación para Desarrolladores y Agentes IA en /develope
 
     // Verificar explicación de autenticación por API Key
     expect(screen.getByRole("heading", { name: /Autenticación con API Key/i })).toBeDefined();
-    expect(screen.getByText(/X-API-Key: cdc2_live_f1bad79e2c65a4\.\.\./i)).toBeDefined();
+    expect(screen.getAllByText(/X-API-Key: cdc2_live_TU_API_KEY_AQUI/i).length).toBeGreaterThanOrEqual(1);
 
     // Verificar tabla de endpoints de proyectos
     expect(screen.getAllByText(/\/api\/v1\/projects/i).length).toBeGreaterThanOrEqual(1);

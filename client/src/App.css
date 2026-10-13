@@ -782,11 +782,11 @@
   margin-bottom: 4px;
 }
 
-/* Panel Lateral Derecho (Campos Editables - SRS-036) */
+/* Panel Lateral Derecho (Campos Editables - SRS-036 / SRS-080) */
 .sidebar-right {
-  width: 22vw;
-  min-width: 320px;
-  max-width: 640px;
+  width: 24.5vw;
+  min-width: 352px;
+  max-width: 704px;
   background-color: var(--bg-sidebar);
   border-left: 1px solid var(--border-color);
   display: flex;
@@ -795,6 +795,26 @@
   z-index: 10;
   box-shadow: -10px 0 30px rgba(0,0,0,0.25);
   transition: width 0.2s ease;
+}
+
+.sidebar-right .sidebar-header {
+  padding: 8px 12px;
+}
+
+.sidebar-right .sidebar-header h1 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 2px 0;
+  letter-spacing: 0;
+}
+
+.sidebar-right .sidebar-header p {
+  font-size: 11px;
+}
+
+.sidebar-right .sidebar-content {
+  padding: 6px 10px;
+  gap: 0;
 }
 
 /* Scrollbar destacada para el modal de configuración de expuestos */
@@ -842,68 +862,86 @@
   color: var(--accent-primary);
 }
 
-/* Inspector Compacto estilo Unity (SRS-043) */
+/* Inspector Compacto estilo Unity (SRS-043 / SRS-080) */
 .inspector-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 2px 0;
-  margin-bottom: 2px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
-  font-size: 13px;
+  padding: 1px 0;
+  margin-bottom: 1px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+  font-size: 11px;
   width: 100%;
+  min-height: 22px;
 }
 .inspector-label-col {
-  width: 40%;
-  padding-right: 8px;
+  width: 38%;
+  padding-right: 6px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-secondary);
+  font-size: 11px;
+  line-height: 22px;
 }
 .inspector-value-col {
-  width: 60%;
+  width: 62%;
   display: flex;
   align-items: center;
 }
+.sidebar-right .inspector-input,
+.inspector-row .inspector-input {
+  height: 22px;
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 3px;
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  box-sizing: border-box;
+}
 .inspector-row select.inspector-input {
-  padding: 0 6px !important;
+  padding: 0 4px !important;
+  height: 22px;
+  font-size: 11px;
 }
 .inspector-row-multiline {
   display: flex;
   flex-direction: column;
   padding: 2px 0;
   margin-bottom: 2px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
   width: 100%;
 }
 .inspector-row-multiline .inspector-label-col {
   width: 100%;
-  margin-bottom: 4px;
+  margin-bottom: 2px;
+  font-size: 11px;
+  line-height: 1.3;
 }
 .inspector-row-multiline .inspector-value-col {
   width: 100%;
 }
 .inspector-textarea {
   width: 100%;
-  height: 45px;
-  min-height: 40px;
+  height: 34px;
+  min-height: 30px;
   max-height: 300px;
   resize: vertical;
-  padding: 6px;
-  border-radius: 6px;
+  padding: 4px 6px;
+  border-radius: 3px;
   border: 1px solid var(--border-color);
   background-color: var(--bg-main);
   color: var(--text-primary);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 11px;
   overflow-y: hidden;
 }
 .inspector-row.highlighted-property-field,
 .inspector-row-multiline.highlighted-property-field {
   background-color: rgba(59, 130, 246, 0.08) !important;
-  border-left: 3px solid var(--accent-primary) !important;
-  padding-left: 6px !important;
+  border-left: 2px solid var(--accent-primary) !important;
+  padding-left: 4px !important;
   transition: all 0.2s ease;
 }
 .inspector-row .inspector-input:focus,
@@ -917,31 +955,31 @@
   display: flex;
   align-items: center;
   cursor: pointer;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--accent-primary);
   background-color: rgba(255, 255, 255, 0.02);
-  padding: 6px 8px;
-  border-radius: 6px;
-  margin-top: 14px;
-  margin-bottom: 8px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  margin-top: 6px;
+  margin-bottom: 2px;
   user-select: none;
-  transition: background-color 0.2s;
+  transition: background-color 0.15s;
 }
 .inspector-foldout-header:hover {
   background-color: rgba(255, 255, 255, 0.05);
 }
 .inspector-foldout-arrow {
   display: inline-block;
-  margin-right: 6px;
-  font-size: 9px;
-  width: 10px;
+  margin-right: 4px;
+  font-size: 8px;
+  width: 8px;
   text-align: center;
 }
 
-/* Pestañas del Inspector (SRS-044) */
+/* Pestañas del Inspector (SRS-044 / SRS-080) */
 .inspector-tabs-container {
   display: flex;
   border-bottom: 1px solid var(--border-color);
@@ -950,14 +988,14 @@
 }
 .inspector-tab-button {
   flex: 1;
-  padding: 10px;
+  padding: 5px 8px;
   background: transparent;
   border: none;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.15s;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 11px;
   text-align: center;
 }
 .inspector-tab-button:hover {

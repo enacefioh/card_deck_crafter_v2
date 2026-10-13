@@ -598,6 +598,7 @@ function AppContent() {
   // --- Estado de la pestaña del Inspector Delantera/Trasera (SRS-044) ---
   const [inspectorTab, setInspectorTab] = useState<"front" | "back">("front");
   const [hoveredCapaId, setHoveredCapaId] = useState<string | null>(null);
+  const [focusedCapaId, setFocusedCapaId] = useState<string | null>(null);
   const [activeSymbolPopover, setActiveSymbolPopover] = useState<string | null>(null);
 
   const handleInsertSymbol = (tag: string, inputId: string, currentValue: string, onUpdate: (val: string) => void) => {
@@ -3720,13 +3721,13 @@ function AppContent() {
                                           flexShrink: 0,
                                           outline: isEditActive
                                             ? "2px dashed var(--accent-primary)"
-                                            : (isCardSelected && !rightSidebarCollapsed && hoveredCapaId === capa.id)
+                                            : (isCardSelected && !rightSidebarCollapsed && (hoveredCapaId === capa.id || focusedCapaId === capa.id))
                                             ? "2px dashed var(--accent-primary)"
                                             : undefined,
                                           outlineOffset: "-2px",
                                           visibility: (resolvedCapa.visibility || "visible") === "hidden" ? "hidden" : undefined,
                                           display: (resolvedCapa.visibility || "visible") === "collapsed" ? "none" : (isParentFlex ? "flex" : undefined),
-                                          zIndex: isEditActive ? 10 : (hoveredCapaId === capa.id ? 9 : 1),
+                                          zIndex: isEditActive ? 10 : ((hoveredCapaId === capa.id || focusedCapaId === capa.id) ? 9 : 1),
                                           transform: (!isEditActive && resolvedCapa.rotacion) ? `rotate(${resolvedCapa.rotacion}deg)` : undefined,
                                           transformOrigin: (!isEditActive && resolvedCapa.rotacion) ? "center center" : undefined,
                                         };
@@ -4239,37 +4240,13 @@ function AppContent() {
 
 
 
-                                                : (isCardSelected && !rightSidebarCollapsed && hoveredCapaId === capa.id)
-
-
-
-
+                                                : (isCardSelected && !rightSidebarCollapsed && (hoveredCapaId === capa.id || focusedCapaId === capa.id))
                                                 ? "2px dashed var(--accent-primary)"
-
-
-
-
                                                 : undefined,
-
-
-
-
                                               outlineOffset: "-2px",
-
-
-
-
                                               visibility: (resolvedCapa.visibility || "visible") === "hidden" ? "hidden" : undefined,
-
-
-
-
                                               display: (resolvedCapa.visibility || "visible") === "collapsed" ? "none" : undefined,
-
-
-
-
-                                              zIndex: isEditActive ? 10 : (hoveredCapaId === capa.id ? 9 : 1),
+                                              zIndex: isEditActive ? 10 : ((hoveredCapaId === capa.id || focusedCapaId === capa.id) ? 9 : 1),
                                               transform: (!isEditActive && resolvedCapa.rotacion) ? `rotate(${resolvedCapa.rotacion}deg)` : undefined,
                                               transformOrigin: (!isEditActive && resolvedCapa.rotacion) ? "center center" : undefined,
                                             };
@@ -4690,7 +4667,7 @@ function AppContent() {
               </button>
             </div>
           )}
-          <div className="sidebar-content" style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+          <div className="sidebar-content" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
           {(() => {
             const selectedCartas = cartas.filter((c) => selectedCardIds.includes(c.id));
             if (selectedCartas.length === 0) {
@@ -5052,7 +5029,7 @@ function AppContent() {
               const currentCapaId = campo.mapaCartaCapaId[cartaBase.id];
               const friendlyPath = obtenerRutaJerarquica(currentCapaId, baseCapas);
               const nestingLevel = friendlyPath ? friendlyPath.split(" > ").length : 1;
-              const indentStyle = { paddingLeft: `${customIndentPx !== undefined ? customIndentPx : nestingLevel * 12}px` };
+              const indentStyle = { paddingLeft: `${customIndentPx !== undefined ? customIndentPx : Math.max(0, (nestingLevel - 1) * 6)}px` };
 
               const valores = selectedCartas.map((c) => {
                 const capaId = campo.mapaCartaCapaId[c.id];
@@ -5166,17 +5143,22 @@ function AppContent() {
                  const labelParts = (campo.label || "").split(" > ");
                  displayLabel = labelParts[labelParts.length - 1] || campo.property;
               }
-              const labelTruncated = displayLabel.length > 15 ? displayLabel.substring(0, 13) + "..." : displayLabel;
+              const labelTruncated = displayLabel.length > 18 ? displayLabel.substring(0, 18) + "..." : displayLabel;
+              const isRowHighlighted = !rightSidebarCollapsed && (hoveredCapaId === currentCapaId || focusedCapaId === currentCapaId);
+              const handleFieldFocus = () => { if (!rightSidebarCollapsed) setFocusedCapaId(currentCapaId); };
+              const handleFieldBlur = () => { if (!rightSidebarCollapsed) setFocusedCapaId(null); };
 
               if (isTextarea) {
                 return (
                   <div
                     key={rowKey}
-                    className={`inspector-row-multiline${!rightSidebarCollapsed && hoveredCapaId === currentCapaId ? " highlighted-property-field" : ""}`}
+                    className={`inspector-row-multiline${isRowHighlighted ? " highlighted-property-field" : ""}`}
                     style={indentStyle}
                     data-inspector-capa-id={currentCapaId}
                     onMouseEnter={() => { if (!rightSidebarCollapsed) setHoveredCapaId(currentCapaId); }}
                     onMouseLeave={() => { if (!rightSidebarCollapsed) setHoveredCapaId(null); }}
+                    onFocus={handleFieldFocus}
+                    onBlur={handleFieldBlur}
                   >
                     <label className="inspector-label-col" title={displayLabel} style={{ fontWeight: "600", fontSize: "11px" }}>
                       {labelTruncated}
@@ -5201,22 +5183,22 @@ function AppContent() {
                                 <div className="symbols-helper-empty" style={{ fontSize: "11px", padding: "4px", color: "var(--text-secondary)" }}>No hay símbolos</div>
                               ) : (
                                 projectSymbols.map((sym: any) => (
-                                  <button
-                                    key={sym.id}
-                                    type="button"
-                                    className="symbols-helper-item"
-                                    style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const inputId = `inspector-textarea-${rowKey}`;
-                                      handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
-                                        handleUpdateValorLote(newVal);
-                                      });
-                                    }}
-                                  >
-                                    <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
-                                    <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
-                                  </button>
+                                   <button
+                                     key={sym.id}
+                                     type="button"
+                                     className="symbols-helper-item"
+                                     style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
+                                     onClick={(e) => {
+                                       e.stopPropagation();
+                                       const inputId = `inspector-textarea-${rowKey}`;
+                                       handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
+                                         handleUpdateValorLote(newVal);
+                                       });
+                                     }}
+                                   >
+                                     <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
+                                     <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
+                                   </button>
                                 ))
                               )}
                             </div>
@@ -5228,16 +5210,18 @@ function AppContent() {
                         ref={(el) => {
                           if (el) {
                             el.style.height = "auto";
-                            el.style.height = `${Math.max(40, el.scrollHeight)}px`;
+                            el.style.height = `${Math.max(34, el.scrollHeight)}px`;
                           }
                         }}
                         className="inspector-textarea"
                         value={valorMostrar}
                         placeholder={placeholderTexto}
+                        onFocus={handleFieldFocus}
+                        onBlur={handleFieldBlur}
                         onChange={(e) => {
                           handleUpdateValorLote(e.target.value);
                           e.target.style.height = "auto";
-                          e.target.style.height = `${Math.max(40, e.target.scrollHeight)}px`;
+                          e.target.style.height = `${Math.max(34, e.target.scrollHeight)}px`;
                         }}
                       />
                     </div>
@@ -5248,11 +5232,13 @@ function AppContent() {
               return (
                 <div
                   key={rowKey}
-                  className={`inspector-row${!rightSidebarCollapsed && hoveredCapaId === currentCapaId ? " highlighted-property-field" : ""}`}
+                  className={`inspector-row${isRowHighlighted ? " highlighted-property-field" : ""}`}
                   style={indentStyle}
                   data-inspector-capa-id={currentCapaId}
                   onMouseEnter={() => { if (!rightSidebarCollapsed) setHoveredCapaId(currentCapaId); }}
                   onMouseLeave={() => { if (!rightSidebarCollapsed) setHoveredCapaId(null); }}
+                  onFocus={handleFieldFocus}
+                  onBlur={handleFieldBlur}
                 >
                   <label className="inspector-label-col" title={displayLabel}>
                     {labelTruncated}
@@ -5266,8 +5252,10 @@ function AppContent() {
                           className="inspector-input"
                           value={valorMostrar}
                           placeholder={placeholderTexto}
+                          onFocus={handleFieldFocus}
+                          onBlur={handleFieldBlur}
                           onChange={(e) => handleUpdateValorLote(e.target.value)}
-                          style={{ height: "26px", fontSize: "12px", flex: 1, minWidth: 0 }}
+                          style={{ height: "22px", fontSize: "11px", flex: 1, minWidth: 0 }}
                         />
                         <div className="symbols-helper-container" style={{ position: "relative" }}>
                           <span
@@ -5312,23 +5300,27 @@ function AppContent() {
                     )}
 
                     {(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) && (
-                      <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: "4px", width: "100%", alignItems: "center" }}>
                         <input
                           type="color"
-                          style={{ width: "24px", height: "24px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", flexShrink: 0 }}
+                          style={{ width: "20px", height: "20px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "3px", cursor: "pointer", flexShrink: 0 }}
                           value={todosIguales && valorMostrar.startsWith("#") ? valorMostrar : "#ffffff"}
+                          onFocus={handleFieldFocus}
+                          onBlur={handleFieldBlur}
                           onChange={(e) => handleUpdateValorLote(e.target.value)}
                         />
                         {projectColors && projectColors.length > 0 ? (
                           <select
                             className="inspector-input"
                             value={projectColors.some(c => c.valor.toLowerCase() === valorMostrar.toLowerCase()) ? projectColors.find(c => c.valor.toLowerCase() === valorMostrar.toLowerCase())?.valor : ""}
+                            onFocus={handleFieldFocus}
+                            onBlur={handleFieldBlur}
                             onChange={(e) => {
                               if (e.target.value) {
                                 handleUpdateValorLote(e.target.value);
                               }
                             }}
-                            style={{ fontSize: "11px", height: "24px", padding: "0 4px", flex: 1, minWidth: 0 }}
+                            style={{ fontSize: "11px", height: "22px", padding: "0 4px", flex: 1, minWidth: 0 }}
                           >
                             <option value="">Personalizado</option>
                             {projectColors.map((c) => (
@@ -5341,9 +5333,11 @@ function AppContent() {
                           <input
                             type="text"
                             className="inspector-input"
-                            style={{ flex: 1, minWidth: 0, height: "24px", fontSize: "11px" }}
+                            style={{ flex: 1, minWidth: 0, height: "22px", fontSize: "11px" }}
                             value={valorMostrar}
                             placeholder={placeholderTexto || "#ffffff"}
+                            onFocus={handleFieldFocus}
+                            onBlur={handleFieldBlur}
                             onChange={(e) => handleUpdateValorLote(e.target.value)}
                           />
                         )}
@@ -5356,7 +5350,9 @@ function AppContent() {
                           <button
                             type="button"
                             className="btn-action"
-                            style={{ flex: 1, padding: "4px", fontSize: "10px", height: "24px" }}
+                            style={{ flex: 1, padding: "2px 4px", fontSize: "10px", height: "20px" }}
+                            onFocus={handleFieldFocus}
+                            onBlur={handleFieldBlur}
                             onClick={() => {
                               setSidebarGalleryTargetField(campo);
                               setSidebarGallerySelectorTab("project");
@@ -5391,15 +5387,17 @@ function AppContent() {
                           <label
                             htmlFor={`sidebar-upload-${rowKey}`}
                             className="btn-action"
-                            style={{ flex: 1, padding: "4px", fontSize: "10px", height: "24px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            style={{ flex: 1, padding: "2px 4px", fontSize: "10px", height: "20px", textAlign: "center", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}
+                            onFocus={handleFieldFocus}
+                            onBlur={handleFieldBlur}
                           >
                             📤 Subir
                           </label>
                         </div>
 
                         {campo.tipoCapa === "image-switch" && campo.options && campo.options.length > 0 && (
-                          <div style={{ marginTop: "4px" }}>
-                            <div style={{ display: "flex", gap: "4px", overflowX: "auto", paddingBottom: "2px" }}>
+                          <div style={{ marginTop: "2px" }}>
+                            <div style={{ display: "flex", gap: "3px", overflowX: "auto", paddingBottom: "2px" }}>
                               {campo.options.map((opt: any) => {
                                 const seleccionado = todosIguales && valorMostrar === opt.src;
                                 return (
@@ -5408,15 +5406,17 @@ function AppContent() {
                                     type="button"
                                     style={{
                                       flexShrink: 0,
-                                      width: "24px",
-                                      height: "24px",
+                                      width: "20px",
+                                      height: "20px",
                                       border: seleccionado ? "2px solid var(--accent-primary)" : "1px solid var(--border-color)",
-                                      borderRadius: "4px",
+                                      borderRadius: "3px",
                                       overflow: "hidden",
                                       cursor: "pointer",
                                       padding: 0,
                                       backgroundColor: seleccionado ? "var(--bg-primary)" : "transparent"
                                     }}
+                                    onFocus={handleFieldFocus}
+                                    onBlur={handleFieldBlur}
                                     onClick={() => handleUpdateValorLote(opt.src)}
                                     title={opt.nombre}
                                   >
@@ -5436,17 +5436,19 @@ function AppContent() {
                         className="btn-sec"
                         style={{
                           width: "100%",
-                          height: "26px",
-                          padding: "0 12px",
-                          fontSize: "12px",
+                          height: "22px",
+                          padding: "0 8px",
+                          fontSize: "11px",
                           fontWeight: 600,
-                          borderRadius: "4px",
+                          borderRadius: "3px",
                           border: "1px solid var(--border-color)",
                           backgroundColor: activeCanvasEditLayerId === currentCapaId ? "var(--accent-primary)" : "var(--bg-app)",
                           color: activeCanvasEditLayerId === currentCapaId ? "white" : "var(--text-primary)",
                           cursor: "pointer",
-                          transition: "all 0.2s ease"
+                          transition: "all 0.15s ease"
                         }}
+                        onFocus={handleFieldFocus}
+                        onBlur={handleFieldBlur}
                         onClick={() => {
                           if (activeCanvasEditLayerId === currentCapaId) {
                             setActiveCanvasEditLayerId(null);
@@ -5460,25 +5462,29 @@ function AppContent() {
                     )}
 
                     {(campo.property === "anchoMm" || campo.property === "altoMm") && (
-                      <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: "4px", width: "100%", alignItems: "center" }}>
                         <input
                           type={valorMostrar === "auto" ? "text" : "number"}
                           step="0.5"
                           className="inspector-input"
-                          style={{ flex: 1, minWidth: 0, height: "26px", fontSize: "12px" }}
+                          style={{ flex: 1, minWidth: 0, height: "22px", fontSize: "11px" }}
                           value={valorMostrar === "auto" ? "-" : (valorMostrar !== undefined ? valorMostrar : "")}
                           placeholder={placeholderTexto}
                           disabled={valorMostrar === "auto"}
+                          onFocus={handleFieldFocus}
+                          onBlur={handleFieldBlur}
                           onChange={(e) => {
                             if (valorMostrar !== "auto") {
                               handleUpdateValorLote(Number(Number(e.target.value).toFixed(1)));
                             }
                           }}
                         />
-                        <label style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "11px", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                        <label style={{ display: "flex", alignItems: "center", gap: "2px", fontSize: "10.5px", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
                           <input
                             type="checkbox"
                             checked={valorMostrar === "auto"}
+                            onFocus={handleFieldFocus}
+                            onBlur={handleFieldBlur}
                             onChange={(e) => {
                               if (e.target.checked) {
                                 handleUpdateValorLote("auto");
@@ -5494,16 +5500,18 @@ function AppContent() {
                     )}
 
                     {campo.property === "rotacion" && (
-                      <div style={{ display: "flex", gap: "6px", width: "100%", alignItems: "center" }}>
+                      <div style={{ display: "flex", gap: "4px", width: "100%", alignItems: "center" }}>
                         <input
                           type="number"
                           min="-180"
                           max="180"
                           step="1"
                           className="inspector-input"
-                          style={{ width: "60px", height: "26px", fontSize: "12px" }}
+                          style={{ width: "52px", height: "22px", fontSize: "11px" }}
                           value={valorMostrar !== undefined ? valorMostrar : 0}
                           placeholder={placeholderTexto}
+                          onFocus={handleFieldFocus}
+                          onBlur={handleFieldBlur}
                           onChange={(e) => {
                             let val = Number(e.target.value);
                             if (isNaN(val)) val = 0;
@@ -5517,8 +5525,10 @@ function AppContent() {
                           min="-180"
                           max="180"
                           step="1"
-                          style={{ flex: 1, cursor: "pointer", height: "26px" }}
+                          style={{ flex: 1, cursor: "pointer", height: "20px" }}
                           value={valorMostrar !== undefined ? valorMostrar : 0}
+                          onFocus={handleFieldFocus}
+                          onBlur={handleFieldBlur}
                           onChange={(e) => handleUpdateValorLote(Number(e.target.value))}
                         />
                       </div>
@@ -5536,9 +5546,11 @@ function AppContent() {
                           type="number"
                           step="0.5"
                           className="inspector-input"
-                          style={{ height: "26px", fontSize: "12px", width: "100%" }}
+                          style={{ height: "22px", fontSize: "11px", width: "100%" }}
                           value={valorMostrar !== undefined ? valorMostrar : ""}
                           placeholder={placeholderTexto}
+                          onFocus={handleFieldFocus}
+                          onBlur={handleFieldBlur}
                           onChange={(e) => handleUpdateValorLote(Number(Number(e.target.value).toFixed(1)))}
                         />
                       )}
@@ -5547,8 +5559,10 @@ function AppContent() {
                       <select
                         className="inspector-input"
                         value={todosIguales ? valorMostrar : ""}
+                        onFocus={handleFieldFocus}
+                        onBlur={handleFieldBlur}
                         onChange={(e) => handleUpdateValorLote(e.target.value)}
-                        style={{ height: "26px", fontSize: "12px", width: "100%" }}
+                        style={{ height: "22px", fontSize: "11px", width: "100%" }}
                       >
                         {!todosIguales && <option value="" disabled>&lt;Múltiples&gt;</option>}
                         <option value="visible">Visible</option>
@@ -5571,7 +5585,7 @@ function AppContent() {
               if (!layer) return false;
               let currentId = layer.parentCapaId;
               while (currentId) {
-                if (collapsedSections[currentId] === true) {
+                if (collapsedSections[currentId] !== false) {
                   return true;
                 }
                 const parent = baseCapas.find((l: any) => l.id === currentId);
@@ -5634,14 +5648,14 @@ function AppContent() {
             });
 
             return (
-              <div style={{ display: "flex", flexDirection: "column", gap: "12px", width: "100%" }}>
+              <div style={{ display: "flex", flexDirection: "column", gap: "1px", width: "100%" }}>
                 {renderableItems.map((item, _itemIdx) => {
                   if (item.type === "header") {
-                    const isCollapsed = collapsedSections[item.id] === true;
+                    const isCollapsed = collapsedSections[item.id] !== false;
                     if (isAncestorCollapsed(item.id)) {
                       return null;
                     }
-                    const indentStyle = { paddingLeft: `${(item.nestingLevel - 1) * 12}px` };
+                    const indentStyle = { paddingLeft: `${Math.max(0, (item.nestingLevel - 1) * 6)}px` };
                     return (
                       <div 
                         key={`header_${item.id}`} 
@@ -5667,21 +5681,21 @@ function AppContent() {
                         className="inspector-list-container"
                         style={{
                           border: "1px solid var(--border-color)",
-                          borderRadius: "6px",
-                          padding: "10px",
+                          borderRadius: "4px",
+                          padding: "6px 8px",
                           backgroundColor: "var(--bg-card)",
                           display: "flex",
                           flexDirection: "column",
-                          gap: "10px"
+                          gap: "4px"
                         }}
                       >
                         {/* Cabecera de la lista */}
-                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border-color)", paddingBottom: "6px" }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontWeight: "600", fontSize: "13px", color: "var(--text-primary)" }}>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid var(--border-color)", paddingBottom: "4px" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "4px", fontWeight: "600", fontSize: "11px", color: "var(--text-primary)" }}>
                             <span>📋</span>
                             <span>{listLayer.nombre || "Lista"}</span>
                           </div>
-                          <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
+                          <span style={{ fontSize: "10.5px", color: "var(--text-secondary)" }}>
                             {listChildren.length} {listChildren.length === 1 ? "elemento" : "elementos"}
                           </span>
                         </div>
@@ -5694,23 +5708,23 @@ function AppContent() {
                         ) : (
                           <>
                             {listLayer.childTemplates && listLayer.childTemplates.length > 0 && (
-                              <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                                <span style={{ fontSize: "11px", color: "var(--text-secondary)", fontWeight: 600 }}>Añadir elemento:</span>
-                                <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                                <span style={{ fontSize: "10.5px", color: "var(--text-secondary)", fontWeight: 600 }}>Añadir elemento:</span>
+                                <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                                   {listLayer.childTemplates.map((tmpl: ChildTemplate) => (
                                     <button
                                       key={tmpl.id}
                                       type="button"
                                       className="btn-secondary"
                                       style={{
-                                        padding: "4px 10px",
-                                        fontSize: "11px",
+                                        padding: "2px 6px",
+                                        fontSize: "10px",
                                         display: "flex",
                                         alignItems: "center",
-                                        gap: "4px",
+                                        gap: "3px",
                                         backgroundColor: "rgba(147, 51, 234, 0.2)",
                                         color: "#e9d5ff",
-                                        borderRadius: "4px",
+                                        borderRadius: "3px",
                                         border: "1px solid rgba(168, 85, 247, 0.5)",
                                         cursor: "pointer",
                                         fontWeight: 600
@@ -5727,33 +5741,33 @@ function AppContent() {
 
                             {/* Elementos Actuales (Acordeón) */}
                             {listChildren.length === 0 ? (
-                              <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", padding: "8px 0" }}>
+                              <div style={{ fontSize: "10.5px", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", padding: "4px 0" }}>
                                 La lista está vacía. Añade elementos pulsando los botones superiores.
                               </div>
                             ) : (
-                              <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                              <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
                                 {listChildren.map((child: any, idx: number) => {
                                   const isExpanded = expandedListItems[child.id] === true;
                                   const childTreeIds = new Set([child.id, ...getDescendantIds(child.id, baseCapas)]);
                                   const itemCampos = camposCoincidentes.filter(cc => childTreeIds.has(cc.mapaCartaCapaId[cartaBase.id]));
 
                                   return (
-                                    <div key={child.id} style={{ border: "1px solid var(--border-color)", borderRadius: "4px", backgroundColor: "var(--bg-app)", overflow: "hidden" }}>
+                                    <div key={child.id} style={{ border: "1px solid var(--border-color)", borderRadius: "3px", backgroundColor: "var(--bg-app)", overflow: "hidden" }}>
                                       {/* Cabecera del Item del Acordeón */}
                                       <div
                                         style={{
                                           display: "flex",
                                           alignItems: "center",
                                           justifyContent: "space-between",
-                                          padding: "6px 8px",
+                                          padding: "4px 6px",
                                           backgroundColor: "var(--bg-secondary)",
                                           cursor: "pointer",
                                           userSelect: "none"
                                         }}
                                         onClick={() => setExpandedListItems(prev => ({ ...prev, [child.id]: !isExpanded }))}
                                       >
-                                        <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "12px", fontWeight: "600", minWidth: 0, flex: 1 }}>
-                                          <span style={{ fontSize: "10px", color: "var(--text-secondary)" }}>
+                                        <div style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: "600", minWidth: 0, flex: 1 }}>
+                                          <span style={{ fontSize: "8px", color: "var(--text-secondary)" }}>
                                             {isExpanded ? "▼" : "▶"}
                                           </span>
                                           <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={child.nombre || `Elemento ${idx + 1}`}>
@@ -5766,7 +5780,7 @@ function AppContent() {
                                           <button
                                             type="button"
                                             className="btn-secondary"
-                                            style={{ padding: "2px 5px", fontSize: "10px", color: "#e2e8f0" }}
+                                            style={{ padding: "1px 4px", fontSize: "10px", color: "#e2e8f0" }}
                                             disabled={idx === 0}
                                             title="Mover arriba"
                                             onClick={() => handleMoveListItem(listLayer.id, child.id, "up")}
@@ -5776,7 +5790,7 @@ function AppContent() {
                                           <button
                                             type="button"
                                             className="btn-secondary"
-                                            style={{ padding: "2px 5px", fontSize: "10px", color: "#e2e8f0" }}
+                                            style={{ padding: "1px 4px", fontSize: "10px", color: "#e2e8f0" }}
                                             disabled={idx === listChildren.length - 1}
                                             title="Mover abajo"
                                             onClick={() => handleMoveListItem(listLayer.id, child.id, "down")}
@@ -5786,7 +5800,7 @@ function AppContent() {
                                           <button
                                             type="button"
                                             className="btn-secondary"
-                                            style={{ padding: "2px 5px", fontSize: "10px", color: "#e2e8f0" }}
+                                            style={{ padding: "1px 4px", fontSize: "10px", color: "#e2e8f0" }}
                                             title="Duplicar elemento"
                                             onClick={() => handleDuplicateListItem(listLayer.id, child.id)}
                                           >
@@ -5795,7 +5809,7 @@ function AppContent() {
                                           <button
                                             type="button"
                                             className="btn-danger"
-                                            style={{ padding: "2px 5px", fontSize: "10px" }}
+                                            style={{ padding: "1px 4px", fontSize: "10px" }}
                                             title="Eliminar elemento"
                                             onClick={() => handleDeleteListItem(child.id)}
                                           >
@@ -5806,9 +5820,9 @@ function AppContent() {
 
                                       {/* Cuerpo del Item Desplegado con Campos Expuestos */}
                                       {isExpanded && (
-                                        <div style={{ padding: "8px", display: "flex", flexDirection: "column", gap: "8px", borderTop: "1px solid var(--border-color)" }}>
+                                        <div style={{ padding: "4px 6px", display: "flex", flexDirection: "column", gap: "2px", borderTop: "1px solid var(--border-color)" }}>
                                           {itemCampos.length === 0 ? (
-                                            <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", padding: "4px 0" }}>
+                                            <div style={{ fontSize: "10.5px", color: "var(--text-secondary)", fontStyle: "italic", textAlign: "center", padding: "2px 0" }}>
                                               No hay propiedades expuestas para este elemento.
                                             </div>
                                           ) : (
@@ -5830,7 +5844,7 @@ function AppContent() {
                   }
 
                   const campo = item.campo;
-                  const isCollapsed = collapsedSections[item.layerId] === true;
+                  const isCollapsed = collapsedSections[item.layerId] !== false;
                   const layer = baseCapas.find((l: any) => l.id === item.layerId);
                   const hideField = (layer?.tipo === "container" && isCollapsed) || isAncestorCollapsed(item.layerId);
                   if (hideField) {

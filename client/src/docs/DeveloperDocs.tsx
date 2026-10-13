@@ -528,7 +528,7 @@ if (renderResp.ok) {
               Para utilizar los endpoints de gestión de proyectos, incluye tu API Key en la cabecera HTTP <code>X-API-Key</code> o <code>Authorization: Bearer</code>:
             </p>
             <pre style={{ margin: 0, backgroundColor: "#0c0c12", padding: "10px 14px", borderRadius: "6px", color: "#38bdf8", fontSize: "13px", fontFamily: "monospace" }}>
-              X-API-Key: cdc2_live_f1bad79e2c65a4...
+              X-API-Key: cdc2_live_TU_API_KEY_AQUI
             </pre>
             <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 0 0" }}>
               💡 Puedes generar y administrar tus claves en cualquier momento desde el modal de <strong>Mis Proyectos en la Nube &gt; pestaña 🔑 Acceso API</strong>.
