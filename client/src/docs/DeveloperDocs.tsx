@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { AGENT_SKILL_MARKDOWN } from "shared";
 
 interface DeveloperDocsProps {
   onBackToStore?: () => void;
@@ -13,25 +14,39 @@ export const DeveloperDocs: React.FC<DeveloperDocsProps> = ({
   const [activeProjectLang, setActiveProjectLang] = useState<"curl" | "python" | "node">("curl");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  const curlProjectExample = `# 1. Crear proyecto nuevo clonando una plantilla base (requiere API Key)
+  const handleDownloadSkill = () => {
+    const blob = new Blob([AGENT_SKILL_MARKDOWN], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "card-deck-crafter-agent-skill.md";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const curlProjectExample = `# 1. Crear proyecto nuevo con reversos activados (modoTraseras: individual)
 curl -X POST "http://localhost:3000/api/v1/projects" \\
   -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
   -H "Content-Type: application/json" \\
   -d '{
     "templateId": "ce50cc07-7014-49c4-8026-ae7268491269",
     "name": "Expansión Fantasía - 5 Mazos",
-    "description": "5 mazos temáticos balanceados por Agente de IA"
+    "description": "5 mazos con anverso y reverso con plantilla generados por IA",
+    "modoTraseras": "individual"
   }'
 
-# 2. Añadir un documento adicional para estructurar el mazo (ej. Mazo Rojo)
+# 2. Añadir un documento adicional con reversos individuales (ej. Mazo Rojo)
 curl -X POST "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/documents" \\
   -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
   -H "Content-Type: application/json" \\
   -d '{
-    "nombre": "Mazo Rojo - Fuego y Dragones"
+    "nombre": "Mazo Rojo - Fuego y Dragones",
+    "modoTraseras": "individual"
   }'
 
-# 3. Añadir cartas con ilustraciones en Base64 o URLs externas
+# 3. Añadir cartas combinando plantilla frontal y trasera con overrides independientes
 curl -X POST "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/cards" \\
   -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
   -H "Content-Type: application/json" \\
@@ -47,24 +62,38 @@ curl -X POST "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/cards" \\
         },
         "images": {
           "ilustracion": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
+        },
+        "backCardTemplateId": "template_reverso_comun_o_faccion",
+        "backFields": {
+          "Lore": "Nacido en las forjas de obsidiana de Ignis.",
+          "Nivel": "Rango Élite"
         }
       }
     ]
   }'
 
-# 4. Corregir erratas o ajustar estadísticas de una carta específica
+# 4. Corregir o balancear anverso y reverso de una carta específica
 curl -X PUT "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/cards/ID_DE_LA_CARTA" \\
   -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
   -H "Content-Type: application/json" \\
   -d '{
     "name": "Dragón Carmesí Ancestral",
-    "count": 3
+    "count": 3,
+    "backFields": {
+      "Lore": "Ancestro venerable cuyo fuego no se extingue jamás."
+    }
   }'
 
-# 5. Obtener previsualización en tiempo real de la carta renderizada a PNG (300 DPI)
-curl "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/cards/ID_DE_LA_CARTA/preview?dpi=300" \\
+# 5. Obtener previsualización PNG a 300 DPI (anverso o reverso con side=back)
+# Anverso:
+curl "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/cards/ID_DE_LA_CARTA/preview?side=front&dpi=300" \\
   -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
-  --output dragon_preview.png
+  --output dragon_front.png
+
+# Reverso:
+curl "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/cards/ID_DE_LA_CARTA/preview?side=back&dpi=300" \\
+  -H "X-API-Key: cdc2_live_TU_API_KEY_AQUI" \\
+  --output dragon_back.png
 
 # 6. Descargar el archivo binario completo .cdc2 empaquetado para abrir en el editor web
 curl "http://localhost:3000/api/v1/projects/ID_DEL_PROYECTO/download" \\
@@ -80,11 +109,12 @@ HEADERS = {
     "Content-Type": "application/json"
 }
 
-# 1. Crear un proyecto nuevo basado en una plantilla
+# 1. Crear un proyecto nuevo con soporte de reversos (modoTraseras: individual)
 resp_proj = requests.post(f"{BASE_URL}/api/v1/projects", headers=HEADERS, json={
     "templateId": "ce50cc07-7014-49c4-8026-ae7268491269",
     "name": "Expansión Fantasía - 5 Mazos",
-    "description": "5 mazos generados por Agente de IA"
+    "description": "5 mazos generados por Agente de IA con reversos temáticos",
+    "modoTraseras": "individual"
 })
 project = resp_proj.json()
 project_id = project["id"]
@@ -92,11 +122,12 @@ print(f"Proyecto creado en la nube: {project_id}")
 
 # 2. Crear documento para un mazo temático (ej. Mazo Rojo)
 resp_doc = requests.post(f"{BASE_URL}/api/v1/projects/{project_id}/documents", headers=HEADERS, json={
-    "nombre": "Mazo Rojo - Fuego"
+    "nombre": "Mazo Rojo - Fuego",
+    "modoTraseras": "individual"
 })
 doc_id = resp_doc.json()["id"]
 
-# 3. Inyectar cartas con campos de texto e ilustraciones en Base64
+# 3. Inyectar cartas combinando plantilla anversa y reversa
 dummy_base64 = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
 cards_payload = {
     "documentId": doc_id,
@@ -110,6 +141,11 @@ cards_payload = {
             },
             "images": {
                 "ilustracion": dummy_base64
+            },
+            "backCardTemplateId": "template_reverso_comun_o_faccion",
+            "backFields": {
+                "Lore": "Forjado en los fuegos eternos.",
+                "Nivel": "Élite"
             }
         }
     ]
@@ -122,15 +158,19 @@ print(f"Cartas añadidas con éxito: {len(cards_data['cards'])}")
 # 4. Modificar o balancear una carta existente
 requests.put(f"{BASE_URL}/api/v1/projects/{project_id}/cards/{card_id}", headers=HEADERS, json={
     "name": "Dragón Carmesí Ancestral",
-    "count": 3
+    "count": 3,
+    "backFields": {
+        "Lore": "Ancestro venerable del clan dragón."
+    }
 })
 
-# 5. Obtener previsualización PNG de la carta generada
-resp_prev = requests.get(f"{BASE_URL}/api/v1/projects/{project_id}/cards/{card_id}/preview", headers={"X-API-Key": API_KEY})
-if resp_prev.status_code == 200:
-    with open("dragon.png", "wb") as f:
-        f.write(resp_prev.content)
-    print("¡Previsualización PNG de 300 DPI descargada exitosamente!")
+# 5. Obtener previsualizaciones PNG de anverso y reverso a 300 DPI
+for side in ["front", "back"]:
+    resp_prev = requests.get(f"{BASE_URL}/api/v1/projects/{project_id}/cards/{card_id}/preview?side={side}&dpi=300", headers={"X-API-Key": API_KEY})
+    if resp_prev.status_code == 200:
+        with open(f"dragon_{side}.png", "wb") as f:
+            f.write(resp_prev.content)
+        print(f"Previsualización {side} PNG guardada.")
 `;
 
   const nodeProjectExample = `const BASE_URL = "http://localhost:3000";
@@ -140,14 +180,15 @@ const headers = {
   "Content-Type": "application/json"
 };
 
-// 1. Crear proyecto desde plantilla
+// 1. Crear proyecto desde plantilla con reversos
 const projRes = await fetch(\`\${BASE_URL}/api/v1/projects\`, {
   method: "POST",
   headers,
   body: JSON.stringify({
     templateId: "ce50cc07-7014-49c4-8026-ae7268491269",
     name: "Expansión Fantasía - 5 Mazos",
-    description: "5 mazos generados por IA"
+    description: "5 mazos generados por IA",
+    modoTraseras: "individual"
   })
 });
 const project = await projRes.json();
@@ -158,11 +199,11 @@ console.log("Proyecto creado:", projectId);
 const docRes = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/documents\`, {
   method: "POST",
   headers,
-  body: JSON.stringify({ nombre: "Mazo Rojo - Fuego" })
+  body: JSON.stringify({ nombre: "Mazo Rojo - Fuego", modoTraseras: "individual" })
 });
 const { id: docId } = await docRes.json();
 
-// 3. Añadir cartas con ilustraciones Base64 Data URL
+// 3. Añadir cartas con anverso y reverso con plantilla
 const cardsRes = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards\`, {
   method: "POST",
   headers,
@@ -174,7 +215,9 @@ const cardsRes = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards\
         name: "Dragón Carmesí",
         count: 2,
         fields: { campo_2613: "**DRAGÓN CARMESÍ**\nVuelo. Prisa." },
-        images: { ilustracion: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" }
+        images: { ilustracion: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==" },
+        backCardTemplateId: "template_reverso_comun_o_faccion",
+        backFields: { Lore: "Nacido en las forjas de obsidiana.", Nivel: "Élite" }
       }
     ]
   })
@@ -182,19 +225,10 @@ const cardsRes = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards\
 const { cards } = await cardsRes.json();
 const cardId = cards[0].id;
 
-// 4. Corregir una carta
-await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards/\${cardId}\`, {
-  method: "PUT",
-  headers,
-  body: JSON.stringify({ name: "Dragón Carmesí Ancestral", count: 3 })
-});
-
-// 5. Descargar previsualización PNG de la carta
-const prevRes = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards/\${cardId}/preview?dpi=300\`, {
-  headers: { "X-API-Key": API_KEY }
-});
-const pngBuffer = Buffer.from(await prevRes.arrayBuffer());
-console.log("Bytes de imagen PNG recibidos:", pngBuffer.length);
+// 4. Previsualizar anverso y reverso a 300 DPI
+const prevFront = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards/\${cardId}/preview?side=front&dpi=300\`, { headers });
+const prevBack = await fetch(\`\${BASE_URL}/api/v1/projects/\${projectId}/cards/\${cardId}/preview?side=back&dpi=300\`, { headers });
+console.log("Anverso OK:", prevFront.ok, "Reverso OK:", prevBack.ok);
 `;
 
   const origin = typeof window !== "undefined" && window.location?.origin
@@ -228,12 +262,27 @@ console.log("Bytes de imagen PNG recibidos:", pngBuffer.length);
         "altoMm": 88.9
       },
       "totalCapas": 2,
-      "campos": [
+      "exposedFields": [
         {
           "clave": "campo_2613",
           "nombre": "Contador",
           "tipo": "string",
+          "descripcion": "Campo editable recomendado para el texto principal",
           "valorDefecto": "**CONTADOR DE TIEMPO**\\n\\nOOOOOOOOOO"
+        }
+      ],
+      "fullStructure": [
+        {
+          "id": "layer_bg",
+          "nombre": "Fondo Tecnológico",
+          "tipo": "image",
+          "src": "asset://bg_quantum.png"
+        },
+        {
+          "id": "campo_2613",
+          "nombre": "Contador",
+          "tipo": "text",
+          "contenidoRaw": "**CONTADOR DE TIEMPO**\\n\\nOOOOOOOOOO"
         }
       ]
     }
@@ -507,16 +556,114 @@ if (renderResp.ok) {
           </div>
         </div>
 
-        {/* ==================== SECCIÓN DESTACADA: PROYECTOS EN LA NUBE Y MAZOS CON IA (SRS-079) ==================== */}
+        {/* ==================== SECCIÓN DESTACADA: INTEGRACIÓN CON AGENTES DE IA (SKILL DESCARGABLE) (SRS-081) ==================== */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #171530 0%, #1e1b4b 50%, #151d38 100%)",
+            border: "1px solid #6366f1",
+            borderRadius: "14px",
+            padding: "30px",
+            marginBottom: "36px",
+            boxShadow: "0 8px 32px rgba(99, 102, 241, 0.2)"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "14px", marginBottom: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "30px" }}>🤖</span>
+              <div>
+                <h2 style={{ fontSize: "22px", fontWeight: "800", color: "#fff", margin: "0 0 4px 0" }}>
+                  Integración con Agentes de Inteligencia Artificial (Skill Descargable)
+                </h2>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "11px", backgroundColor: "rgba(99, 102, 241, 0.3)", color: "#c7d2fe", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                    YAML Frontmatter
+                  </span>
+                  <span style={{ fontSize: "11px", backgroundColor: "rgba(56, 189, 248, 0.2)", color: "#7dd3fc", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                    Antigravity & Cursor
+                  </span>
+                  <span style={{ fontSize: "11px", backgroundColor: "rgba(52, 211, 153, 0.2)", color: "#6ee7b7", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                    Claude Code & OpenAI
+                  </span>
+                  <span style={{ fontSize: "11px", backgroundColor: "rgba(251, 191, 36, 0.2)", color: "#fde68a", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                    Anverso & Reverso
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Botones de Acción para el Skill */}
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={handleDownloadSkill}
+                style={{
+                  backgroundColor: "#4f46e5",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "8px",
+                  padding: "10px 18px",
+                  fontSize: "13px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  boxShadow: "0 4px 14px rgba(79, 70, 229, 0.4)",
+                  transition: "background-color 0.15s ease"
+                }}
+              >
+                <span>📥</span> Descargar SKILL.md
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleCopy(AGENT_SKILL_MARKDOWN, "agent-skill")}
+                style={{
+                  backgroundColor: copiedKey === "agent-skill" ? "#10b981" : "#282b3d",
+                  color: "#fff",
+                  border: "1px solid #474b68",
+                  borderRadius: "8px",
+                  padding: "10px 18px",
+                  fontSize: "13px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+                  transition: "background-color 0.15s ease"
+                }}
+              >
+                <span>{copiedKey === "agent-skill" ? "✓" : "📋"}</span>
+                {copiedKey === "agent-skill" ? "¡Skill Copiado!" : "Copiar Skill al Portapapeles"}
+              </button>
+            </div>
+          </div>
+
+          <p style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.7", margin: "0 0 16px 0" }}>
+            El archivo <code>SKILL.md</code> contiene el manual operativo completo y estandarizado para que cualquier agente de IA autónomo conectado a tu entorno sepa exactamente cómo interactuar con CDC2 sin requerir configuración manual. El agente aprende a comprobar conectividad, inspeccionar las plantillas distinguiendo entre <strong>campos expuestos recomendados</strong> (<code>exposedFields</code>) y la jerarquía técnica (<code>fullStructure</code>), configurar documentos con soporte de reverso (<code>modoTraseras: "individual"</code>), y validar visualmente cartas en PNG a 300 DPI tanto por delante como por detrás antes de entregar el archivo <code>.cdc2</code>.
+          </p>
+
+          <div style={{ backgroundColor: "rgba(10, 10, 16, 0.75)", border: "1px solid #2d2d48", borderRadius: "8px", padding: "12px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "10px" }}>
+            <span style={{ fontSize: "12px", color: "#94a3b8" }}>
+              💡 También puedes descargarlo directamente vía cURL desde tu terminal o scripts de inicialización:
+            </span>
+            <code style={{ fontSize: "12px", color: "#38bdf8", fontFamily: "monospace", backgroundColor: "#06060a", padding: "4px 8px", borderRadius: "4px" }}>
+              curl -s {origin}/api/v1/docs/agent-skill &gt; .agents/skills/card-deck-crafter/SKILL.md
+            </code>
+          </div>
+        </div>
+
+        {/* ==================== SECCIÓN DESTACADA: PROYECTOS EN LA NUBE Y MAZOS CON IA (SRS-079 / SRS-081) ==================== */}
         <div style={{ backgroundColor: "#141420", border: "1px solid #3730a3", borderRadius: "14px", padding: "30px", marginBottom: "36px", boxShadow: "0 6px 20px rgba(99, 102, 241, 0.12)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "12px" }}>
             <span style={{ fontSize: "22px" }}>🚀</span>
             <h2 style={{ fontSize: "22px", fontWeight: "800", color: "#fff", margin: 0 }}>
-              Gestión de Proyectos en la Nube y Mazos con IA
+              Gestión de Proyectos en la Nube y Mazos con IA (Con Soporte Completo de Reversos)
             </h2>
           </div>
           <p style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.7", margin: "0 0 20px 0" }}>
-            Este módulo permite a la IA colaborar de forma híbrida con el usuario. La IA crea un proyecto a partir de una plantilla base, divide el proyecto en documentos (por ejemplo, <strong>5 documentos para 5 mazos monocolor estilo Magic</strong>), añade cartas completas con ilustraciones generadas en Base64 o URLs remotas, y realiza ajustes o correcciones puntuales sin perder nada del trabajo anterior.
+            Este módulo permite a la IA colaborar de forma híbrida con el usuario. La IA crea un proyecto a partir de una plantilla base, divide el proyecto en documentos (por ejemplo, <strong>5 documentos para 5 mazos monocolor estilo Magic</strong>), añade cartas completas con ilustraciones generadas en Base64 o URLs remotas, configura <strong>reversos con plantilla o imágenes dedicadas</strong> (<code>backCardTemplateId</code>, <code>backFields</code>, <code>backImages</code>), y previsualiza independientemente la cara frontal o trasera en PNG de alta fidelidad.
           </p>
 
           {/* Autenticación por API Key */}
@@ -533,6 +680,26 @@ if (renderResp.ok) {
             <p style={{ fontSize: "12px", color: "#64748b", margin: "8px 0 0 0" }}>
               💡 Puedes generar y administrar tus claves en cualquier momento desde el modal de <strong>Mis Proyectos en la Nube &gt; pestaña 🔑 Acceso API</strong>.
             </p>
+          </div>
+
+          {/* Bloque Explicativo de Reversos y Esquema Dual */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "16px", marginBottom: "24px" }}>
+            <div style={{ backgroundColor: "#191928", border: "1px solid #2d2d46", borderRadius: "10px", padding: "18px" }}>
+              <h4 style={{ fontSize: "14px", fontWeight: "700", color: "#38bdf8", margin: "0 0 8px 0", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>🎴</span> Reversos Ricos Basados en Plantillas
+              </h4>
+              <p style={{ margin: 0, fontSize: "13px", color: "#94a3b8", lineHeight: "1.6" }}>
+                Configura <code>modoTraseras: "individual"</code> a nivel de proyecto o documento. Cada carta puede vincular una plantilla trasera distinta mediante <code>backCardTemplateId</code> y personalizarla con <code>backFields</code> y <code>backImages</code>. Si no se especifica plantilla trasera, también puedes usar una imagen individual directa (<code>backImage</code>) o una común para todo el documento (<code>imagenTraseraComun</code>).
+              </p>
+            </div>
+            <div style={{ backgroundColor: "#191928", border: "1px solid #2d2d46", borderRadius: "10px", padding: "18px" }}>
+              <h4 style={{ fontSize: "14px", fontWeight: "700", color: "#34d399", margin: "0 0 8px 0", display: "flex", alignItems: "center", gap: "8px" }}>
+                <span>🔍</span> Esquema Dual: exposedFields vs fullStructure
+              </h4>
+              <p style={{ margin: 0, fontSize: "13px", color: "#94a3b8", lineHeight: "1.6" }}>
+                Al consultar las plantillas disponibles, el servidor separa la respuesta en <strong><code>exposedFields</code></strong> (los campos prioritarios configurados por el diseñador) y <strong><code>fullStructure</code></strong> (el árbol completo de capas). Esto permite al agente de IA concentrarse en los textos y gráficos relevantes sin sobrecargar su ventana de contexto.
+              </p>
+            </div>
           </div>
 
           {/* Resumen de Endpoints de Proyectos */}
@@ -553,7 +720,7 @@ if (renderResp.ok) {
                   <tr style={{ borderBottom: "1px solid #222233" }}>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#1e3a8a", color: "#60a5fa", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>POST</span></td>
                     <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects</td>
-                    <td style={{ padding: "8px 10px" }}>Crea un proyecto .cdc2 en la nube clonando una plantilla</td>
+                    <td style={{ padding: "8px 10px" }}>Crea proyecto .cdc2 en la nube (soporta <code>modoTraseras</code> e <code>imagenTraseraComun</code>)</td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #222233" }}>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
@@ -563,12 +730,12 @@ if (renderResp.ok) {
                   <tr style={{ borderBottom: "1px solid #222233" }}>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
                     <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id</td>
-                    <td style={{ padding: "8px 10px" }}>Obtiene detalle del proyecto, documentos y esquemas de plantillas</td>
+                    <td style={{ padding: "8px 10px" }}>Obtiene detalle del proyecto, documentos y esquemas de plantillas (con <code>exposedFields</code> y <code>fullStructure</code>)</td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #222233" }}>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#1e3a8a", color: "#60a5fa", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>POST</span></td>
                     <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/documents</td>
-                    <td style={{ padding: "8px 10px" }}>Crea un nuevo documento dentro del proyecto (multidocumento)</td>
+                    <td style={{ padding: "8px 10px" }}>Crea nuevo documento dentro del proyecto (soporta <code>modoTraseras</code> e <code>imagenTraseraComun</code>)</td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #222233" }}>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
@@ -578,12 +745,12 @@ if (renderResp.ok) {
                   <tr style={{ borderBottom: "1px solid #222233" }}>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#1e3a8a", color: "#60a5fa", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>POST</span></td>
                     <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/cards</td>
-                    <td style={{ padding: "8px 10px" }}>Añade una o más cartas con textos e ilustraciones Base64</td>
+                    <td style={{ padding: "8px 10px" }}>Añade cartas con soporte de anverso (<code>cardTemplateId</code>) y reverso (<code>backCardTemplateId</code>, <code>backFields</code>, <code>backImages</code>)</td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #222233" }}>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#7c2d12", color: "#fb923c", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>PUT</span></td>
                     <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/cards/:cardId</td>
-                    <td style={{ padding: "8px 10px" }}>Modifica o corrige una carta existente de forma granular</td>
+                    <td style={{ padding: "8px 10px" }}>Modifica o corrige una carta existente (anverso y/o reverso)</td>
                   </tr>
                   <tr style={{ borderBottom: "1px solid #222233" }}>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#831843", color: "#f472b6", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>DELETE</span></td>
@@ -593,7 +760,12 @@ if (renderResp.ok) {
                   <tr style={{ borderBottom: "1px solid #222233" }}>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
                     <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/projects/:id/cards/:cardId/preview</td>
-                    <td style={{ padding: "8px 10px" }}>Previsualiza la carta en PNG a 300 DPI</td>
+                    <td style={{ padding: "8px 10px" }}>Previsualiza la carta en PNG a 300 DPI (soporta <code>?side=front</code> y <code>?side=back</code>)</td>
+                  </tr>
+                  <tr style={{ borderBottom: "1px solid #222233" }}>
+                    <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>
+                    <td style={{ padding: "8px 10px", fontFamily: "monospace", color: "#fff" }}>/api/v1/docs/agent-skill</td>
+                    <td style={{ padding: "8px 10px" }}>Descarga el archivo <code>SKILL.md</code> en formato Markdown para agentes de IA</td>
                   </tr>
                   <tr>
                     <td style={{ padding: "8px 10px" }}><span style={{ backgroundColor: "#065f46", color: "#34d399", fontWeight: "700", padding: "2px 6px", borderRadius: "4px" }}>GET</span></td>

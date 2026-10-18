@@ -177,6 +177,22 @@ export async function getPublicTemplateSchema(
       }
     }
 
+    const fullStructure: any[] = [];
+    if (Array.isArray(tmpl.capas)) {
+      for (const capa of tmpl.capas) {
+        if (!capa) continue;
+        fullStructure.push({
+          id: capa.id,
+          nombre: capa.nombre || capa.id,
+          tipo: capa.tipo || "unknown",
+          parentCapaId: capa.parentCapaId || null,
+          contenidoRaw: capa.contenidoRaw || undefined,
+          src: capa.src || undefined,
+          visibilidad: capa.visibility || undefined
+        });
+      }
+    }
+
     return {
       id: tmpl.id,
       nombre: tmpl.nombre || "Diseño",
@@ -185,6 +201,8 @@ export async function getPublicTemplateSchema(
         altoMm: Number(tmpl.altoMm) || 88.9
       },
       totalCapas: Array.isArray(tmpl.capas) ? tmpl.capas.length : 0,
+      exposedFields: campos,
+      fullStructure,
       campos,
       miniatura: typeof tmpl.miniatura === "string" && tmpl.miniatura.trim() ? tmpl.miniatura : undefined
     };

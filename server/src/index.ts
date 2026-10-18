@@ -19,6 +19,7 @@ import { PublicTemplateService } from "./storage/publicTemplateService.js";
 import { getPublicTemplateSchema, renderCardToPng } from "./engine/cardEngineService.js";
 import { ProjectArchiveService } from "./engine/projectArchiveService.js";
 import { generarHtmlExportacionPng } from "./engine/cardRenderer.js";
+import { AGENT_SKILL_MARKDOWN } from "./engine/agentSkillContent.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -271,7 +272,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261013.1",
+      version: "v2.261018.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1144,14 +1145,22 @@ app.get("/api/v1/projects/:id/cards/:cardId/preview", requireAuth, async (req, r
   try {
     const user = (req as any).currentUser;
     const dpi = req.query.dpi ? parseInt(String(req.query.dpi), 10) : 300;
+    const side = (req.query.side === "back" ? "back" : "front") as "front" | "back";
     const service = getProjectArchiveService();
-    const pngBuffer = await service.previewCardInProject(user.id, req.params.id, req.params.cardId, dpi);
+    const pngBuffer = await service.previewCardInProject(user.id, req.params.id, req.params.cardId, dpi, side);
     res.setHeader("Content-Type", "image/png");
-    res.setHeader("Content-Disposition", `inline; filename="card_${req.params.cardId}.png"`);
+    res.setHeader("Content-Disposition", `inline; filename="card_${req.params.cardId}_${side}.png"`);
     res.send(pngBuffer);
   } catch (err: any) {
     handleProjectArchiveError(err, res, "Error al previsualizar la carta");
   }
+});
+
+// RF-7.4: Descarga del Skill Markdown para Agentes de IA
+app.get("/api/v1/docs/agent-skill", (_req, res) => {
+  res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+  res.setHeader("Content-Disposition", 'attachment; filename="card-deck-crafter-agent-skill.md"');
+  res.send(AGENT_SKILL_MARKDOWN);
 });
 
 // Descarga directa del archivo binario .cdc2 del proyecto

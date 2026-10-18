@@ -129,17 +129,40 @@ export class ProjectArchiveService {
    * Mapea un diseño de plantilla interno a TemplateDesignSchema con campos expuestos.
    */
   public mapDesignToSchema(tmpl: any): TemplateDesignSchema {
-    const campos: TemplateFieldSchema[] = [];
+    const exposedFields: TemplateFieldSchema[] = [];
     const registeredKeys = new Set<string>();
 
-    const addCampo = (c: TemplateFieldSchema) => {
+    const addExposed = (c: TemplateFieldSchema) => {
       if (!registeredKeys.has(c.clave)) {
         registeredKeys.add(c.clave);
-        campos.push(c);
+        exposedFields.push(c);
       }
     };
 
-    if (Array.isArray(tmpl.camposConfig)) {
+    // 1. Procesar campos expuestos nativos (exposedProperties)
+    if (Array.isArray(tmpl.exposedProperties) && tmpl.exposedProperties.length > 0) {
+      for (const ep of tmpl.exposedProperties) {
+        if (!ep || !ep.layerId) continue;
+        const capa = Array.isArray(tmpl.capas) ? tmpl.capas.find((c: any) => c.id === ep.layerId) : null;
+        let tipo: TemplateFieldType = "string";
+        if (capa) {
+          if (capa.tipo === "image" || capa.tipo === "image-switch") tipo = "image";
+          else if (capa.tipo === "text" && (capa.multiline || ep.property === "contenidoRaw")) {
+            tipo = capa.multiline ? "multiline" : "string";
+          }
+        }
+        addExposed({
+          clave: ep.label || ep.layerId,
+          nombre: ep.label || capa?.nombre || ep.layerId,
+          tipo,
+          descripcion: `Campo expuesto para capa "${capa?.nombre || ep.layerId}" (propiedad: ${ep.property})`,
+          valorDefecto: capa ? (capa as any)[ep.property] : undefined
+        });
+      }
+    }
+
+    // 2. Procesar camposConfig si existen
+    if (Array.isArray(tmpl.camposConfig) && tmpl.camposConfig.length > 0) {
       for (const c of tmpl.camposConfig) {
         if (!c || !c.clave) continue;
         let tipo: TemplateFieldType = "string";
@@ -150,7 +173,7 @@ export class ProjectArchiveService {
         else if (rawTipo === "select") tipo = "select";
         else if (rawTipo === "boolean") tipo = "boolean";
 
-        addCampo({
+        addExposed({
           clave: c.clave,
           nombre: c.nombre || c.clave,
           tipo,
@@ -161,17 +184,18 @@ export class ProjectArchiveService {
       }
     }
 
-    if (Array.isArray(tmpl.capas)) {
+    // 3. Fallback: Si no tiene exposedProperties ni camposConfig, incluir capas de texto e imagen
+    if (exposedFields.length === 0 && Array.isArray(tmpl.capas)) {
       for (const capa of tmpl.capas) {
         if (!capa) continue;
         if (capa.tipo === "text") {
           const clave = capa.id;
           const nombre = capa.nombre || capa.id;
           const contenido = capa.contenidoRaw || "";
-          addCampo({
+          addExposed({
             clave,
             nombre,
-            tipo: "string",
+            tipo: capa.multiline ? "multiline" : "string",
             descripcion: `Capa de texto "${nombre}"`,
             valorDefecto: contenido
           });
@@ -181,7 +205,7 @@ export class ProjectArchiveService {
           for (const m of matches) {
             const varName = m[1].trim();
             if (varName) {
-              addCampo({
+              addExposed({
                 clave: varName,
                 nombre: varName,
                 tipo: "string",
@@ -189,14 +213,31 @@ export class ProjectArchiveService {
               });
             }
           }
-        } else if (capa.tipo === "image") {
-          addCampo({
+        } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
+          addExposed({
             clave: capa.id,
             nombre: capa.nombre || capa.id,
             tipo: "image",
             descripcion: `Ilustración o imagen en capa "${capa.nombre || capa.id}"`
           });
         }
+      }
+    }
+
+    // 4. Construir estructura técnica completa de todas las capas
+    const fullStructure: any[] = [];
+    if (Array.isArray(tmpl.capas)) {
+      for (const capa of tmpl.capas) {
+        if (!capa) continue;
+        fullStructure.push({
+          id: capa.id,
+          nombre: capa.nombre || capa.id,
+          tipo: capa.tipo || "unknown",
+          parentCapaId: capa.parentCapaId || null,
+          contenidoRaw: capa.contenidoRaw || undefined,
+          src: capa.src || undefined,
+          visibilidad: capa.visibility || undefined
+        });
       }
     }
 
@@ -208,7 +249,9 @@ export class ProjectArchiveService {
         altoMm: tmpl.altoMm || 88.9
       },
       totalCapas: Array.isArray(tmpl.capas) ? tmpl.capas.length : 0,
-      campos,
+      exposedFields,
+      fullStructure,
+      campos: exposedFields,
       miniatura: tmpl.miniatura || undefined
     };
   }
@@ -271,13 +314,36 @@ export class ProjectArchiveService {
       bordeCorteColor: "#000000"
     };
 
+    // Crear nuevo ZIP clonando recursos no-cartas (assets, fuentes, símbolos)
+    const newZip = new AdmZip();
+    for (const e of sourceZip.getEntries()) {
+      if (
+        e.entryName.startsWith("symbols/") ||
+        e.entryName.startsWith("fonts/") ||
+        e.entryName.startsWith("project_assets/") ||
+        e.entryName.startsWith("assets/") ||
+        e.entryName.startsWith("user_assets/")
+      ) {
+        newZip.addFile(e.entryName, e.getData());
+      }
+    }
+
+    let modoTraseras = params.modoTraseras || "ninguno";
+    let imagenTraseraComun: string | null = null;
+    if (params.imagenTraseraComun) {
+      imagenTraseraComun = await this.processImageToAsset(newZip, params.imagenTraseraComun);
+      if (!params.modoTraseras) {
+        modoTraseras = "comun";
+      }
+    }
+
     const initialDoc: DocumentoCDC2 = {
       id: defaultDocId,
       nombre: "Documento 1",
       canvasConfig,
       cardConfig,
-      modoTraseras: "ninguno",
-      imagenTraseraComun: null,
+      modoTraseras,
+      imagenTraseraComun,
       cards: []
     };
 
@@ -299,20 +365,6 @@ export class ProjectArchiveService {
       customFonts: sourceProject.customFonts || [],
       assets: sourceProject.assets || []
     };
-
-    // Crear nuevo ZIP clonando recursos no-cartas (assets, fuentes, símbolos)
-    const newZip = new AdmZip();
-    for (const e of sourceZip.getEntries()) {
-      if (
-        e.entryName.startsWith("symbols/") ||
-        e.entryName.startsWith("fonts/") ||
-        e.entryName.startsWith("project_assets/") ||
-        e.entryName.startsWith("assets/") ||
-        e.entryName.startsWith("user_assets/")
-      ) {
-        newZip.addFile(e.entryName, e.getData());
-      }
-    }
 
     newZip.addFile("project.json", Buffer.from(JSON.stringify(newProject, null, 2), "utf8"));
     const buffer = newZip.toBuffer();
@@ -370,7 +422,9 @@ export class ProjectArchiveService {
       nombre: d.nombre,
       cardCount: Array.isArray(d.cards) ? d.cards.length : 0,
       canvasConfig: d.canvasConfig,
-      cardConfig: d.cardConfig
+      cardConfig: d.cardConfig,
+      modoTraseras: d.modoTraseras,
+      imagenTraseraComun: d.imagenTraseraComun
     }));
 
     return {
@@ -399,7 +453,9 @@ export class ProjectArchiveService {
       nombre: d.nombre,
       cardCount: Array.isArray(d.cards) ? d.cards.length : 0,
       canvasConfig: d.canvasConfig,
-      cardConfig: d.cardConfig
+      cardConfig: d.cardConfig,
+      modoTraseras: d.modoTraseras,
+      imagenTraseraComun: d.imagenTraseraComun
     }));
   }
 
@@ -437,13 +493,22 @@ export class ProjectArchiveService {
       ...(params.cardConfig as any || {})
     };
 
+    let modoTraseras = params.modoTraseras || "ninguno";
+    let imagenTraseraComun: string | null = null;
+    if (params.imagenTraseraComun) {
+      imagenTraseraComun = await this.processImageToAsset(zip, params.imagenTraseraComun);
+      if (!params.modoTraseras) {
+        modoTraseras = "comun";
+      }
+    }
+
     const newDoc: DocumentoCDC2 = {
       id: newDocId,
       nombre: cleanNombre,
       canvasConfig,
       cardConfig,
-      modoTraseras: "ninguno",
-      imagenTraseraComun: null,
+      modoTraseras,
+      imagenTraseraComun,
       cards: []
     };
 
@@ -469,7 +534,8 @@ export class ProjectArchiveService {
     return {
       id: newDocId,
       nombre: cleanNombre,
-      cardCount: 0
+      cardCount: 0,
+      modoTraseras
     };
   }
 
@@ -597,11 +663,16 @@ export class ProjectArchiveService {
           const assetUri = await this.processImageToAsset(zip, imgVal);
           if (assetUri) {
             valoresCampos[imgKey] = assetUri;
-            const matchedLayer = design.capas?.find(c => c.id === imgKey || c.nombre === imgKey);
+            let matchedLayer = design.capas?.find(c => c.id === imgKey || c.nombre === imgKey);
+            const matchedExposed = design.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
+            if (!matchedLayer && matchedExposed) {
+              matchedLayer = design.capas?.find(c => c.id === matchedExposed.layerId);
+            }
             if (matchedLayer) {
+              const prop = matchedExposed?.property || "src";
               capasOverrides[matchedLayer.id] = {
                 ...capasOverrides[matchedLayer.id],
-                src: assetUri
+                [prop]: assetUri
               };
               valoresCampos[matchedLayer.id] = assetUri;
             }
@@ -615,27 +686,95 @@ export class ProjectArchiveService {
           const strVal = String(val);
           valoresCampos[fieldKey] = strVal;
 
-          const layerById = design.capas?.find(c => c.id === fieldKey);
-          if (layerById) {
-            valoresCampos[layerById.id] = strVal;
-            if (layerById.tipo === "text") {
-              capasOverrides[layerById.id] = {
-                ...capasOverrides[layerById.id],
-                contenidoRaw: strVal
-              };
+          let matchedLayer = design.capas?.find(c => c.id === fieldKey || c.nombre === fieldKey);
+          let prop = "contenidoRaw";
+          const matchedExposed = design.exposedProperties?.find((ep: any) => ep.label === fieldKey || ep.layerId === fieldKey);
+          if (matchedExposed) {
+            prop = matchedExposed.property || "contenidoRaw";
+            if (!matchedLayer) {
+              matchedLayer = design.capas?.find(c => c.id === matchedExposed.layerId);
             }
           }
 
-          const layerByName = design.capas?.find(c => c.nombre === fieldKey);
-          if (layerByName) {
-            valoresCampos[layerByName.id] = strVal;
-            if (layerByName.tipo === "text") {
-              capasOverrides[layerByName.id] = {
-                ...capasOverrides[layerByName.id],
-                contenidoRaw: strVal
+          if (matchedLayer) {
+            valoresCampos[matchedLayer.id] = strVal;
+            capasOverrides[matchedLayer.id] = {
+              ...capasOverrides[matchedLayer.id],
+              [prop]: strVal
+            };
+          }
+        }
+      }
+
+      // 3. Procesar Cara Trasera (Reverso)
+      if (cardInput.backCardTemplateId && !templatesMap[cardInput.backCardTemplateId]) {
+        const err: any = new Error(
+          `La plantilla de diseño trasera "${cardInput.backCardTemplateId}" no existe en las plantillas del proyecto.`
+        );
+        err.status = 400;
+        throw err;
+      }
+
+      const backDesign: PlantillaCDC2 | undefined = cardInput.backCardTemplateId ? templatesMap[cardInput.backCardTemplateId] : undefined;
+      const valoresCamposTrasera: Record<string, string> = {};
+      const capasOverridesTrasera: Record<string, any> = {};
+
+      if (cardInput.backImages && typeof cardInput.backImages === "object") {
+        for (const [imgKey, imgVal] of Object.entries(cardInput.backImages)) {
+          const assetUri = await this.processImageToAsset(zip, imgVal);
+          if (assetUri) {
+            valoresCamposTrasera[imgKey] = assetUri;
+            let matchedLayer = backDesign?.capas?.find((c: any) => c.id === imgKey || c.nombre === imgKey);
+            const matchedExposed = backDesign?.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
+            if (!matchedLayer && matchedExposed) {
+              matchedLayer = backDesign?.capas?.find((c: any) => c.id === matchedExposed.layerId);
+            }
+            if (matchedLayer) {
+              const prop = matchedExposed?.property || "src";
+              capasOverridesTrasera[matchedLayer.id] = {
+                ...capasOverridesTrasera[matchedLayer.id],
+                [prop]: assetUri
               };
+              valoresCamposTrasera[matchedLayer.id] = assetUri;
             }
           }
+        }
+      }
+
+      if (cardInput.backFields && typeof cardInput.backFields === "object") {
+        for (const [fieldKey, val] of Object.entries(cardInput.backFields)) {
+          const strVal = String(val);
+          valoresCamposTrasera[fieldKey] = strVal;
+
+          let matchedLayer = backDesign?.capas?.find((c: any) => c.id === fieldKey || c.nombre === fieldKey);
+          let prop = "contenidoRaw";
+          const matchedExposed = backDesign?.exposedProperties?.find((ep: any) => ep.label === fieldKey || ep.layerId === fieldKey);
+          if (matchedExposed) {
+            prop = matchedExposed.property || "contenidoRaw";
+            if (!matchedLayer) {
+              matchedLayer = backDesign?.capas?.find((c: any) => c.id === matchedExposed.layerId);
+            }
+          }
+
+          if (matchedLayer) {
+            valoresCamposTrasera[matchedLayer.id] = strVal;
+            capasOverridesTrasera[matchedLayer.id] = {
+              ...capasOverridesTrasera[matchedLayer.id],
+              [prop]: strVal
+            };
+          }
+        }
+      }
+
+      let imagenTrasera: string | null = null;
+      if (cardInput.backImage) {
+        imagenTrasera = await this.processImageToAsset(zip, cardInput.backImage);
+      }
+
+      // RF-2.3: Si el documento tenía modoTraseras: "ninguno" y la carta define reverso, activar "individual"
+      if (cardInput.backCardTemplateId || imagenTrasera) {
+        if (targetDoc.modoTraseras === "ninguno") {
+          targetDoc.modoTraseras = "individual";
         }
       }
 
@@ -646,7 +785,10 @@ export class ProjectArchiveService {
         plantillaId: design.id,
         valoresCampos,
         capasOverrides,
-        imagenTrasera: null
+        plantillaTraseraId: cardInput.backCardTemplateId || undefined,
+        valoresCamposTrasera: Object.keys(valoresCamposTrasera).length > 0 ? valoresCamposTrasera : undefined,
+        capasOverridesTrasera: Object.keys(capasOverridesTrasera).length > 0 ? capasOverridesTrasera : undefined,
+        imagenTrasera
       };
 
       targetDoc.cards.push(newCard);
@@ -679,7 +821,11 @@ export class ProjectArchiveService {
         cantidad: c.cantidad,
         plantillaId: c.plantillaId,
         valoresCampos: c.valoresCampos,
-        capasOverrides: c.capasOverrides
+        capasOverrides: c.capasOverrides,
+        plantillaTraseraId: c.plantillaTraseraId,
+        valoresCamposTrasera: c.valoresCamposTrasera,
+        capasOverridesTrasera: c.capasOverridesTrasera,
+        imagenTrasera: c.imagenTrasera
       })),
       totalCards,
       storage: {
@@ -704,10 +850,12 @@ export class ProjectArchiveService {
 
     // Buscar carta en cualquiera de los documentos
     let foundCard: Carta | undefined;
+    let parentDoc: DocumentoCDC2 | undefined;
     for (const doc of project.documentos || []) {
       const match = doc.cards?.find(c => c.id === cardId);
       if (match) {
         foundCard = match;
+        parentDoc = doc;
         break;
       }
     }
@@ -737,11 +885,16 @@ export class ProjectArchiveService {
         const assetUri = await this.processImageToAsset(zip, imgVal);
         if (assetUri) {
           foundCard.valoresCampos[imgKey] = assetUri;
-          const matchedLayer = design?.capas?.find((c: any) => c.id === imgKey || c.nombre === imgKey);
+          let matchedLayer = design?.capas?.find((c: any) => c.id === imgKey || c.nombre === imgKey);
+          const matchedExposed = design?.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
+          if (!matchedLayer && matchedExposed) {
+            matchedLayer = design?.capas?.find((c: any) => c.id === matchedExposed.layerId);
+          }
           if (matchedLayer) {
+            const prop = matchedExposed?.property || "src";
             foundCard.capasOverrides[matchedLayer.id] = {
               ...foundCard.capasOverrides[matchedLayer.id],
-              src: assetUri
+              [prop]: assetUri
             };
             foundCard.valoresCampos[matchedLayer.id] = assetUri;
           }
@@ -755,26 +908,101 @@ export class ProjectArchiveService {
         const strVal = String(val);
         foundCard.valoresCampos[fieldKey] = strVal;
 
-        const layerById = design?.capas?.find((c: any) => c.id === fieldKey);
-        if (layerById) {
-          foundCard.valoresCampos[layerById.id] = strVal;
-          if (layerById.tipo === "text") {
-            foundCard.capasOverrides[layerById.id] = {
-              ...foundCard.capasOverrides[layerById.id],
-              contenidoRaw: strVal
-            };
+        let matchedLayer = design?.capas?.find((c: any) => c.id === fieldKey || c.nombre === fieldKey);
+        let prop = "contenidoRaw";
+        const matchedExposed = design?.exposedProperties?.find((ep: any) => ep.label === fieldKey || ep.layerId === fieldKey);
+        if (matchedExposed) {
+          prop = matchedExposed.property || "contenidoRaw";
+          if (!matchedLayer) {
+            matchedLayer = design?.capas?.find((c: any) => c.id === matchedExposed.layerId);
           }
         }
 
-        const layerByName = design?.capas?.find((c: any) => c.nombre === fieldKey);
-        if (layerByName) {
-          foundCard.valoresCampos[layerByName.id] = strVal;
-          if (layerByName.tipo === "text") {
-            foundCard.capasOverrides[layerByName.id] = {
-              ...foundCard.capasOverrides[layerByName.id],
-              contenidoRaw: strVal
-            };
+        if (matchedLayer) {
+          foundCard.valoresCampos[matchedLayer.id] = strVal;
+          foundCard.capasOverrides[matchedLayer.id] = {
+            ...foundCard.capasOverrides[matchedLayer.id],
+            [prop]: strVal
+          };
+        }
+      }
+    }
+
+    // 3. Modificar propiedades de reverso
+    if (params.backCardTemplateId !== undefined) {
+      if (params.backCardTemplateId && project.templates && !project.templates[params.backCardTemplateId]) {
+        const err: any = new Error(`La plantilla trasera "${params.backCardTemplateId}" no existe en el proyecto.`);
+        err.status = 400;
+        throw err;
+      }
+      foundCard.plantillaTraseraId = params.backCardTemplateId || undefined;
+    }
+
+    if (params.backImage !== undefined) {
+      if (params.backImage) {
+        foundCard.imagenTrasera = await this.processImageToAsset(zip, params.backImage);
+      } else {
+        foundCard.imagenTrasera = null;
+      }
+    }
+
+    if (foundCard.plantillaTraseraId || foundCard.imagenTrasera) {
+      if (parentDoc && parentDoc.modoTraseras === "ninguno") {
+        parentDoc.modoTraseras = "individual";
+      }
+    }
+
+    const backDesign = (project.templates && foundCard.plantillaTraseraId) ? project.templates[foundCard.plantillaTraseraId] : undefined;
+
+    if (params.backImages && typeof params.backImages === "object") {
+      if (!foundCard.valoresCamposTrasera) foundCard.valoresCamposTrasera = {};
+      if (!foundCard.capasOverridesTrasera) foundCard.capasOverridesTrasera = {};
+
+      for (const [imgKey, imgVal] of Object.entries(params.backImages)) {
+        const assetUri = await this.processImageToAsset(zip, imgVal);
+        if (assetUri) {
+          foundCard.valoresCamposTrasera[imgKey] = assetUri;
+          let matchedLayer = backDesign?.capas?.find((c: any) => c.id === imgKey || c.nombre === imgKey);
+          const matchedExposed = backDesign?.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
+          if (!matchedLayer && matchedExposed) {
+            matchedLayer = backDesign?.capas?.find((c: any) => c.id === matchedExposed.layerId);
           }
+          if (matchedLayer) {
+            const prop = matchedExposed?.property || "src";
+            foundCard.capasOverridesTrasera[matchedLayer.id] = {
+              ...foundCard.capasOverridesTrasera[matchedLayer.id],
+              [prop]: assetUri
+            };
+            foundCard.valoresCamposTrasera[matchedLayer.id] = assetUri;
+          }
+        }
+      }
+    }
+
+    if (params.backFields && typeof params.backFields === "object") {
+      if (!foundCard.valoresCamposTrasera) foundCard.valoresCamposTrasera = {};
+      if (!foundCard.capasOverridesTrasera) foundCard.capasOverridesTrasera = {};
+
+      for (const [fieldKey, val] of Object.entries(params.backFields)) {
+        const strVal = String(val);
+        foundCard.valoresCamposTrasera[fieldKey] = strVal;
+
+        let matchedLayer = backDesign?.capas?.find((c: any) => c.id === fieldKey || c.nombre === fieldKey);
+        let prop = "contenidoRaw";
+        const matchedExposed = backDesign?.exposedProperties?.find((ep: any) => ep.label === fieldKey || ep.layerId === fieldKey);
+        if (matchedExposed) {
+          prop = matchedExposed.property || "contenidoRaw";
+          if (!matchedLayer) {
+            matchedLayer = backDesign?.capas?.find((c: any) => c.id === matchedExposed.layerId);
+          }
+        }
+
+        if (matchedLayer) {
+          foundCard.valoresCamposTrasera[matchedLayer.id] = strVal;
+          foundCard.capasOverridesTrasera[matchedLayer.id] = {
+            ...foundCard.capasOverridesTrasera[matchedLayer.id],
+            [prop]: strVal
+          };
         }
       }
     }
@@ -805,7 +1033,11 @@ export class ProjectArchiveService {
         cantidad: foundCard.cantidad,
         plantillaId: foundCard.plantillaId,
         valoresCampos: foundCard.valoresCampos,
-        capasOverrides: foundCard.capasOverrides
+        capasOverrides: foundCard.capasOverrides,
+        plantillaTraseraId: foundCard.plantillaTraseraId,
+        valoresCamposTrasera: foundCard.valoresCamposTrasera,
+        capasOverridesTrasera: foundCard.capasOverridesTrasera,
+        imagenTrasera: foundCard.imagenTrasera
       }
     };
   }
@@ -871,7 +1103,8 @@ export class ProjectArchiveService {
     userId: string,
     projectId: string,
     cardId: string,
-    dpi: number = 300
+    dpi: number = 300,
+    side: "front" | "back" = "front"
   ): Promise<Buffer> {
     const { zip, project } = await this.loadProjectZip(userId, projectId);
 
@@ -901,6 +1134,16 @@ export class ProjectArchiveService {
       throw err;
     }
 
+    if (side === "back") {
+      const hasBack = foundCard.plantillaTraseraId || foundCard.plantillaTrasera || foundCard.imagenTrasera || parentDoc?.imagenTraseraComun;
+      if (!hasBack) {
+        const err: any = new Error("La carta no cuenta con un reverso configurado (plantillaTraseraId, imagenTrasera ni reverso común en el documento).");
+        err.code = "NOT_FOUND";
+        err.status = 404;
+        throw err;
+      }
+    }
+
     // Extraer recursos a directorio temporal
     const tempDir = path.join(os.tmpdir(), `cdc2_card_prev_${randomUUID()}`);
     await fs.mkdirp(tempDir);
@@ -911,8 +1154,14 @@ export class ProjectArchiveService {
       // Extraer entradas del ZIP al directorio temporal
       zip.extractAllTo(tempDir, true);
 
-      const anchoMm = design.anchoMm || parentDoc?.cardConfig?.anchoMm || 63.5;
-      const altoMm = design.altoMm || parentDoc?.cardConfig?.altoMm || 88.9;
+      let anchoMm = design.anchoMm || parentDoc?.cardConfig?.anchoMm || 63.5;
+      let altoMm = design.altoMm || parentDoc?.cardConfig?.altoMm || 88.9;
+
+      if (side === "back" && foundCard.plantillaTraseraId && project.templates && project.templates[foundCard.plantillaTraseraId]) {
+        const backDesign = project.templates[foundCard.plantillaTraseraId];
+        anchoMm = backDesign.anchoMm || anchoMm;
+        altoMm = backDesign.altoMm || altoMm;
+      }
 
       const singleDoc = {
         id: "doc_preview",
@@ -922,7 +1171,8 @@ export class ProjectArchiveService {
           altoMm,
           sangradoMm: 0
         },
-        modoTraseras: "ninguno",
+        modoTraseras: side === "back" ? "individual" : "ninguno",
+        imagenTraseraComun: parentDoc?.imagenTraseraComun || null,
         cards: [foundCard]
       };
 
@@ -984,12 +1234,14 @@ export class ProjectArchiveService {
 
       await new Promise(resolve => setTimeout(resolve, 200));
 
-      const element = await page.$("#card_0_001_D");
+      const targetSelector = side === "back" ? "#card_0_001_T" : "#card_0_001_D";
+      const element = await page.$(targetSelector);
       if (!element) {
-        throw new Error("No se pudo localizar el contenedor de la carta para renderizar.");
+        throw new Error(`No se pudo localizar el contenedor de la carta (${targetSelector}) para renderizar.`);
       }
 
       const screenshotBuffer = await element.screenshot({ type: "png" });
+      return Buffer.from(screenshotBuffer);
       return Buffer.from(screenshotBuffer);
     } finally {
       if (browser) {
