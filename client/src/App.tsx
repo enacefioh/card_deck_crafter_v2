@@ -51,11 +51,86 @@ const PROPERTY_WEIGHTS: Record<string, number> = {
   src: 3,
   selectedOptionId: 4,
   modoAjuste: 5,
-  xMm: 6,
-  yMm: 7,
-  anchoMm: 8,
-  altoMm: 9,
+  fontFamily: 6,
+  fontSizePt: 7,
+  color: 8,
+  bold: 9,
+  italic: 10,
+  underline: 11,
+  alineacion: 12,
+  textOutlineWidth: 13,
+  textOutlineColor: 14,
+  paddingTopMm: 15,
+  colorFill: 16,
+  backgroundColor: 17,
+  xMm: 20,
+  yMm: 21,
+  anchoMm: 22,
+  altoMm: 23,
+  borderTopWidth: 24,
+  borderTopColor: 25,
+  borderTopLeftRadius: 26,
+  rotacion: 27,
+  layout: 28,
+  canvasEditMode: 30,
 };
+
+function getCatalogPropertiesForLayer(capa: any): Array<{ property: string; label: string }> {
+  const list: Array<{ property: string; label: string }> = [
+    { property: "visibility", label: "Visibilidad" },
+  ];
+
+  if (capa.tipo === "text") {
+    list.push(
+      { property: "contenidoRaw", label: "Contenido Texto" },
+      { property: "fontFamily", label: "Tipografía" },
+      { property: "fontSizePt", label: "Tamaño Fuente" },
+      { property: "color", label: "Color Texto" },
+      { property: "bold", label: "Negrita" },
+      { property: "italic", label: "Cursiva" },
+      { property: "underline", label: "Subrayado" },
+      { property: "alineacion", label: "Alineación Texto" },
+      { property: "textOutlineWidth", label: "Grosor Contorno" },
+      { property: "textOutlineColor", label: "Color Contorno" },
+      { property: "paddingTopMm", label: "Padding Texto" }
+    );
+  } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
+    list.push(
+      { property: "src", label: "Recurso Imagen" },
+      { property: "modoAjuste", label: "Ajuste Imagen" }
+    );
+  } else if (capa.tipo === "container") {
+    list.push(
+      { property: "layout", label: "Tipo Layout" }
+    );
+  } else if (capa.tipo === "list") {
+    list.push(
+      { property: "layout", label: "Tipo Layout" }
+    );
+  } else if (capa.tipo === "background") {
+    list.push(
+      { property: "colorFill", label: "Color Relleno" }
+    );
+  }
+
+  if (capa.tipo !== "background") {
+    list.push(
+      { property: "xMm", label: "Posición X" },
+      { property: "yMm", label: "Posición Y" },
+      { property: "anchoMm", label: "Ancho" },
+      { property: "altoMm", label: "Alto" },
+      { property: "backgroundColor", label: "Color Fondo" },
+      { property: "borderTopWidth", label: "Grosor Borde" },
+      { property: "borderTopColor", label: "Color Borde" },
+      { property: "borderTopLeftRadius", label: "Radio Esquinas" },
+      { property: "rotacion", label: "Rotación (º)" },
+      { property: "canvasEditMode", label: "Posición y Dimensiones (Lienzo)" }
+    );
+  }
+
+  return list;
+}
+
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
   let texto = capa.contenidoRaw || "";
@@ -588,6 +663,7 @@ function AppContent() {
   // --- Estados de Colapso de Barras Laterales (SRS-042) ---
   const [leftSidebarCollapsed, setLeftSidebarCollapsed] = useState<boolean>(false);
   const [rightSidebarCollapsed, setRightSidebarCollapsed] = useState<boolean>(false);
+  const [showAllFields, setShowAllFields] = useState<boolean>(false);
 
   // --- Estado de Secciones Colapsables del Inspector (SRS-043) ---
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -4635,19 +4711,33 @@ function AppContent() {
         </aside>
       ) : (
         <aside className="sidebar-right">
-          <div className="sidebar-header" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div>
-              <h1>Campos Editables</h1>
-              <p>Edición rápida de las cartas seleccionadas</p>
+          <div className="sidebar-header" style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", width: "100%" }}>
+              <div>
+                <h1>Campos Editables</h1>
+                <p>Edición rápida de las cartas seleccionadas</p>
+              </div>
+              <button 
+                type="button" 
+                className="collapsed-icon-btn" 
+                onClick={() => setRightSidebarCollapsed(true)}
+                title="Colapsar panel lateral derecho"
+              >
+                ▶
+              </button>
             </div>
-            <button 
-              type="button" 
-              className="collapsed-icon-btn" 
-              onClick={() => setRightSidebarCollapsed(true)}
-              title="Colapsar panel lateral derecho"
-            >
-              ▶
-            </button>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", width: "100%", paddingTop: "2px" }}>
+              <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
+                <input
+                  type="checkbox"
+                  data-testid="toggle-show-all-fields"
+                  checked={showAllFields}
+                  onChange={(e) => setShowAllFields(e.target.checked)}
+                  style={{ margin: 0, width: "auto", cursor: "pointer" }}
+                />
+                <span>Mostrar todos los campos</span>
+              </label>
+            </div>
           </div>
           {generarReversos && (
             <div className="inspector-tabs-container">
@@ -4742,7 +4832,37 @@ function AppContent() {
               return true;
             };
 
-            const sortedExposedBase = ordenarPropiedadesExpuestas(exposedBase);
+            let effectiveExposedBase = exposedBase;
+            if (showAllFields) {
+              const generated: any[] = [];
+              const addedKeys = new Set<string>();
+
+              for (const c of baseCapas) {
+                const catalog = getCatalogPropertiesForLayer(c);
+                for (const item of catalog) {
+                  const key = `${c.id}_${item.property}`;
+                  addedKeys.add(key);
+                  const existingExp = (exposedBase || []).find((ep: any) => ep.layerId === c.id && ep.property === item.property);
+                  generated.push({
+                    layerId: c.id,
+                    property: item.property,
+                    label: existingExp?.label || `${c.nombre || c.tipo} > ${item.label}`,
+                    description: existingExp?.description || ""
+                  });
+                }
+              }
+
+              for (const ep of exposedBase || []) {
+                const key = `${ep.layerId}_${ep.property}`;
+                if (!addedKeys.has(key)) {
+                  addedKeys.add(key);
+                  generated.push(ep);
+                }
+              }
+              effectiveExposedBase = generated;
+            }
+
+            const sortedExposedBase = ordenarPropiedadesExpuestas(effectiveExposedBase);
 
             const visibleExposedBase = sortedExposedBase.filter((prop) => {
               if (prop.property === "visibility" || prop.property === "visible") {
@@ -4775,18 +4895,32 @@ function AppContent() {
                   ? (pOther?.exposedProperties || [])
                   : (cOther.exposedProperties || pOther?.exposedProperties || []);
 
-                const matchExposed = expOther.find((eo: any) => {
-                  if (eo.property !== prop.property) return false;
-                  const cL = capasOther.find((x: any) => x.id === eo.layerId);
-                  if (!cL || cL.tipo !== capaBase.tipo || cL.nombre !== capaBase.nombre) return false;
-                  return obtenerRutaJerarquica(eo.layerId, capasOther) === rutaBase;
-                });
+                if (showAllFields) {
+                  const matchingLayerOther = capasOther.find((cL: any) => {
+                    if (cL.tipo !== capaBase.tipo || cL.nombre !== capaBase.nombre) return false;
+                    return obtenerRutaJerarquica(cL.id, capasOther) === rutaBase;
+                  });
 
-                if (matchExposed) {
-                  mapaCartaCapaId[cOther.id] = matchExposed.layerId;
+                  if (matchingLayerOther) {
+                    mapaCartaCapaId[cOther.id] = matchingLayerOther.id;
+                  } else {
+                    coincidenTodas = false;
+                    break;
+                  }
                 } else {
-                  coincidenTodas = false;
-                  break;
+                  const matchExposed = expOther.find((eo: any) => {
+                    if (eo.property !== prop.property) return false;
+                    const cL = capasOther.find((x: any) => x.id === eo.layerId);
+                    if (!cL || cL.tipo !== capaBase.tipo || cL.nombre !== capaBase.nombre) return false;
+                    return obtenerRutaJerarquica(eo.layerId, capasOther) === rutaBase;
+                  });
+
+                  if (matchExposed) {
+                    mapaCartaCapaId[cOther.id] = matchExposed.layerId;
+                  } else {
+                    coincidenTodas = false;
+                    break;
+                  }
                 }
               }
 
@@ -5545,20 +5679,165 @@ function AppContent() {
                       </div>
                     )}
 
+                    {campo.property === "fontFamily" && (
+                      <select
+                        className="inspector-input"
+                        value={todosIguales ? (valorMostrar || "sans-serif") : ""}
+                        onFocus={handleFieldFocus}
+                        onBlur={handleFieldBlur}
+                        onChange={(e) => handleUpdateValorLote(e.target.value)}
+                        style={{ height: "22px", fontSize: "11px", width: "100%", padding: "0 4px" }}
+                      >
+                        {!todosIguales && <option value="" disabled>&lt;Múltiples&gt;</option>}
+                        <option value="sans-serif">Inter (Sans Serif)</option>
+                        <option value="Outfit">Outfit</option>
+                        <option value="Arial">Arial</option>
+                        <option value="Times New Roman">Times New Roman</option>
+                        <option value="Courier New">Courier New (Monospace)</option>
+                        {projectFonts && projectFonts.length > 0 && (
+                          <optgroup label="Fuentes del Proyecto">
+                            {projectFonts.map((f: any) => (
+                              <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                            ))}
+                          </optgroup>
+                        )}
+                      </select>
+                    )}
+
+                    {campo.property === "fontSizePt" && (
+                      <input
+                        type="number"
+                        min="4"
+                        max="200"
+                        step="1"
+                        className="inspector-input"
+                        style={{ height: "22px", fontSize: "11px", width: "100%" }}
+                        value={todosIguales && valorMostrar !== "" && valorMostrar !== undefined ? valorMostrar : ""}
+                        placeholder={placeholderTexto}
+                        onFocus={handleFieldFocus}
+                        onBlur={handleFieldBlur}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          handleUpdateValorLote(isNaN(val) ? 12 : val);
+                        }}
+                      />
+                    )}
+
+                    {campo.property === "alineacion" && (
+                      <div style={{ display: "flex", gap: "2px", width: "100%" }}>
+                        {(["left", "center", "right", "justify"] as const).map((align) => {
+                          const isSelected = todosIguales && (valorMostrar || "left") === align;
+                          return (
+                            <button
+                              key={align}
+                              type="button"
+                              className="style-btn"
+                              style={{
+                                flex: 1,
+                                height: "22px",
+                                padding: 0,
+                                fontSize: "10px",
+                                border: isSelected ? "1px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                                backgroundColor: isSelected ? "var(--accent-primary)" : "var(--bg-app)",
+                                color: isSelected ? "white" : "var(--text-primary)",
+                                borderRadius: "3px",
+                                cursor: "pointer"
+                              }}
+                              onFocus={handleFieldFocus}
+                              onBlur={handleFieldBlur}
+                              onClick={() => handleUpdateValorLote(align)}
+                              title={align === "left" ? "Alinear Izquierda" : align === "center" ? "Alinear Centro" : align === "right" ? "Alinear Derecha" : "Justificado"}
+                            >
+                              {align === "left" ? "⬅️" : align === "center" ? "↔️" : align === "right" ? "➡️" : "↕️"}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    {(campo.property === "bold" || campo.property === "italic" || campo.property === "underline") && (
+                      <button
+                        type="button"
+                        className="style-btn"
+                        style={{
+                          height: "22px",
+                          padding: "0 8px",
+                          fontSize: "11px",
+                          border: (todosIguales && !!valorMostrar) ? "1px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                          backgroundColor: (todosIguales && !!valorMostrar) ? "var(--accent-primary)" : "var(--bg-app)",
+                          color: (todosIguales && !!valorMostrar) ? "white" : "var(--text-primary)",
+                          borderRadius: "3px",
+                          cursor: "pointer",
+                          fontWeight: campo.property === "bold" ? "bold" : "normal",
+                          fontStyle: campo.property === "italic" ? "italic" : "normal",
+                          textDecoration: campo.property === "underline" ? "underline" : "none",
+                        }}
+                        onFocus={handleFieldFocus}
+                        onBlur={handleFieldBlur}
+                        onClick={() => {
+                          const current = todosIguales ? !!valorMostrar : false;
+                          handleUpdateValorLote(!current);
+                        }}
+                      >
+                        {campo.property === "bold" ? "Negrita (B)" : campo.property === "italic" ? "Cursiva (I)" : "Subrayado (U)"}
+                      </button>
+                    )}
+
+                    {campo.property === "modoAjuste" && (
+                      <select
+                        className="inspector-input"
+                        value={todosIguales ? (valorMostrar || "contain") : ""}
+                        onFocus={handleFieldFocus}
+                        onBlur={handleFieldBlur}
+                        onChange={(e) => handleUpdateValorLote(e.target.value)}
+                        style={{ height: "22px", fontSize: "11px", width: "100%", padding: "0 4px" }}
+                      >
+                        {!todosIguales && <option value="" disabled>&lt;Múltiples&gt;</option>}
+                        <option value="contain">Ajustar (contain)</option>
+                        <option value="cover">Rellenar (cover)</option>
+                        <option value="stretch">Estirar (stretch)</option>
+                      </select>
+                    )}
+
+                    {campo.property === "layout" && (
+                      <select
+                        className="inspector-input"
+                        value={todosIguales ? (valorMostrar || "free") : ""}
+                        onFocus={handleFieldFocus}
+                        onBlur={handleFieldBlur}
+                        onChange={(e) => handleUpdateValorLote(e.target.value)}
+                        style={{ height: "22px", fontSize: "11px", width: "100%", padding: "0 4px" }}
+                      >
+                        {!todosIguales && <option value="" disabled>&lt;Múltiples&gt;</option>}
+                        <option value="free">Libre</option>
+                        <option value="vertical">Vertical</option>
+                        <option value="horizontal">Horizontal</option>
+                        <option value="flex">Flex / Flujo</option>
+                      </select>
+                    )}
+
                     {campo.property !== "anchoMm" &&
                       campo.property !== "altoMm" &&
                       campo.property !== "canvasEditMode" &&
                       campo.property !== "visibility" &&
                       campo.property !== "rotacion" &&
+                      campo.property !== "fontFamily" &&
+                      campo.property !== "fontSizePt" &&
+                      campo.property !== "alineacion" &&
+                      campo.property !== "bold" &&
+                      campo.property !== "italic" &&
+                      campo.property !== "underline" &&
+                      campo.property !== "modoAjuste" &&
+                      campo.property !== "layout" &&
                       !(campo.tipoCapa === "text" && campo.property === "contenidoRaw") &&
                       !(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) &&
                       !((campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src") && (
                         <input
                           type="number"
-                          step="0.5"
+                          step={campo.property === "textOutlineWidth" ? "0.5" : "0.5"}
                           className="inspector-input"
                           style={{ height: "22px", fontSize: "11px", width: "100%" }}
-                          value={valorMostrar !== undefined ? valorMostrar : ""}
+                          value={todosIguales && valorMostrar !== undefined ? valorMostrar : ""}
                           placeholder={placeholderTexto}
                           onFocus={handleFieldFocus}
                           onBlur={handleFieldBlur}
@@ -5569,7 +5848,7 @@ function AppContent() {
                     {campo.property === "visibility" && (
                       <select
                         className="inspector-input"
-                        value={todosIguales ? valorMostrar : ""}
+                        value={todosIguales ? (valorMostrar || "visible") : ""}
                         onFocus={handleFieldFocus}
                         onBlur={handleFieldBlur}
                         onChange={(e) => handleUpdateValorLote(e.target.value)}
@@ -5648,6 +5927,18 @@ function AppContent() {
               }
 
               const directFields = camposCoincidentes.filter(cc => cc.mapaCartaCapaId[cartaBase.id] === capa.id);
+
+              if (directFields.length > 0 && showAllFields && capa.tipo !== "container") {
+                const rutaFriendly = obtenerRutaJerarquica(capa.id, baseCapas);
+                const nestingLevel = rutaFriendly ? rutaFriendly.split(" > ").length : 1;
+                renderableItems.push({
+                  type: "layer-header",
+                  id: `layer_header_${capa.id}`,
+                  capa: capa,
+                  nestingLevel: nestingLevel
+                });
+              }
+
               directFields.forEach((campo) => {
                 renderableItems.push({
                   type: "field",
@@ -5678,6 +5969,36 @@ function AppContent() {
                           {isCollapsed ? "▶" : "▼"}
                         </span>
                         <span>{item.label}</span>
+                      </div>
+                    );
+                  }
+
+                  if (item.type === "layer-header") {
+                    if (isAncestorCollapsed(item.capa.parentCapaId)) {
+                      return null;
+                    }
+                    const capaEmoji = item.capa.tipo === "text" ? "📝" : (item.capa.tipo === "image" || item.capa.tipo === "image-switch") ? "🖼️" : item.capa.tipo === "background" ? "🎨" : "⬜";
+                    const indentStyle = { paddingLeft: `${Math.max(4, (item.nestingLevel - 1) * 6 + 4)}px` };
+                    return (
+                      <div
+                        key={item.id}
+                        className="inspector-layer-subhead"
+                        style={{
+                          ...indentStyle,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                          paddingTop: "6px",
+                          paddingBottom: "2px",
+                          fontSize: "11px",
+                          fontWeight: 700,
+                          color: "var(--text-secondary)",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px"
+                        }}
+                      >
+                        <span>{capaEmoji}</span>
+                        <span>{item.capa.nombre || item.capa.tipo}</span>
                       </div>
                     );
                   }
