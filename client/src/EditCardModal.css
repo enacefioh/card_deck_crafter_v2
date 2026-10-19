@@ -87,11 +87,21 @@
   gap: 12px;
 }
 
-/* Cuerpo y Layout en 3 Columnas */
+/* Cuerpo y Layout en 3 Columnas (SRS-083: Inspector 432px +20%) */
+:root {
+  --edit-inspector-width: 432px;
+  --edit-inspector-col-padding: 6px 8px;
+  --edit-inspector-group-gap: 4px;
+  --edit-inspector-field-gap: 2px;
+  --edit-inspector-label-width: 78px;
+  --edit-inspector-input-height: 22px;
+  --edit-inspector-font-size: 11px;
+}
+
 .edit-modal-body {
   flex: 1;
   display: grid;
-  grid-template-columns: 300px 1fr 360px;
+  grid-template-columns: 300px 1fr var(--edit-inspector-width, 432px);
   overflow: hidden;
   background-color: var(--bg-app);
 }
@@ -116,8 +126,8 @@
 }
 
 .column-title {
-  padding: 12px 16px;
-  font-size: 12px;
+  padding: 6px 10px;
+  font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
@@ -129,7 +139,11 @@
 .column-content {
   flex: 1;
   overflow-y: auto;
-  padding: 16px;
+  padding: 12px;
+}
+
+.inspector-column .column-content {
+  padding: var(--edit-inspector-col-padding, 6px 8px);
 }
 
 /* Columna de Jerarquía (Hierarchy) */
@@ -230,61 +244,161 @@
   font-size: 14px;
 }
 
-/* Columna del Inspector de Propiedades */
+/* Columna del Inspector de Propiedades (SRS-083: Tabla de Alta Densidad estilo SRS-080 / Unity) */
 .inspector-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 3px;
 }
 
 .inspector-layer-header {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
+  padding: 1px 0;
 }
 
 .inspector-layer-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-primary);
 }
 
 .inspector-layer-icon {
-  font-size: 20px;
+  font-size: 14px;
+  line-height: 1;
 }
 
 .inspector-separator {
   border: 0;
   height: 1px;
   background-color: var(--border-color);
-  margin: 0;
+  margin: 2px 0;
 }
 
 .inspector-section {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 2px;
 }
 
-.inspector-label {
-  font-size: 12px;
-  font-weight: 600;
+/* Sistema Tabular Denso (SRS-083) */
+.inspector-table {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background-color: rgba(255, 255, 255, 0.01);
+  overflow: visible;
+}
+
+.inspector-table-row,
+.inspector-field-row,
+.inspector-field-row.inspector-section {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 4px;
+  min-height: 24px;
+  padding: 2px 4px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  box-sizing: border-box;
+  width: 100%;
+}
+
+.inspector-table > .inspector-table-row:last-child,
+.inspector-table > .inspector-field-row:last-child {
+  border-bottom: none;
+}
+
+.inspector-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.inspector-cell + .inspector-cell {
+  border-left: 1px solid rgba(255, 255, 255, 0.06);
+  padding-left: 6px;
+}
+
+.inspector-field-label {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  gap: 2px;
+  font-size: var(--edit-inspector-font-size, 11px);
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.inspector-field-label > label,
+.inspector-field-label > span.field-label-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin: 0;
+  font-size: var(--edit-inspector-font-size, 11px);
+  font-weight: 500;
   color: var(--text-secondary);
 }
 
-.inspector-input,
+.inspector-field-control {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.inspector-label {
+  font-size: var(--edit-inspector-font-size, 11px);
+  font-weight: 600;
+  color: var(--text-secondary);
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.inspector-input {
+  background-color: var(--bg-app);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 3px;
+  padding: 1px 4px;
+  height: var(--edit-inspector-input-height, 22px);
+  font-family: var(--font-sans);
+  font-size: var(--edit-inspector-font-size, 11px);
+  transition: border-color 0.15s ease;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .inspector-textarea {
   background-color: var(--bg-app);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  border-radius: 6px;
-  padding: 8px 12px;
+  border-radius: 3px;
+  padding: 3px 5px;
   font-family: var(--font-sans);
-  font-size: 13px;
+  font-size: var(--edit-inspector-font-size, 11px);
+  line-height: 1.25;
   transition: border-color 0.15s ease;
   width: 100%;
   box-sizing: border-box;
+  resize: vertical;
 }
 
 .inspector-input:focus,
@@ -298,35 +412,37 @@ select.inspector-input option {
   color: var(--text-primary);
 }
 
-.inspector-textarea {
-  resize: vertical;
-}
-
 .color-picker-group {
   display: flex;
-  gap: 8px;
+  gap: 3px;
   align-items: center;
+  width: 100%;
+  min-width: 0;
 }
 
 .color-picker-input {
   background: none;
   border: 1px solid var(--border-color);
   padding: 0;
-  width: 38px;
-  height: 38px;
-  border-radius: 6px;
+  width: 20px;
+  height: 20px;
+  border-radius: 3px;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .color-hex-input {
   background-color: var(--bg-app);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  border-radius: 6px;
-  padding: 8px 12px;
+  border-radius: 3px;
+  padding: 1px 4px;
+  height: var(--edit-inspector-input-height, 22px);
   font-family: var(--font-mono, monospace);
-  font-size: 13px;
-  width: 90px;
+  font-size: var(--edit-inspector-font-size, 11px);
+  width: 62px;
+  min-width: 54px;
+  box-sizing: border-box;
 }
 
 .color-hex-input:focus {
@@ -335,21 +451,21 @@ select.inspector-input option {
 }
 
 .inspector-notice {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--text-secondary);
-  line-height: 1.4;
+  line-height: 1.3;
   font-style: italic;
-  padding: 8px;
+  padding: 6px;
   background-color: var(--bg-app);
   border-radius: 4px;
 }
 
 .inspector-guide {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--text-secondary);
   text-align: center;
-  padding: 40px 16px;
-  line-height: 1.5;
+  padding: 32px 12px;
+  line-height: 1.4;
   font-style: italic;
   opacity: 0.7;
 }
@@ -628,26 +744,31 @@ select.inspector-input option {
 .layout-form-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
+  gap: 6px;
 }
 
 .style-toggle-buttons {
-  display: flex;
-  gap: 4px;
+  display: inline-flex;
+  gap: 2px;
+  align-items: center;
 }
 
 .style-btn {
-  flex: 1;
   background-color: var(--bg-app);
   border: 1px solid var(--border-color);
   color: var(--text-secondary);
-  border-radius: 6px;
-  padding: 8px;
-  font-size: 12px;
+  border-radius: 3px;
+  padding: 0 6px;
+  min-width: 24px;
+  height: 20px;
+  font-size: 11px;
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: center;
-  font-weight: 500;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .style-btn:hover {
@@ -656,30 +777,35 @@ select.inspector-input option {
 }
 
 .style-btn.active {
-  background-color: rgba(139, 92, 246, 0.08);
+  background-color: rgba(139, 92, 246, 0.14);
   border-color: var(--accent-primary);
   color: var(--accent-primary);
-  font-weight: 600;
+  font-weight: 700;
 }
 
 .alignment-group {
-  display: flex;
+  display: inline-flex;
   border: 1px solid var(--border-color);
-  border-radius: 6px;
+  border-radius: 3px;
   overflow: hidden;
+  align-items: center;
 }
 
 .align-btn {
-  flex: 1;
   background-color: var(--bg-app);
   border: none;
   color: var(--text-secondary);
-  padding: 8px;
-  font-size: 12px;
+  padding: 0 5px;
+  min-width: 22px;
+  height: 20px;
+  font-size: 10.5px;
   cursor: pointer;
   transition: all 0.15s ease;
   text-align: center;
   border-right: 1px solid var(--border-color);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .align-btn:last-child {
@@ -692,7 +818,7 @@ select.inspector-input option {
 }
 
 .align-btn.active {
-  background-color: rgba(139, 92, 246, 0.08);
+  background-color: rgba(139, 92, 246, 0.14);
   color: var(--accent-primary);
   font-weight: 600;
 }
@@ -700,18 +826,18 @@ select.inspector-input option {
 /* Barra de acciones de capas - SRS-016 */
 .layer-actions-toolbar {
   display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
+  gap: 6px;
+  margin-bottom: 8px;
   justify-content: space-between;
   width: 100%;
   border-bottom: 1px solid var(--border-color);
-  padding-bottom: 12px;
+  padding-bottom: 8px;
 }
 
 .layer-action-btn {
   flex: 1;
-  padding: 8px;
-  font-size: 14px;
+  padding: 6px;
+  font-size: 13px;
   border-radius: 6px;
   border: 1px solid var(--border-color);
   background-color: var(--bg-card);
@@ -744,42 +870,38 @@ select.inspector-input option {
   border-color: rgba(239, 68, 68, 0.4);
 }
 
-/* Utilidades de alineación e igualación geométrica (SRS-017) */
+/* Utilidades de alineación e igualación geométrica en línea (SRS-017 + SRS-083) */
 .inspector-alignment-utilities {
-  display: flex;
-  justify-content: space-between;
-  gap: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
   background-color: var(--bg-app);
-  padding: 4px;
-  border-radius: 6px;
+  padding: 1px;
+  border-radius: 3px;
   border: 1px solid var(--border-color);
-  margin-top: 4px;
+  box-sizing: border-box;
 }
 
 .alignment-utility-btn {
-  flex: 1;
-  height: 28px;
+  width: 21px;
+  height: 20px;
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
   color: var(--text-primary);
-  border-radius: 4px;
-  font-size: 13px;
+  border-radius: 2px;
+  font-size: 10px;
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
   transition: all 0.15s ease;
   padding: 0;
+  flex-shrink: 0;
 }
 
 .alignment-utility-btn:hover:not(:disabled) {
   background-color: var(--bg-card-hover);
   border-color: var(--accent-primary);
-  transform: translateY(-1px);
-}
-
-.alignment-utility-btn:active:not(:disabled) {
-  transform: translateY(0);
 }
 
 .alignment-utility-btn:disabled {
@@ -789,33 +911,45 @@ select.inspector-input option {
   border-color: var(--border-color);
 }
 
-/* Formulario compacto para X, Y, W, H */
+/* Formulario compacto en tabla de 1 línea para X, Y, W, H (Etiqueta al lado de cada input) */
 .layout-form-grid-compact {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-  margin-top: 8px;
+  gap: 0;
+  width: 100%;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .inspector-section-compact {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 2px;
+  padding: 2px 4px;
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  min-width: 0;
+}
+
+.inspector-section-compact:last-child {
+  border-right: none;
 }
 
 .inspector-label-compact {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10.5px;
+  font-weight: 700;
   color: var(--text-secondary);
-  text-align: center;
   cursor: help;
   user-select: none;
+  white-space: nowrap;
 }
 
 .inspector-section-compact .inspector-input {
-  text-align: center;
-  padding: 6px 4px;
-  font-size: 12px;
+  text-align: right;
+  padding: 1px 3px;
+  height: 20px;
+  font-size: 11px;
+  flex: 1;
+  min-width: 0;
 }
 
 /* Galería de la Plantilla (SRS-020) */
@@ -1018,20 +1152,22 @@ select.inspector-input option {
 /* Botón Cargar desde Galería en capa de imagen */
 .btn-secundario-galeria {
   width: 100%;
-  padding: 8px 12px;
-  font-size: 12px;
+  padding: 3px 8px;
+  height: 24px;
+  font-size: 11px;
   font-weight: 500;
-  border-radius: 6px;
+  border-radius: 4px;
   border: 1px solid var(--border-color);
   background-color: var(--bg-app);
   color: var(--text-primary);
   cursor: pointer;
-  margin-top: 8px;
+  margin-top: 4px;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
   transition: all 0.15s;
+  box-sizing: border-box;
 }
 
 .btn-secundario-galeria:hover {
@@ -1047,7 +1183,7 @@ select.inspector-input option {
   align-items: flex-start;
   gap: 10px;
   overflow-x: auto;
-  padding: 8px 4px;
+  padding: 6px 4px;
   scrollbar-width: thin;
   scrollbar-color: var(--accent-primary) var(--bg-app);
 }
@@ -1179,7 +1315,7 @@ select.inspector-input option {
 .border-corners-section {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
 }
 
 .section-header-row {
@@ -1188,7 +1324,7 @@ select.inspector-input option {
   align-items: center;
   cursor: pointer;
   user-select: none;
-  padding: 4px 0;
+  padding: 1px 0;
 }
 
 .section-header-row:hover .inspector-label {
@@ -1196,9 +1332,10 @@ select.inspector-input option {
 }
 
 .expand-toggle-icon {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--text-secondary);
   transition: transform 0.2s ease;
+  display: inline-block;
 }
 
 .expand-toggle-icon.expanded {
@@ -1207,23 +1344,41 @@ select.inspector-input option {
 
 .expanded-inputs-grid {
   display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  background-color: rgba(0, 0, 0, 0.12);
+}
+
+.expanded-inputs-grid-2col {
+  display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
-  padding-left: 10px;
-  border-left: 2px solid var(--border-color);
-  margin-top: 4px;
+  gap: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  background-color: rgba(0, 0, 0, 0.12);
 }
 
 .expanded-input-item {
   display: flex;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 4px;
+  border-right: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  min-width: 0;
+}
+
+.expanded-input-item:last-child {
+  border-right: none;
 }
 
 .expanded-input-item label {
-  font-size: 10.5px;
+  font-size: 10px;
   color: var(--text-secondary);
-  font-weight: 500;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* Estilos de Jerarquía y Drag and Drop (SRS-025) */
@@ -1273,20 +1428,43 @@ select.inspector-input option {
   padding: 4px;
 }
 
-/* Estilos para el Formulario Unificado (SRS-035) */
+/* Estilos para el Formulario Unificado en Tabla Densa (SRS-035 + SRS-083) */
+.inspector-properties-form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .inspector-group-section {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 2px;
+  padding-top: 2px;
+}
+
+.inspector-group-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  text-align: left;
+  width: 100%;
+  padding: 2px 4px;
+  background-color: rgba(255, 255, 255, 0.03);
+  border-radius: 3px;
+  box-sizing: border-box;
+  gap: 4px;
 }
 
 .inspector-group-title {
-  margin: 0 0 4px 0;
-  font-size: 13px;
-  font-weight: 600;
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 700;
   color: var(--accent-primary);
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
   text-transform: uppercase;
+  line-height: 1.1;
+  text-align: left;
 }
 
 /* Manejador de redimensionado interactivo del canvas (SRS-049) */

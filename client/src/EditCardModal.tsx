@@ -147,7 +147,7 @@ export default function EditCardModal({
   const renderColorSelector = (label: string, value: string, onChange: (val: string) => void, isCompact?: boolean, exposedProperty?: string, exposedPropertyLabel?: string) => {
     const matchingCustomColor = projectColors.find((c) => c.valor.toLowerCase() === (value || "").toLowerCase());
     const innerContent = (
-      <div style={{ display: "flex", gap: "6px", flexDirection: "column" }}>
+      <div className="color-picker-group">
         {projectColors.length > 0 && (
           <select
             className="inspector-input"
@@ -157,7 +157,7 @@ export default function EditCardModal({
                 onChange(e.target.value);
               }
             }}
-            style={{ fontSize: "11px", height: "28px", padding: "0 6px" }}
+            style={{ fontSize: "10.5px", height: "20px", padding: "0 2px", flex: 1, minWidth: "52px" }}
           >
             <option value="">-- Personalizado --</option>
             {projectColors.map((c) => (
@@ -167,51 +167,54 @@ export default function EditCardModal({
             ))}
           </select>
         )}
-        <div className="color-picker-group" style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-          <input
-            type="color"
-            className="color-picker-input"
-            style={{ width: isCompact ? "28px" : "32px", height: isCompact ? "28px" : "32px" }}
-            value={value || "#ffffff"}
-            onChange={(e) => onChange(e.target.value)}
-          />
-          <input
-            type="text"
-            className="color-hex-input"
-            style={{ height: isCompact ? "28px" : "32px", fontSize: "11px", flex: 1, minWidth: 0 }}
-            value={value || "#ffffff"}
-            onChange={(e) => {
-              const val = e.target.value;
-              if (/^#[0-9A-F]{6}$/i.test(val)) {
-                onChange(val);
-              }
-            }}
-            placeholder="#ffffff"
-          />
-        </div>
-      </div>
-    );
-
-    const labelEl = (
-      <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-        <label className="inspector-label" style={{ margin: 0, fontSize: isCompact ? "10.5px" : undefined }}>{label}</label>
-        {exposedProperty && renderExposedEye(exposedProperty, exposedPropertyLabel || label)}
+        <input
+          type="color"
+          className="color-picker-input"
+          style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
+          value={value || "#ffffff"}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <input
+          type="text"
+          className="color-hex-input"
+          style={{ height: "20px", fontSize: "10.5px", width: "60px", flexShrink: 0 }}
+          value={value || "#ffffff"}
+          onChange={(e) => {
+            const val = e.target.value;
+            if (/^#[0-9A-F]{6}$/i.test(val)) {
+              onChange(val);
+            }
+          }}
+          placeholder="#ffffff"
+        />
       </div>
     );
 
     if (isCompact) {
       return (
-        <div className="expanded-input-item">
-          {labelEl}
-          {innerContent}
+        <div className="inspector-cell">
+          {label && (
+            <div className="inspector-field-label" title={label}>
+              <label className="inspector-label">{label}</label>
+              {exposedProperty && renderExposedEye(exposedProperty, exposedPropertyLabel || label, true)}
+            </div>
+          )}
+          <div className="inspector-field-control">
+            {innerContent}
+          </div>
         </div>
       );
     }
 
     return (
-      <div className="inspector-section">
-        {labelEl}
-        {innerContent}
+      <div className="inspector-field-row">
+        <div className="inspector-field-label" title={label}>
+          <label className="inspector-label">{label}</label>
+          {exposedProperty && renderExposedEye(exposedProperty, exposedPropertyLabel || label, true)}
+        </div>
+        <div className="inspector-field-control">
+          {innerContent}
+        </div>
       </div>
     );
   };
@@ -2962,405 +2965,449 @@ export default function EditCardModal({
                         }
                       }}
                       style={{
-                        fontSize: "14px",
+                        fontSize: "12px",
                         fontWeight: "600",
                         border: "none",
                         borderBottom: "1px dashed var(--border-color)",
                         backgroundColor: "transparent",
                         color: "var(--text-primary)",
                         width: "100%",
-                        padding: "2px 4px",
+                        padding: "0px 4px",
                         outline: "none"
                       }}
                     />
                   </div>
                   {/* SRS-082: Descripción semántica del elemento */}
-                  <div className="inspector-layer-description" style={{ marginTop: "6px", marginBottom: "4px" }}>
+                  <div className="inspector-layer-description" style={{ marginTop: "1px", marginBottom: "1px" }}>
                     <textarea
                       className="inspector-description-textarea"
-                      rows={2}
+                      rows={1}
                       value={selectedCapa.descripcion || ""}
                       placeholder="Directrices e indicaciones de este elemento para IA y maquetadores..."
                       title="Descripción semántica del elemento (se enviará en la API para guiar a agentes de IA y maquetadores)"
                       onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "descripcion", e.target.value || undefined)}
                       style={{
                         width: "100%",
-                        fontSize: "11.5px",
-                        padding: "5px 8px",
+                        fontSize: "10.5px",
+                        padding: "2px 6px",
                         backgroundColor: "var(--bg-app)",
                         border: "1px solid var(--border-color)",
-                        borderRadius: "4px",
+                        borderRadius: "3px",
                         color: "var(--text-primary)",
                         resize: "vertical",
                         fontFamily: "inherit",
                         boxSizing: "border-box",
-                        lineHeight: 1.35
+                        lineHeight: 1.25
                       }}
                     />
                   </div>
                   <hr className="inspector-separator" />
 
-                  {/* Formulario Unificado de Propiedades (SRS-035) */}
-                  <div className="inspector-properties-form" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                  {/* Formulario Unificado de Propiedades en Tabla Densa (SRS-035 + SRS-083) */}
+                  <div className="inspector-properties-form">
                     {/* Alineación y Posición (Común para text, image, image-switch, container, list, block) */}
                     {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "list" || selectedCapa.tipo === "block") && (
-                      <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
-                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
-                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Posición y Dimensiones</h4>
+                      <div className="inspector-group-section">
+                        <div className="inspector-group-header">
+                          <h4 className="inspector-group-title">Posición y Dimensiones</h4>
                           {renderExposedEye("canvasEditMode", "Edición en Lienzo")}
                         </div>
-                        
-                        <button
-                          type="button"
-                          className="btn-sec"
-                          style={{
-                            width: "100%",
-                            marginBottom: "12px",
-                            padding: "6px 12px",
-                            fontSize: "12.5px",
-                            fontWeight: 600,
-                            borderRadius: "6px",
-                            border: "1px solid var(--border-color)",
-                            backgroundColor: canvasEditMode ? "var(--accent-primary)" : "var(--bg-app)",
-                            color: canvasEditMode ? "white" : "var(--text-primary)",
-                            cursor: "pointer",
-                            transition: "all 0.2s ease"
-                          }}
-                          onClick={() => setCanvasEditMode(!canvasEditMode)}
-                        >
-                          {canvasEditMode ? "⏹️ Salir de Modo Edición" : "🖱️ Editar en Lienzo"}
-                        </button>
-                        
-                        <div className="inspector-section" style={{ marginBottom: "12px" }}>
-                          <label className="inspector-label">Alineación Rápida</label>
-                          <div className="inspector-alignment-utilities">
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Alinear al borde izquierdo (X = 0)"
-                              onClick={() => handleApplyAlignment("izq")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ⬅️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Ajustar al ancho total de la carta (X = 0, Ancho = 100%)"
-                              onClick={() => handleApplyAlignment("anchoMax")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ↔️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Alinear al borde derecho"
-                              onClick={() => handleApplyAlignment("der")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ➡️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Alinear al borde superior (Y = 0)"
-                              onClick={() => handleApplyAlignment("arr")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ⬆️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Ajustar al alto total de la carta (Y = 0, Alto = 100%)"
-                              onClick={() => handleApplyAlignment("altoMax")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ↕️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Alinear al borde inferior"
-                              onClick={() => handleApplyAlignment("abj")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ⬇️
-                            </button>
-                            <button
-                              type="button"
-                              className="alignment-utility-btn"
-                              title="Expandir a pantalla completa (X = 0, Y = 0, 100% de la carta)"
-                              onClick={() => handleApplyAlignment("expandir")}
-                              disabled={selectedCapa.tipo === "background"}
-                            >
-                              ⏹️
-                            </button>
-                          </div>
-                        </div>
 
-                        <div className="layout-form-grid-compact">
-                          <div className="inspector-section-compact" title="Posición X (mm)">
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                              <label className="inspector-label-compact" style={{ margin: 0 }}>X</label>
-                              {renderExposedEye("xMm", "Posición X", true)}
+                        <div className="inspector-table">
+                          {/* Fila 1: Alineación Rápida + Botón Editar en Lienzo en la misma línea */}
+                          <div className="inspector-field-row inspector-section">
+                            <div className="inspector-cell" style={{ flex: 1.55 }}>
+                              <div className="inspector-field-label" title="Alineación Rápida">
+                                <label className="inspector-label">Alineación Rápida</label>
+                              </div>
+                              <div className="inspector-field-control">
+                                <div className="inspector-alignment-utilities">
+                                  <button
+                                    type="button"
+                                    className="alignment-utility-btn"
+                                    title="Alinear al borde izquierdo (X = 0)"
+                                    onClick={() => handleApplyAlignment("izq")}
+                                    disabled={selectedCapa.tipo === "background"}
+                                  >
+                                    ⬅️
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="alignment-utility-btn"
+                                    title="Ajustar al ancho total de la carta (X = 0, Ancho = 100%)"
+                                    onClick={() => handleApplyAlignment("anchoMax")}
+                                    disabled={selectedCapa.tipo === "background"}
+                                  >
+                                    ↔️
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="alignment-utility-btn"
+                                    title="Alinear al borde derecho"
+                                    onClick={() => handleApplyAlignment("der")}
+                                    disabled={selectedCapa.tipo === "background"}
+                                  >
+                                    ➡️
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="alignment-utility-btn"
+                                    title="Alinear al borde superior (Y = 0)"
+                                    onClick={() => handleApplyAlignment("arr")}
+                                    disabled={selectedCapa.tipo === "background"}
+                                  >
+                                    ⬆️
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="alignment-utility-btn"
+                                    title="Ajustar al alto total de la carta (Y = 0, Alto = 100%)"
+                                    onClick={() => handleApplyAlignment("altoMax")}
+                                    disabled={selectedCapa.tipo === "background"}
+                                  >
+                                    ↕️
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="alignment-utility-btn"
+                                    title="Alinear al borde inferior"
+                                    onClick={() => handleApplyAlignment("abj")}
+                                    disabled={selectedCapa.tipo === "background"}
+                                  >
+                                    ⬇️
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="alignment-utility-btn"
+                                    title="Expandir a pantalla completa (X = 0, Y = 0, 100% de la carta)"
+                                    onClick={() => handleApplyAlignment("expandir")}
+                                    disabled={selectedCapa.tipo === "background"}
+                                  >
+                                    ⏹️
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                            <input
-                              type="number"
-                              step="0.5"
-                              className="inspector-input"
-                              value={selectedCapa.xMm}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "xMm", Number(Number(e.target.value).toFixed(1)))}
-                              disabled={selectedCapa.tipo === "background"}
-                            />
-                          </div>
-                          <div className="inspector-section-compact" title="Posición Y (mm)">
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                              <label className="inspector-label-compact" style={{ margin: 0 }}>Y</label>
-                              {renderExposedEye("yMm", "Posición Y", true)}
+                            <div className="inspector-cell" style={{ flex: 0.85 }}>
+                              <div className="inspector-field-control">
+                                <button
+                                  type="button"
+                                  className="btn-sec"
+                                  style={{
+                                    width: "100%",
+                                    height: "20px",
+                                    padding: "1px 6px",
+                                    fontSize: "10.5px",
+                                    fontWeight: 600,
+                                    borderRadius: "3px",
+                                    border: "1px solid var(--border-color)",
+                                    backgroundColor: canvasEditMode ? "var(--accent-primary)" : "var(--bg-app)",
+                                    color: canvasEditMode ? "white" : "var(--text-primary)",
+                                    cursor: "pointer",
+                                    transition: "all 0.15s ease",
+                                    display: "flex",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: "3px",
+                                    whiteSpace: "nowrap"
+                                  }}
+                                  onClick={() => setCanvasEditMode(!canvasEditMode)}
+                                >
+                                  {canvasEditMode ? "⏹️ Salir Lienzo" : "🖱️ Editar en Lienzo"}
+                                </button>
+                              </div>
                             </div>
-                            <input
-                              type="number"
-                              step="0.5"
-                              className="inspector-input"
-                              value={selectedCapa.yMm}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "yMm", Number(Number(e.target.value).toFixed(1)))}
-                              disabled={selectedCapa.tipo === "background"}
-                            />
                           </div>
-                          <div className="inspector-section-compact" title="Ancho (mm)">
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                              <label className="inspector-label-compact" style={{ margin: 0 }}>W</label>
-                              {renderExposedEye("anchoMm", "Ancho", true)}
-                            </div>
-                            <input
-                              type={selectedCapa.anchoMm === "auto" ? "text" : "number"}
-                              step="0.5"
-                              className="inspector-input"
-                              value={selectedCapa.anchoMm === "auto" ? "-" : (selectedCapa.anchoMm !== undefined ? selectedCapa.anchoMm : 20)}
-                              onChange={(e) => {
-                                if (selectedCapa.anchoMm !== "auto") {
-                                  handleUpdateCapaProp(selectedCapa.id, "anchoMm", Number(Number(e.target.value).toFixed(1)));
-                                }
-                              }}
-                              disabled={selectedCapa.tipo === "background" || selectedCapa.anchoMm === "auto"}
-                            />
-                          </div>
-                          <div className="inspector-section-compact" title="Alto (mm)">
-                            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "2px" }}>
-                              <label className="inspector-label-compact" style={{ margin: 0 }}>H</label>
-                              {renderExposedEye("altoMm", "Alto", true)}
-                            </div>
-                            <input
-                              type={selectedCapa.altoMm === "auto" ? "text" : "number"}
-                              step="0.5"
-                              className="inspector-input"
-                              value={selectedCapa.altoMm === "auto" ? "-" : (selectedCapa.altoMm !== undefined ? selectedCapa.altoMm : 20)}
-                              onChange={(e) => {
-                                if (selectedCapa.altoMm !== "auto") {
-                                  handleUpdateCapaProp(selectedCapa.id, "altoMm", Number(Number(e.target.value).toFixed(1)));
-                                }
-                              }}
-                              disabled={selectedCapa.tipo === "background" || selectedCapa.altoMm === "auto"}
-                            />
-                          </div>
-                        </div>
 
-                        {/* Checkboxes de Dimensiones Automáticas (TKT-053 / SRS-050) */}
-                        {selectedCapa.tipo !== "background" && (
-                          <div style={{ display: "flex", gap: "12px", marginTop: "8px", justifyContent: "flex-end" }}>
-                            <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
+                          {/* Fila 2: X, Y, W, H en una sola fila de 4 celdas con etiqueta a la izquierda */}
+                          <div className="layout-form-grid-compact">
+                            <div className="inspector-section-compact" title="Posición X (mm)">
+                              <div style={{ display: "flex", alignItems: "center", gap: "1px", flexShrink: 0 }}>
+                                <label className="inspector-label-compact" style={{ margin: 0 }}>X</label>
+                                {renderExposedEye("xMm", "Posición X", true)}
+                              </div>
                               <input
-                                type="checkbox"
-                                checked={selectedCapa.anchoMm === "auto"}
+                                type="number"
+                                step="0.5"
+                                className="inspector-input"
+                                value={selectedCapa.xMm}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "xMm", Number(Number(e.target.value).toFixed(1)))}
+                                disabled={selectedCapa.tipo === "background"}
+                              />
+                            </div>
+                            <div className="inspector-section-compact" title="Posición Y (mm)">
+                              <div style={{ display: "flex", alignItems: "center", gap: "1px", flexShrink: 0 }}>
+                                <label className="inspector-label-compact" style={{ margin: 0 }}>Y</label>
+                                {renderExposedEye("yMm", "Posición Y", true)}
+                              </div>
+                              <input
+                                type="number"
+                                step="0.5"
+                                className="inspector-input"
+                                value={selectedCapa.yMm}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "yMm", Number(Number(e.target.value).toFixed(1)))}
+                                disabled={selectedCapa.tipo === "background"}
+                              />
+                            </div>
+                            <div className="inspector-section-compact" title="Ancho (mm)">
+                              <div style={{ display: "flex", alignItems: "center", gap: "1px", flexShrink: 0 }}>
+                                <label className="inspector-label-compact" style={{ margin: 0 }}>W</label>
+                                {renderExposedEye("anchoMm", "Ancho", true)}
+                              </div>
+                              <input
+                                type={selectedCapa.anchoMm === "auto" ? "text" : "number"}
+                                step="0.5"
+                                className="inspector-input"
+                                value={selectedCapa.anchoMm === "auto" ? "-" : (selectedCapa.anchoMm !== undefined ? selectedCapa.anchoMm : 20)}
                                 onChange={(e) => {
-                                  if (e.target.checked) {
-                                    handleUpdateCapaProp(selectedCapa.id, "anchoMm", "auto");
-                                  } else {
-                                    handleUpdateCapaProp(selectedCapa.id, "anchoMm", 40);
+                                  if (selectedCapa.anchoMm !== "auto") {
+                                    handleUpdateCapaProp(selectedCapa.id, "anchoMm", Number(Number(e.target.value).toFixed(1)));
                                   }
                                 }}
-                                style={{ width: "auto", margin: 0 }}
+                                disabled={selectedCapa.tipo === "background" || selectedCapa.anchoMm === "auto"}
                               />
-                              Ancho Auto
-                            </label>
-                            <label style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
+                            </div>
+                            <div className="inspector-section-compact" title="Alto (mm)">
+                              <div style={{ display: "flex", alignItems: "center", gap: "1px", flexShrink: 0 }}>
+                                <label className="inspector-label-compact" style={{ margin: 0 }}>H</label>
+                                {renderExposedEye("altoMm", "Alto", true)}
+                              </div>
                               <input
-                                type="checkbox"
-                                checked={selectedCapa.altoMm === "auto"}
+                                type={selectedCapa.altoMm === "auto" ? "text" : "number"}
+                                step="0.5"
+                                className="inspector-input"
+                                value={selectedCapa.altoMm === "auto" ? "-" : (selectedCapa.altoMm !== undefined ? selectedCapa.altoMm : 20)}
                                 onChange={(e) => {
-                                  if (e.target.checked) {
-                                    handleUpdateCapaProp(selectedCapa.id, "altoMm", "auto");
-                                  } else {
-                                    handleUpdateCapaProp(selectedCapa.id, "altoMm", 20);
+                                  if (selectedCapa.altoMm !== "auto") {
+                                    handleUpdateCapaProp(selectedCapa.id, "altoMm", Number(Number(e.target.value).toFixed(1)));
                                   }
                                 }}
-                                style={{ width: "auto", margin: 0 }}
+                                disabled={selectedCapa.tipo === "background" || selectedCapa.altoMm === "auto"}
                               />
-                              Alto Auto
-                            </label>
+                            </div>
                           </div>
-                        )}
+
+                          {/* Fila 3: Autoajuste (TKT-053 / SRS-050) + Padding compacto si es texto */}
+                          {selectedCapa.tipo !== "background" && (
+                            <div className="inspector-field-row">
+                              <div className="inspector-cell">
+                                <div className="inspector-field-label" title="Dimensiones Automáticas">
+                                  <label className="inspector-label">Autoajuste</label>
+                                </div>
+                                <div className="inspector-field-control" style={{ gap: "8px" }}>
+                                  <label style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10.5px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedCapa.anchoMm === "auto"}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          handleUpdateCapaProp(selectedCapa.id, "anchoMm", "auto");
+                                        } else {
+                                          handleUpdateCapaProp(selectedCapa.id, "anchoMm", 40);
+                                        }
+                                      }}
+                                      style={{ width: "auto", margin: 0 }}
+                                    />
+                                    Ancho Auto
+                                  </label>
+                                  <label style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10.5px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedCapa.altoMm === "auto"}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          handleUpdateCapaProp(selectedCapa.id, "altoMm", "auto");
+                                        } else {
+                                          handleUpdateCapaProp(selectedCapa.id, "altoMm", 20);
+                                        }
+                                      }}
+                                      style={{ width: "auto", margin: 0 }}
+                                    />
+                                    Alto Auto
+                                  </label>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
 
-                    {/* Padding del Texto (Solo text) */}
+                    {/* Padding del Texto en 1 sola línea (Solo text) */}
                     {selectedCapa.tipo === "text" && (
-                      <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
-                        <div className="section-header-row" onClick={() => setExpandPadding(!expandPadding)} style={{ display: "flex", alignItems: "center", width: "100%" }}>
-                          <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Padding del Texto</h4>
-                          {renderExposedEye("paddingTopMm", "Padding Texto")}
-                          <span className={`expand-toggle-icon ${expandPadding ? "expanded" : ""}`} style={{ marginLeft: "6px" }}>▶</span>
+                      <div className="inspector-group-section">
+                        <div className="inspector-table">
+                          <div className="inspector-field-row inspector-section">
+                            <div
+                              className="inspector-cell"
+                              onClick={() => setExpandPadding(!expandPadding)}
+                              style={{ cursor: "pointer", flex: expandPadding ? 1 : 1.1 }}
+                            >
+                              <div className="inspector-field-label" title="Padding del Texto">
+                                <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Padding del Texto</h4>
+                                {renderExposedEye("paddingTopMm", "Padding Texto", true)}
+                                <span className={`expand-toggle-icon ${expandPadding ? "expanded" : ""}`} style={{ marginLeft: "2px" }}>▶</span>
+                              </div>
+                            </div>
+                            {!expandPadding && (
+                              <div className="inspector-cell" style={{ flex: 0.9 }}>
+                                <div className="inspector-field-label" title="Padding General (mm)">
+                                  <label className="inspector-label">General (mm)</label>
+                                </div>
+                                <div className="inspector-field-control">
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    min="0"
+                                    className="inspector-input"
+                                    value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
+                                    onChange={(e) => handleUpdatePaddingGeneral(selectedCapa.id, Number(e.target.value))}
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                          {expandPadding && (
+                            <div className="expanded-inputs-grid">
+                              <div className="expanded-input-item">
+                                <label>Sup.</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingTopMm", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Der.</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.paddingRightMm !== undefined ? selectedCapa.paddingRightMm : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingRightMm", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Inf.</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.paddingBottomMm !== undefined ? selectedCapa.paddingBottomMm : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingBottomMm", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Izq.</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.paddingLeftMm !== undefined ? selectedCapa.paddingLeftMm : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingLeftMm", Number(e.target.value))}
+                                />
+                              </div>
+                            </div>
+                          )}
                         </div>
-
-                        {!expandPadding ? (
-                          <div className="inspector-section" style={{ marginTop: "8px" }}>
-                            <label className="inspector-label">Padding General (mm)</label>
-                            <input
-                              type="number"
-                              step="0.5"
-                              min="0"
-                              className="inspector-input"
-                              value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
-                              onChange={(e) => handleUpdatePaddingGeneral(selectedCapa.id, Number(e.target.value))}
-                            />
-                          </div>
-                        ) : (
-                          <div className="expanded-inputs-grid" style={{ marginTop: "8px" }}>
-                            <div className="expanded-input-item">
-                              <label>Sup. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.paddingTopMm !== undefined ? selectedCapa.paddingTopMm : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingTopMm", Number(e.target.value))}
-                              />
-                            </div>
-                            <div className="expanded-input-item">
-                              <label>Der. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.paddingRightMm !== undefined ? selectedCapa.paddingRightMm : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingRightMm", Number(e.target.value))}
-                              />
-                            </div>
-                            <div className="expanded-input-item">
-                              <label>Inf. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.paddingBottomMm !== undefined ? selectedCapa.paddingBottomMm : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingBottomMm", Number(e.target.value))}
-                              />
-                            </div>
-                            <div className="expanded-input-item">
-                              <label>Izq. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.paddingLeftMm !== undefined ? selectedCapa.paddingLeftMm : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "paddingLeftMm", Number(e.target.value))}
-                              />
-                            </div>
-                          </div>
-                        )}
                       </div>
                     )}
 
-
-                    
-                    {/* Visibilidad (SRS-039) */}
-                    <div className="inspector-group-section" style={{ borderBottom: "1px solid var(--border-color)", paddingBottom: "16px" }}>
-                      <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
-                        <h4 className="inspector-group-title" style={{ margin: 0 }}>Visibilidad</h4>
+                    {/* Visibilidad en 1 sola fila de 2 columnas (SRS-039 + SRS-083) */}
+                    <div className="inspector-group-section">
+                      <div className="inspector-group-header">
+                        <h4 className="inspector-group-title">Visibilidad</h4>
                         {renderExposedEye("visibility", "Visibilidad")}
                       </div>
-                      
-                      <div className="inspector-section">
-                        <label className="inspector-label">Visibilidad de esta Carta (Anulación)</label>
-                        <select
-                          className="inspector-input"
-                          value={tempCapasOverridesActivos[selectedCapa.id]?.visibility || ""}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setTempCapasOverridesActivos((prev) => ({
-                              ...prev,
-                              [selectedCapa.id]: {
-                                ...(prev[selectedCapa.id] || {}),
-                                visibility: val === "" ? undefined : val as any,
-                              },
-                            }));
-                          }}
-                        >
-                          <option value="">(Heredar de plantilla: {selectedCapa.visibility || "visible"})</option>
-                          <option value="visible">Visible</option>
-                          <option value="hidden">Invisible (reserva espacio)</option>
-                          <option value="collapsed">Eliminado (no ocupa espacio)</option>
-                        </select>
-                      </div>
 
-                      <div className="inspector-section" style={{ marginTop: "8px" }}>
-                        <label className="inspector-label">Visibilidad por Defecto (Plantilla Base)</label>
-                        <select
-                          className="inspector-input"
-                          value={selectedCapa.visibility || "visible"}
-                          onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "visibility", e.target.value)}
-                        >
-                          <option value="visible">Visible</option>
-                          <option value="hidden">Invisible (reserva espacio)</option>
-                          <option value="collapsed">Eliminado (no ocupa espacio)</option>
-                        </select>
+                      <div className="inspector-table">
+                        <div className="inspector-field-row inspector-section">
+                          <div className="inspector-cell">
+                            <div className="inspector-field-label" title="Visibilidad de esta Carta (Anulación)">
+                              <label className="inspector-label">Carta</label>
+                            </div>
+                            <div className="inspector-field-control">
+                              <select
+                                className="inspector-input"
+                                value={tempCapasOverridesActivos[selectedCapa.id]?.visibility || ""}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setTempCapasOverridesActivos((prev) => ({
+                                    ...prev,
+                                    [selectedCapa.id]: {
+                                      ...(prev[selectedCapa.id] || {}),
+                                      visibility: val === "" ? undefined : val as any,
+                                    },
+                                  }));
+                                }}
+                              >
+                                <option value="">(Heredar: {selectedCapa.visibility || "visible"})</option>
+                                <option value="visible">Visible</option>
+                                <option value="hidden">Invisible (espacio)</option>
+                                <option value="collapsed">Eliminado</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div className="inspector-cell">
+                            <div className="inspector-field-label" title="Visibilidad por Defecto (Plantilla Base)">
+                              <label className="inspector-label">Plantilla</label>
+                            </div>
+                            <div className="inspector-field-control">
+                              <select
+                                className="inspector-input"
+                                value={selectedCapa.visibility || "visible"}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "visibility", e.target.value)}
+                              >
+                                <option value="visible">Visible</option>
+                                <option value="hidden">Invisible (espacio)</option>
+                                <option value="collapsed">Eliminado</option>
+                              </select>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                    
+
                     {/* Capa de Fondo (Background) */}
                     {selectedCapa.tipo === "background" && (
                       <div className="inspector-group-section">
-                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
-                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Apariencia del Fondo</h4>
+                        <div className="inspector-group-header">
+                          <h4 className="inspector-group-title">Apariencia del Fondo</h4>
                           {renderExposedEye("colorFill", "Color Relleno")}
                         </div>
-                        {renderColorSelector(
-                          "Color de Relleno (Carta)",
-                          tempCapasOverridesActivos[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff",
-                          (val) => {
-                            setTempCapasOverridesActivos((prev) => ({
-                              ...prev,
-                              [selectedCapa.id]: {
-                                ...(prev[selectedCapa.id] || {}),
-                                colorFill: val,
-                              },
-                            }));
-                          }
-                        )}
+                        <div className="inspector-table">
+                          {renderColorSelector(
+                            "Color de Relleno (Carta)",
+                            tempCapasOverridesActivos[selectedCapa.id]?.colorFill || selectedCapa.colorFill || "#ffffff",
+                            (val) => {
+                              setTempCapasOverridesActivos((prev) => ({
+                                ...prev,
+                                [selectedCapa.id]: {
+                                  ...(prev[selectedCapa.id] || {}),
+                                  colorFill: val,
+                                },
+                              }));
+                            }
+                          )}
+                        </div>
                       </div>
                     )}
 
-                    {/* Capa de Texto (SRS-070: Unificado) */}
+                    {/* Capa de Texto (SRS-070: Unificado + SRS-083: Tabla Densa) */}
                     {selectedCapa.tipo === "text" && (
                       <div className="inspector-group-section">
-                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
-                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Texto y Tipografía</h4>
-                          {renderExposedEye("contenidoRaw", "Contenido Texto")}
-                        </div>
-
-                        <div className="inspector-section">
-                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px", position: "relative" }}>
-                            <label className="inspector-label" style={{ margin: 0 }}>
-                              {selectedCapa.nombre || "Texto"}
-                            </label>
+                        <div className="inspector-group-header">
+                          <h4 className="inspector-group-title">Texto y Tipografía</h4>
+                          <div style={{ display: "flex", alignItems: "center", gap: "6px", marginLeft: "auto" }}>
                             <span
-                              style={{ cursor: "help", fontSize: "14px" }}
+                              style={{ cursor: "help", fontSize: "11px" }}
                               title="Formato disponible: **negrita**, *cursiva*, __subrayado__ y ++texto grande (+25%)++, +++muy grande (+56%)+++."
                             >
                               ℹ️
@@ -3411,277 +3458,305 @@ export default function EditCardModal({
                                 </div>
                               )}
                             </div>
-                          </div>
-                          {selectedCapa.multiline !== false ? (
-                            <textarea
-                              id={"editcard-text-textarea-" + selectedCapa.id}
-                              className="inspector-textarea"
-                              value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
-                              rows={4}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (activeTab === "frontal") {
-                                  setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                } else {
-                                  setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                }
-                                handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
-                                setTempCapasOverridesActivos((prev) => ({
-                                  ...prev,
-                                  [selectedCapa.id]: {
-                                    ...(prev[selectedCapa.id] || {}),
-                                    contenidoRaw: val,
-                                  },
-                                }));
-                              }}
-                            />
-                          ) : (
-                            <input
-                              id={"editcard-text-input-" + selectedCapa.id}
-                              type="text"
-                              className="inspector-input"
-                              value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
-                              onChange={(e) => {
-                                const val = e.target.value;
-                                if (activeTab === "frontal") {
-                                  setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                } else {
-                                  setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                }
-                                handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
-                                setTempCapasOverridesActivos((prev) => ({
-                                  ...prev,
-                                  [selectedCapa.id]: {
-                                    ...(prev[selectedCapa.id] || {}),
-                                    contenidoRaw: val,
-                                  },
-                                }));
-                              }}
-                            />
-                          )}
-                        </div>
-
-                        <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px", marginTop: "12px" }}>
-                          <input
-                            type="checkbox"
-                            id={`capa-multiline-${selectedCapa.id}`}
-                            checked={selectedCapa.multiline !== false}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "multiline", e.target.checked)}
-                            style={{ width: "auto", margin: 0, cursor: "pointer" }}
-                          />
-                          <label htmlFor={`capa-multiline-${selectedCapa.id}`} className="inspector-label" style={{ margin: 0, cursor: "pointer" }}>
-                            Multilínea
-                          </label>
-                        </div>
-
-                        <div className="inspector-section" style={{ marginTop: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                            <label className="inspector-label" style={{ margin: 0 }}>Tipografía</label>
-                            {renderExposedEye("fontFamily", "Tipografía")}
-                          </div>
-                          <select
-                            className="inspector-input"
-                            value={tempCapasOverridesActivos[selectedCapa.id]?.fontFamily || selectedCapa.fontFamily || "sans-serif"}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              handleUpdateCapaProp(selectedCapa.id, "fontFamily", val);
-                              setTempCapasOverridesActivos((prev) => ({
-                                ...prev,
-                                [selectedCapa.id]: {
-                                  ...(prev[selectedCapa.id] || {}),
-                                  fontFamily: val,
-                                },
-                              }));
-                            }}
-                          >
-                            <option value="sans-serif">Inter (Sans Serif)</option>
-                            <option value="Outfit">Outfit</option>
-                            <option value="Arial">Arial</option>
-                            <option value="Times New Roman">Times New Roman</option>
-                            <option value="Courier New">Courier New (Monospace)</option>
-                            {projectFonts && projectFonts.length > 0 && (
-                              <optgroup label="Fuentes del Proyecto">
-                                {projectFonts.map((f: any) => (
-                                  <option key={f.id} value={f.nombre}>{f.nombre}</option>
-                                ))}
-                              </optgroup>
-                            )}
-                          </select>
-                        </div>
-
-                        <div className="layout-form-grid" style={{ marginTop: "12px" }}>
-                          <div className="inspector-section">
-                            <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                              <label className="inspector-label" style={{ margin: 0, fontSize: "11px" }}>Tamaño Fuente (pt)</label>
-                              {renderExposedEye("fontSizePt", "Tamaño Fuente")}
-                            </div>
-                            <input
-                              type="number"
-                              step="1"
-                              min="4"
-                              className="inspector-input"
-                              value={tempCapasOverridesActivos[selectedCapa.id]?.fontSizePt || selectedCapa.fontSizePt || 12}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                handleUpdateCapaProp(selectedCapa.id, "fontSizePt", val);
-                                setTempCapasOverridesActivos((prev) => ({
-                                  ...prev,
-                                  [selectedCapa.id]: {
-                                    ...(prev[selectedCapa.id] || {}),
-                                    fontSizePt: val,
-                                  },
-                                }));
-                              }}
-                            />
-                          </div>
-                          {renderColorSelector(
-                            "Color de Texto",
-                            tempCapasOverridesActivos[selectedCapa.id]?.color || selectedCapa.color || "#000000",
-                            (val) => {
-                              handleUpdateCapaProp(selectedCapa.id, "color", val);
-                              setTempCapasOverridesActivos((prev) => ({
-                                ...prev,
-                                [selectedCapa.id]: {
-                                  ...(prev[selectedCapa.id] || {}),
-                                  color: val,
-                                },
-                              }));
-                            },
-                            false,
-                            "color",
-                            "Color Texto"
-                          )}
-                        </div>
-
-                        <div className="inspector-section" style={{ marginTop: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                            <label className="inspector-label" style={{ margin: 0 }}>Estilos y Alineación</label>
-                            {renderExposedEye("alineacion", "Alineación Texto")}
-                          </div>
-                          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-                            <div className="style-toggle-buttons">
-                              {(() => {
-                                const activeBold = tempCapasOverridesActivos[selectedCapa.id]?.bold !== undefined ? tempCapasOverridesActivos[selectedCapa.id].bold : !!selectedCapa.bold;
-                                const activeItalic = tempCapasOverridesActivos[selectedCapa.id]?.italic !== undefined ? tempCapasOverridesActivos[selectedCapa.id].italic : !!selectedCapa.italic;
-                                const activeUnderline = tempCapasOverridesActivos[selectedCapa.id]?.underline !== undefined ? tempCapasOverridesActivos[selectedCapa.id].underline : !!selectedCapa.underline;
-                                return (
-                                  <>
-                                    <button
-                                      type="button"
-                                      className={`style-btn ${activeBold ? "active" : ""}`}
-                                      onClick={() => {
-                                        const nextVal = !activeBold;
-                                        handleUpdateCapaProp(selectedCapa.id, "bold", nextVal);
-                                        setTempCapasOverridesActivos((prev) => ({
-                                          ...prev,
-                                          [selectedCapa.id]: {
-                                            ...(prev[selectedCapa.id] || {}),
-                                            bold: nextVal,
-                                          },
-                                        }));
-                                      }}
-                                    >
-                                      Negrita (B)
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`style-btn ${activeItalic ? "active" : ""}`}
-                                      onClick={() => {
-                                        const nextVal = !activeItalic;
-                                        handleUpdateCapaProp(selectedCapa.id, "italic", nextVal);
-                                        setTempCapasOverridesActivos((prev) => ({
-                                          ...prev,
-                                          [selectedCapa.id]: {
-                                            ...(prev[selectedCapa.id] || {}),
-                                            italic: nextVal,
-                                          },
-                                        }));
-                                      }}
-                                    >
-                                      Cursiva (I)
-                                    </button>
-                                    <button
-                                      type="button"
-                                      className={`style-btn ${activeUnderline ? "active" : ""}`}
-                                      onClick={() => {
-                                        const nextVal = !activeUnderline;
-                                        handleUpdateCapaProp(selectedCapa.id, "underline", nextVal);
-                                        setTempCapasOverridesActivos((prev) => ({
-                                          ...prev,
-                                          [selectedCapa.id]: {
-                                            ...(prev[selectedCapa.id] || {}),
-                                            underline: nextVal,
-                                          },
-                                        }));
-                                      }}
-                                    >
-                                      Subrayado (U)
-                                    </button>
-                                  </>
-                                );
-                              })()}
-                            </div>
-                            <div className="alignment-group">
-                              {(["left", "center", "right", "justify"] as const).map((align) => {
-                                const activeAlign = tempCapasOverridesActivos[selectedCapa.id]?.alineacion || selectedCapa.alineacion || "left";
-                                return (
-                                  <button
-                                    key={align}
-                                    type="button"
-                                    className={`align-btn ${activeAlign === align ? "active" : ""}`}
-                                    onClick={() => {
-                                      handleUpdateCapaProp(selectedCapa.id, "alineacion", align);
-                                      setTempCapasOverridesActivos((prev) => ({
-                                        ...prev,
-                                        [selectedCapa.id]: {
-                                          ...(prev[selectedCapa.id] || {}),
-                                          alineacion: align,
-                                        },
-                                      }));
-                                    }}
-                                    title={align === "left" ? "Alinear Izquierda" : align === "center" ? "Alinear Centro" : align === "right" ? "Alinear Derecha" : "Justificado"}
-                                  >
-                                    {align === "left" ? "⬅️" : align === "center" ? "↔️" : align === "right" ? "➡️" : "↕️"}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Contorno de Texto (Outline) */}
-                        <div className="inspector-section" style={{ marginTop: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                            <label className="inspector-label" style={{ margin: 0 }}>Contorno de Texto (Outline)</label>
-                            {renderExposedEye("textOutlineWidth", "Grosor Contorno")}
-                          </div>
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                            <div style={{ flex: 1 }}>
-                              <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Grosor (px)</label>
+                            <label htmlFor={`capa-multiline-${selectedCapa.id}`} style={{ display: "flex", alignItems: "center", gap: "3px", fontSize: "10.5px", color: "var(--text-secondary)", cursor: "pointer", margin: 0 }}>
                               <input
-                                type="number"
-                                min="0"
-                                step="0.5"
-                                className="inspector-input"
-                                value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineWidth ?? selectedCapa.textOutlineWidth ?? 0}
-                                onChange={(e) => {
-                                  const val = Math.max(0, parseFloat(e.target.value) || 0);
-                                  handleUpdateCapaProp(selectedCapa.id, "textOutlineWidth", val);
-                                  setTempCapasOverridesActivos((prev) => ({
-                                    ...prev,
-                                    [selectedCapa.id]: {
-                                      ...(prev[selectedCapa.id] || {}),
-                                      textOutlineWidth: val,
-                                    },
-                                  }));
-                                }}
+                                type="checkbox"
+                                id={`capa-multiline-${selectedCapa.id}`}
+                                checked={selectedCapa.multiline !== false}
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "multiline", e.target.checked)}
+                                style={{ width: "auto", margin: 0, cursor: "pointer" }}
                               />
+                              Multilínea
+                            </label>
+                            {renderExposedEye("contenidoRaw", "Contenido Texto")}
+                          </div>
+                        </div>
+
+                        <div className="inspector-table">
+                          {/* Contenido de Texto */}
+                          <div className="inspector-field-row inspector-section" style={{ padding: "3px 4px" }}>
+                            <div className="inspector-field-label" title={selectedCapa.nombre || "Texto"}>
+                              <label className="inspector-label">{selectedCapa.nombre || "Texto"}</label>
                             </div>
-                            <div style={{ flex: 1 }}>
-                              <label style={{ fontSize: "11px", color: "var(--text-secondary)", display: "block", marginBottom: "2px" }}>Color Contorno</label>
-                              <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                            <div className="inspector-field-control">
+                              {selectedCapa.multiline !== false ? (
+                                <textarea
+                                  id={"editcard-text-textarea-" + selectedCapa.id}
+                                  className="inspector-textarea"
+                                  value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
+                                  rows={2}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (activeTab === "frontal") {
+                                      setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
+                                    } else {
+                                      setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
+                                    }
+                                    handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        contenidoRaw: val,
+                                      },
+                                    }));
+                                  }}
+                                />
+                              ) : (
+                                <input
+                                  id={"editcard-text-input-" + selectedCapa.id}
+                                  type="text"
+                                  className="inspector-input"
+                                  value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    if (activeTab === "frontal") {
+                                      setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
+                                    } else {
+                                      setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
+                                    }
+                                    handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        contenidoRaw: val,
+                                      },
+                                    }));
+                                  }}
+                                />
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Fila 1 Tabla Tipografía: Tipografía + Tamaño Fuente (pt) */}
+                          <div className="inspector-field-row inspector-section">
+                            <div className="inspector-cell" style={{ flex: 1.25 }}>
+                              <div className="inspector-field-label" title="Tipografía">
+                                <label className="inspector-label">Tipografía</label>
+                                {renderExposedEye("fontFamily", "Tipografía", true)}
+                              </div>
+                              <div className="inspector-field-control">
+                                <select
+                                  className="inspector-input"
+                                  value={tempCapasOverridesActivos[selectedCapa.id]?.fontFamily || selectedCapa.fontFamily || "sans-serif"}
+                                  onChange={(e) => {
+                                    const val = e.target.value;
+                                    handleUpdateCapaProp(selectedCapa.id, "fontFamily", val);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        fontFamily: val,
+                                      },
+                                    }));
+                                  }}
+                                >
+                                  <option value="sans-serif">Inter (Sans Serif)</option>
+                                  <option value="Outfit">Outfit</option>
+                                  <option value="Arial">Arial</option>
+                                  <option value="Times New Roman">Times New Roman</option>
+                                  <option value="Courier New">Courier New (Monospace)</option>
+                                  {projectFonts && projectFonts.length > 0 && (
+                                    <optgroup label="Fuentes del Proyecto">
+                                      {projectFonts.map((f: any) => (
+                                        <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                                      ))}
+                                    </optgroup>
+                                  )}
+                                </select>
+                              </div>
+                            </div>
+
+                            <div className="inspector-cell" style={{ flex: 0.75 }}>
+                              <div className="inspector-field-label" title="Tamaño Fuente (pt)">
+                                <label className="inspector-label">Tamaño (pt)</label>
+                                {renderExposedEye("fontSizePt", "Tamaño Fuente", true)}
+                              </div>
+                              <div className="inspector-field-control">
+                                <input
+                                  type="number"
+                                  step="1"
+                                  min="4"
+                                  className="inspector-input"
+                                  value={tempCapasOverridesActivos[selectedCapa.id]?.fontSizePt || selectedCapa.fontSizePt || 12}
+                                  onChange={(e) => {
+                                    const val = Number(e.target.value);
+                                    handleUpdateCapaProp(selectedCapa.id, "fontSizePt", val);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        fontSizePt: val,
+                                      },
+                                    }));
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Fila 2 Tabla Tipografía: Estilos (B/I/U) + Alineación */}
+                          <div className="inspector-field-row inspector-section">
+                            <div className="inspector-cell" style={{ flex: 1 }}>
+                              <div className="inspector-field-label" title="Estilos de Texto">
+                                <label className="inspector-label">Estilos</label>
+                              </div>
+                              <div className="inspector-field-control">
+                                <div className="style-toggle-buttons">
+                                  {(() => {
+                                    const activeBold = tempCapasOverridesActivos[selectedCapa.id]?.bold !== undefined ? tempCapasOverridesActivos[selectedCapa.id].bold : !!selectedCapa.bold;
+                                    const activeItalic = tempCapasOverridesActivos[selectedCapa.id]?.italic !== undefined ? tempCapasOverridesActivos[selectedCapa.id].italic : !!selectedCapa.italic;
+                                    const activeUnderline = tempCapasOverridesActivos[selectedCapa.id]?.underline !== undefined ? tempCapasOverridesActivos[selectedCapa.id].underline : !!selectedCapa.underline;
+                                    return (
+                                      <>
+                                        <button
+                                          type="button"
+                                          title="Negrita (B)"
+                                          className={`style-btn ${activeBold ? "active" : ""}`}
+                                          onClick={() => {
+                                            const nextVal = !activeBold;
+                                            handleUpdateCapaProp(selectedCapa.id, "bold", nextVal);
+                                            setTempCapasOverridesActivos((prev) => ({
+                                              ...prev,
+                                              [selectedCapa.id]: {
+                                                ...(prev[selectedCapa.id] || {}),
+                                                bold: nextVal,
+                                              },
+                                            }));
+                                          }}
+                                        >
+                                          <b>B</b>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Cursiva (I)"
+                                          className={`style-btn ${activeItalic ? "active" : ""}`}
+                                          onClick={() => {
+                                            const nextVal = !activeItalic;
+                                            handleUpdateCapaProp(selectedCapa.id, "italic", nextVal);
+                                            setTempCapasOverridesActivos((prev) => ({
+                                              ...prev,
+                                              [selectedCapa.id]: {
+                                                ...(prev[selectedCapa.id] || {}),
+                                                italic: nextVal,
+                                              },
+                                            }));
+                                          }}
+                                        >
+                                          <i>I</i>
+                                        </button>
+                                        <button
+                                          type="button"
+                                          title="Subrayado (U)"
+                                          className={`style-btn ${activeUnderline ? "active" : ""}`}
+                                          onClick={() => {
+                                            const nextVal = !activeUnderline;
+                                            handleUpdateCapaProp(selectedCapa.id, "underline", nextVal);
+                                            setTempCapasOverridesActivos((prev) => ({
+                                              ...prev,
+                                              [selectedCapa.id]: {
+                                                ...(prev[selectedCapa.id] || {}),
+                                                underline: nextVal,
+                                              },
+                                            }));
+                                          }}
+                                        >
+                                          <u>U</u>
+                                        </button>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="inspector-cell" style={{ flex: 1 }}>
+                              <div className="inspector-field-label" title="Alineación">
+                                <label className="inspector-label">Alineación</label>
+                                {renderExposedEye("alineacion", "Alineación Texto", true)}
+                              </div>
+                              <div className="inspector-field-control">
+                                <div className="alignment-group">
+                                  {(["left", "center", "right", "justify"] as const).map((align) => {
+                                    const activeAlign = tempCapasOverridesActivos[selectedCapa.id]?.alineacion || selectedCapa.alineacion || "left";
+                                    return (
+                                      <button
+                                        key={align}
+                                        type="button"
+                                        className={`align-btn ${activeAlign === align ? "active" : ""}`}
+                                        onClick={() => {
+                                          handleUpdateCapaProp(selectedCapa.id, "alineacion", align);
+                                          setTempCapasOverridesActivos((prev) => ({
+                                            ...prev,
+                                            [selectedCapa.id]: {
+                                              ...(prev[selectedCapa.id] || {}),
+                                              alineacion: align,
+                                            },
+                                          }));
+                                        }}
+                                        title={align === "left" ? "Alinear Izquierda" : align === "center" ? "Alinear Centro" : align === "right" ? "Alinear Derecha" : "Justificado"}
+                                      >
+                                        {align === "left" ? "⬅️" : align === "center" ? "↔️" : align === "right" ? "➡️" : "↕️"}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Fila 3 Tabla Tipografía: Color de Texto + Contorno (Outline) */}
+                          <div className="inspector-field-row inspector-section">
+                            {renderColorSelector(
+                              "Color de Texto",
+                              tempCapasOverridesActivos[selectedCapa.id]?.color || selectedCapa.color || "#000000",
+                              (val) => {
+                                handleUpdateCapaProp(selectedCapa.id, "color", val);
+                                setTempCapasOverridesActivos((prev) => ({
+                                  ...prev,
+                                  [selectedCapa.id]: {
+                                    ...(prev[selectedCapa.id] || {}),
+                                    color: val,
+                                  },
+                                }));
+                              },
+                              true,
+                              "color",
+                              "Color Texto"
+                            )}
+
+                            <div className="inspector-cell" style={{ flex: 1.2 }}>
+                              <div className="inspector-field-label" title="Contorno de Texto (Outline)">
+                                <label className="inspector-label">Contorno</label>
+                                {renderExposedEye("textOutlineWidth", "Grosor Contorno", true)}
+                              </div>
+                              <div className="inspector-field-control" style={{ gap: "2px" }}>
+                                <input
+                                  type="number"
+                                  min="0"
+                                  step="0.5"
+                                  title="Grosor (px)"
+                                  className="inspector-input"
+                                  style={{ width: "38px", flexShrink: 0, padding: "1px 3px" }}
+                                  value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineWidth ?? selectedCapa.textOutlineWidth ?? 0}
+                                  onChange={(e) => {
+                                    const val = Math.max(0, parseFloat(e.target.value) || 0);
+                                    handleUpdateCapaProp(selectedCapa.id, "textOutlineWidth", val);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        textOutlineWidth: val,
+                                      },
+                                    }));
+                                  }}
+                                />
                                 <input
                                   type="color"
+                                  title="Color Contorno"
+                                  className="color-picker-input"
+                                  style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
                                   value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineColor || selectedCapa.textOutlineColor || "#000000"}
                                   onChange={(e) => {
                                     const val = e.target.value;
@@ -3694,12 +3769,12 @@ export default function EditCardModal({
                                       },
                                     }));
                                   }}
-                                  style={{ width: "32px", height: "32px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "4px", cursor: "pointer", background: "none" }}
                                 />
                                 <input
                                   type="text"
-                                  className="inspector-input"
-                                  style={{ flex: 1, height: "32px", fontSize: "12px" }}
+                                  title="Color Contorno (HEX)"
+                                  className="color-hex-input"
+                                  style={{ flex: 1, height: "20px", fontSize: "10.5px", minWidth: "48px", padding: "1px 3px" }}
                                   value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineColor || selectedCapa.textOutlineColor || "#000000"}
                                   onChange={(e) => {
                                     const val = e.target.value;
@@ -3720,172 +3795,177 @@ export default function EditCardModal({
                       </div>
                     )}
 
-                    {/* Capas de Imagen (SRS-070: Unificado) */}
+                    {/* Capas de Imagen (SRS-070: Unificado + SRS-083: Tabulado) */}
                     {selectedCapa.tipo === "image" && (
                       <div className="inspector-group-section">
-                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
-                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Recurso de Imagen</h4>
+                        <div className="inspector-group-header">
+                          <h4 className="inspector-group-title">Recurso de Imagen</h4>
                           {renderExposedEye("src", "Recurso Imagen")}
                         </div>
-                        <div className="inspector-section">
-                          {(() => {
-                            const activeSrc = tempCapasOverridesActivos[selectedCapa.id]?.src || selectedCapa.src;
-                            if (activeSrc) {
+                        <div className="inspector-table">
+                          <div className="inspector-section" style={{ padding: "4px" }}>
+                            {(() => {
+                              const activeSrc = tempCapasOverridesActivos[selectedCapa.id]?.src || selectedCapa.src;
+                              if (activeSrc) {
+                                return (
+                                  <div className="image-override-preview-container" style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                    <img
+                                      src={activeSrc}
+                                      alt="Vista previa de imagen"
+                                      className="inspector-image-preview"
+                                      style={{
+                                        width: "64px",
+                                        height: "48px",
+                                        objectFit: "contain",
+                                        borderRadius: "3px",
+                                        backgroundColor: "#f1f5f9",
+                                        border: "1px solid #cbd5e1",
+                                        flexShrink: 0
+                                      }}
+                                    />
+                                    <button
+                                      type="button"
+                                      className="btn-danger-sec"
+                                      style={{ flex: 1, height: "22px", padding: "2px 8px", fontSize: "11px" }}
+                                      onClick={() => {
+                                        handleUpdateCapaProp(selectedCapa.id, "src", "");
+                                        setTempCapasOverridesActivos((prev) => {
+                                          const next = { ...prev };
+                                          if (next[selectedCapa.id]) {
+                                            const { src, ...rest } = next[selectedCapa.id];
+                                            if (Object.keys(rest).length === 0) {
+                                              delete next[selectedCapa.id];
+                                            } else {
+                                              next[selectedCapa.id] = rest;
+                                            }
+                                          }
+                                          return next;
+                                        });
+                                      }}
+                                    >
+                                      Quitar Imagen
+                                    </button>
+                                  </div>
+                                );
+                              }
+
                               return (
-                                <div className="image-override-preview-container">
-                                  <img
-                                    src={activeSrc}
-                                    alt="Vista previa de imagen"
-                                    className="inspector-image-preview"
-                                    style={{
-                                      width: "100%",
-                                      maxHeight: "150px",
-                                      objectFit: "contain",
-                                      borderRadius: "6px",
-                                      backgroundColor: "#f1f5f9",
-                                      border: "1px solid #cbd5e1",
-                                      marginBottom: "8px",
+                                <div className="image-upload-dropzone" style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    id={`file-image-${selectedCapa.id}`}
+                                    style={{ display: "none" }}
+                                    onChange={(e) => {
+                                      if (e.target.files && e.target.files[0]) {
+                                        const file = e.target.files[0];
+                                        if (!file.type.startsWith("image/")) {
+                                          alert("Por favor, selecciona un archivo de imagen válido.");
+                                          return;
+                                        }
+                                        handleUserAssetUpload(file, (base64) => {
+                                          handleUpdateCapaProp(selectedCapa.id, "src", base64);
+                                          setTempCapasOverridesActivos((prev) => ({
+                                            ...prev,
+                                            [selectedCapa.id]: {
+                                              ...(prev[selectedCapa.id] || {}),
+                                              src: base64,
+                                            },
+                                          }));
+                                        });
+                                      }
                                     }}
                                   />
-                                  <button
-                                    type="button"
-                                    className="btn-danger-sec"
-                                    style={{ width: "100%" }}
-                                    onClick={() => {
-                                      handleUpdateCapaProp(selectedCapa.id, "src", "");
-                                      setTempCapasOverridesActivos((prev) => {
-                                        const next = { ...prev };
-                                        if (next[selectedCapa.id]) {
-                                          const { src, ...rest } = next[selectedCapa.id];
-                                          if (Object.keys(rest).length === 0) {
-                                            delete next[selectedCapa.id];
-                                          } else {
-                                            next[selectedCapa.id] = rest;
-                                          }
+                                  <label
+                                    htmlFor={`file-image-${selectedCapa.id}`}
+                                    className="dropzone-label"
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={(e) => {
+                                      e.preventDefault();
+                                      if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                                        const file = e.dataTransfer.files[0];
+                                        if (!file.type.startsWith("image/")) {
+                                          alert("Por favor, selecciona un archivo de imagen válido.");
+                                          return;
                                         }
-                                        return next;
-                                      });
+                                        handleUserAssetUpload(file, (base64) => {
+                                          handleUpdateCapaProp(selectedCapa.id, "src", base64);
+                                          setTempCapasOverridesActivos((prev) => ({
+                                            ...prev,
+                                            [selectedCapa.id]: {
+                                              ...(prev[selectedCapa.id] || {}),
+                                              src: base64,
+                                            },
+                                          }));
+                                        });
+                                      }
+                                    }}
+                                    style={{
+                                      flex: 1,
+                                      display: "flex",
+                                      flexDirection: "row",
+                                      alignItems: "center",
+                                      justifyContent: "center",
+                                      gap: "4px",
+                                      padding: "3px 6px",
+                                      height: "22px",
+                                      border: "1px dashed #cbd5e1",
+                                      borderRadius: "3px",
+                                      cursor: "pointer",
+                                      backgroundColor: "var(--bg-app)",
+                                      textAlign: "center",
+                                      boxSizing: "border-box"
                                     }}
                                   >
-                                    Quitar Imagen
+                                    <span style={{ fontSize: "12px" }}>📤</span>
+                                    <span style={{ fontSize: "10.5px", fontWeight: 500, whiteSpace: "nowrap" }}>
+                                      Subir imagen
+                                    </span>
+                                  </label>
+
+                                  <button
+                                    type="button"
+                                    className="btn-secundario-galeria"
+                                    style={{ flex: 1, marginTop: 0, height: "22px" }}
+                                    onClick={() => {
+                                      setActiveSelectorTarget({ type: "override", capaId: selectedCapa.id });
+                                      setShowGallerySelector(true);
+                                    }}
+                                  >
+                                    📂 Cargar desde Galería
                                   </button>
                                 </div>
                               );
-                            }
-
-                            return (
-                              <div className="image-upload-dropzone">
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  id={`file-image-${selectedCapa.id}`}
-                                  style={{ display: "none" }}
-                                  onChange={(e) => {
-                                    if (e.target.files && e.target.files[0]) {
-                                      const file = e.target.files[0];
-                                      if (!file.type.startsWith("image/")) {
-                                        alert("Por favor, selecciona un archivo de imagen válido.");
-                                        return;
-                                      }
-                                      handleUserAssetUpload(file, (base64) => {
-                                        handleUpdateCapaProp(selectedCapa.id, "src", base64);
-                                        setTempCapasOverridesActivos((prev) => ({
-                                          ...prev,
-                                          [selectedCapa.id]: {
-                                            ...(prev[selectedCapa.id] || {}),
-                                            src: base64,
-                                          },
-                                        }));
-                                      });
-                                    }
-                                  }}
-                                />
-                                <label
-                                  htmlFor={`file-image-${selectedCapa.id}`}
-                                  className="dropzone-label"
-                                  onDragOver={(e) => e.preventDefault()}
-                                  onDrop={(e) => {
-                                    e.preventDefault();
-                                    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-                                      const file = e.dataTransfer.files[0];
-                                      if (!file.type.startsWith("image/")) {
-                                        alert("Por favor, selecciona un archivo de imagen válido.");
-                                        return;
-                                      }
-                                      handleUserAssetUpload(file, (base64) => {
-                                        handleUpdateCapaProp(selectedCapa.id, "src", base64);
-                                        setTempCapasOverridesActivos((prev) => ({
-                                          ...prev,
-                                          [selectedCapa.id]: {
-                                            ...(prev[selectedCapa.id] || {}),
-                                            src: base64,
-                                          },
-                                        }));
-                                      });
-                                    }
-                                  }}
-                                  style={{
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    padding: "20px",
-                                    border: "2px dashed #cbd5e1",
-                                    borderRadius: "6px",
-                                    cursor: "pointer",
-                                    backgroundColor: "#f8fafc",
-                                    textAlign: "center",
-                                  }}
-                                >
-                                  <span style={{ fontSize: "24px" }}>📤</span>
-                                  <span style={{ fontSize: "12px", marginTop: "8px", fontWeight: 500 }}>
-                                    Subir imagen para esta carta
-                                  </span>
-                                </label>
-
-                                <button
-                                  type="button"
-                                  className="btn-secundario-galeria"
-                                  onClick={() => {
-                                    setActiveSelectorTarget({ type: "override", capaId: selectedCapa.id });
-                                    setShowGallerySelector(true);
-                                  }}
-                                >
-                                  📂 Cargar desde Galería
-                                </button>
-
-                                <p style={{ fontSize: "11px", color: "#94a3b8", marginTop: "6px", textAlign: "center" }}>
-                                  Sin imagen cargada
-                                </p>
-                              </div>
-                            );
-                          })()}
-                        </div>
-
-                        <div className="inspector-section" style={{ marginTop: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                            <label className="inspector-label" style={{ margin: 0 }}>Modo de Ajuste</label>
-                            {renderExposedEye("modoAjuste", "Modo de Ajuste")}
+                            })()}
                           </div>
-                          <select
-                            className="inspector-input"
-                            value={tempCapasOverridesActivos[selectedCapa.id]?.modoAjuste || selectedCapa.modoAjuste || "cover"}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              handleUpdateCapaProp(selectedCapa.id, "modoAjuste", val);
-                              setTempCapasOverridesActivos((prev) => ({
-                                ...prev,
-                                [selectedCapa.id]: {
-                                  ...(prev[selectedCapa.id] || {}),
-                                  modoAjuste: val,
-                                },
-                              }));
-                            }}
-                          >
-                            <option value="cover">Cover (Rellenar)</option>
-                            <option value="contain">Contain (Contener)</option>
-                            <option value="stretch">Stretch (Estirar)</option>
-                          </select>
+
+                          <div className="inspector-field-row inspector-section">
+                            <div className="inspector-field-label" title="Modo de Ajuste">
+                              <label className="inspector-label">Modo de Ajuste</label>
+                              {renderExposedEye("modoAjuste", "Modo de Ajuste", true)}
+                            </div>
+                            <div className="inspector-field-control">
+                              <select
+                                className="inspector-input"
+                                value={tempCapasOverridesActivos[selectedCapa.id]?.modoAjuste || selectedCapa.modoAjuste || "cover"}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  handleUpdateCapaProp(selectedCapa.id, "modoAjuste", val);
+                                  setTempCapasOverridesActivos((prev) => ({
+                                    ...prev,
+                                    [selectedCapa.id]: {
+                                      ...(prev[selectedCapa.id] || {}),
+                                      modoAjuste: val,
+                                    },
+                                  }));
+                                }}
+                              >
+                                <option value="cover">Cover (Rellenar)</option>
+                                <option value="contain">Contain (Contener)</option>
+                                <option value="stretch">Stretch (Estirar)</option>
+                              </select>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -3895,48 +3975,45 @@ export default function EditCardModal({
                       <>
                         {/* Sección 1: Selección de Imagen Switch (Carta) */}
                         <div className="inspector-group-section">
-                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
-                            <h4 className="inspector-group-title" style={{ margin: 0 }}>Selección de Imagen (Carta)</h4>
+                          <div className="inspector-group-header">
+                            <h4 className="inspector-group-title">Selección de Imagen (Carta)</h4>
                             {renderExposedEye("src", "Recurso Imagen")}
                           </div>
                           <div className="inspector-section">
                             {!selectedCapa.options || selectedCapa.options.length === 0 ? (
                               <div className="switch-no-options-notice" style={{
-                                padding: "20px 16px",
+                                padding: "4px 8px",
                                 backgroundColor: "var(--bg-app)",
                                 border: "1px dashed var(--border-color)",
-                                borderRadius: "8px",
+                                borderRadius: "4px",
                                 textAlign: "center",
-                                fontSize: "12.5px",
+                                fontSize: "10.5px",
                                 color: "var(--text-secondary)",
-                                lineHeight: "1.4",
-                                marginTop: "8px"
+                                lineHeight: "1.25"
                               }}>
-                                <span style={{ fontSize: "22px", display: "block", marginBottom: "8px" }}>ℹ️</span>
-                                Configura los recursos del switch en la definición de la plantilla a continuación.
+                                ℹ️ Configura los recursos del switch en la definición de la plantilla.
                               </div>
                             ) : (
                               <>
-                                <div className="image-override-preview-container">
+                                <div className="image-override-preview-container" style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "4px" }}>
                                   <img
                                     src={tempCapasOverridesActivos[selectedCapa.id]?.src || selectedCapa.src || ""}
                                     alt="Vista previa activa"
                                     className="inspector-image-preview"
                                     style={{
-                                      width: "100%",
-                                      maxHeight: "120px",
+                                      width: "56px",
+                                      height: "44px",
                                       objectFit: "contain",
-                                      borderRadius: "6px",
+                                      borderRadius: "4px",
                                       backgroundColor: "#f1f5f9",
                                       border: "1px solid #cbd5e1",
-                                      marginBottom: "8px",
                                     }}
                                   />
                                   {tempCapasOverridesActivos[selectedCapa.id]?.src && (
                                     <button
                                       type="button"
                                       className="btn-danger-sec"
-                                      style={{ width: "100%", marginBottom: "12px" }}
+                                      style={{ flex: 1, height: "22px", padding: "2px 8px", fontSize: "11px" }}
                                       onClick={() => {
                                         setTempCapasOverridesActivos((prev) => {
                                           const next = { ...prev };
@@ -3952,7 +4029,6 @@ export default function EditCardModal({
                                   )}
                                 </div>
 
-                                <label className="inspector-label" style={{ marginTop: "8px" }}>Seleccionar Opción:</label>
                                 <div className="switch-options-carousel">
                                   {(selectedCapa.options || []).map((opt: any) => {
                                     const isSelected = tempCapasOverridesActivos[selectedCapa.id]
@@ -4017,51 +4093,65 @@ export default function EditCardModal({
                         </div>
 
                         {/* Sección 2: Definición de la Plantilla (Diseño) */}
-                        <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
-                          <h4 className="inspector-group-title">Definición de Plantilla</h4>
-
-                          <div className="inspector-section">
-                            <label className="inspector-label">Nombre de Variable / Capa</label>
-                            <input
-                              type="text"
-                              className="inspector-input"
-                              value={selectedCapa.nombre || ""}
-                              placeholder="ej. Icono Switch"
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
-                            />
+                        <div className="inspector-group-section">
+                          <div className="inspector-group-header">
+                            <h4 className="inspector-group-title">Definición de Plantilla</h4>
                           </div>
 
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <label className="inspector-label">Recursos Asignados al Switch</label>
-                            <div style={{ fontSize: "12px", color: "var(--text-secondary)", marginBottom: "8px" }}>
-                              {selectedCapa.options?.length || 0} imágenes asignadas
+                          <div className="inspector-table">
+                            <div className="inspector-field-row inspector-section">
+                              <div className="inspector-cell">
+                                <div className="inspector-field-label" title="Nombre de Variable / Capa">
+                                  <label className="inspector-label">Nombre</label>
+                                </div>
+                                <div className="inspector-field-control">
+                                  <input
+                                    type="text"
+                                    className="inspector-input"
+                                    value={selectedCapa.nombre || ""}
+                                    placeholder="ej. Icono Switch"
+                                    onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
+                                  />
+                                </div>
+                              </div>
+                              <div className="inspector-cell">
+                                <div className="inspector-field-label" title="Modo de Ajuste">
+                                  <label className="inspector-label">Modo de Ajuste</label>
+                                </div>
+                                <div className="inspector-field-control">
+                                  <select
+                                    className="inspector-input"
+                                    value={selectedCapa.modoAjuste || "cover"}
+                                    onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "modoAjuste", e.target.value)}
+                                  >
+                                    <option value="cover">Cover (Rellenar)</option>
+                                    <option value="contain">Contain (Contener)</option>
+                                    <option value="stretch">Stretch (Estirar)</option>
+                                  </select>
+                                </div>
+                              </div>
                             </div>
-                            <button
-                              type="button"
-                              className="btn-secundario-galeria"
-                              style={{ width: "100%" }}
-                              onClick={() => {
-                                const targetCapa = plantillaActiva.capas.find((c: any) => c.id === selectedCapa.id);
-                                setTempSwitchCapaId(selectedCapa.id);
-                                setTempSelectedOptionIds(targetCapa?.options?.map((opt: any) => opt.id) || []);
-                                setShowSwitchResourcesPopup(true);
-                              }}
-                            >
-                              ⚙️ Seleccionar recursos para este elemento
-                            </button>
-                          </div>
 
-                          <div className="inspector-section" style={{ marginTop: "12px" }}>
-                            <label className="inspector-label">Modo de Ajuste</label>
-                            <select
-                              className="inspector-input"
-                              value={selectedCapa.modoAjuste || "cover"}
-                              onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "modoAjuste", e.target.value)}
-                            >
-                              <option value="cover">Cover (Rellenar)</option>
-                              <option value="contain">Contain (Contener)</option>
-                              <option value="stretch">Stretch (Estirar)</option>
-                            </select>
+                            <div className="inspector-field-row inspector-section">
+                              <div className="inspector-field-label" title="Recursos Asignados al Switch">
+                                <label className="inspector-label">Recursos Switch</label>
+                              </div>
+                              <div className="inspector-field-control">
+                                <button
+                                  type="button"
+                                  className="btn-secundario-galeria"
+                                  style={{ width: "100%", marginTop: 0 }}
+                                  onClick={() => {
+                                    const targetCapa = plantillaActiva.capas.find((c: any) => c.id === selectedCapa.id);
+                                    setTempSwitchCapaId(selectedCapa.id);
+                                    setTempSelectedOptionIds(targetCapa?.options?.map((opt: any) => opt.id) || []);
+                                    setShowSwitchResourcesPopup(true);
+                                  }}
+                                >
+                                  ⚙️ Seleccionar recursos ({selectedCapa.options?.length || 0} imágenes asignadas)
+                                </button>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       </>
@@ -4070,130 +4160,131 @@ export default function EditCardModal({
                     {/* Capas de Contenedor */}
                     {selectedCapa.tipo === "container" && (
                       <div className="inspector-group-section">
-                        <h4 className="inspector-group-title">Definición de Plantilla (Contenedor)</h4>
-                        
-                        <div className="inspector-section">
-                          <label className="inspector-label">Nombre del Contenedor</label>
-                          <input
-                            type="text"
-                            className="inspector-input"
-                            value={selectedCapa.nombre || ""}
-                            placeholder="ej. Contenedor de Atributos"
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
-                          />
+                        <div className="inspector-group-header">
+                          <h4 className="inspector-group-title">Definición de Plantilla (Contenedor)</h4>
                         </div>
 
-                        <div className="inspector-section" style={{ marginTop: "12px" }}>
-                          <label className="inspector-label">Tipo de Layout</label>
-                          <select
-                            className="inspector-input"
-                            value={selectedCapa.layout || "none"}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "layout", e.target.value)}
-                          >
-                            <option value="none">Libre (FrameLayout)</option>
-                            <option value="vertical">Lineal Vertical</option>
-                            <option value="vertical-center">Lineal Vertical Centrado</option>
-                            <option value="vertical-reverse">Lineal Vertical Inverso (Abajo a Arriba)</option>
-                            <option value="horizontal">Lineal Horizontal</option>
-                            <option value="horizontal-center">Lineal Horizontal Centrado</option>
-                            <option value="horizontal-reverse">Lineal Horizontal Inverso (Derecha a Izquierda)</option>
-                          </select>
-                        </div>
+                        <div className="inspector-table">
+                          <div className="inspector-field-row inspector-section">
+                            <div className="inspector-cell">
+                              <div className="inspector-field-label" title="Tipo de Layout">
+                                <label className="inspector-label">Tipo de Layout</label>
+                              </div>
+                              <div className="inspector-field-control">
+                                <select
+                                  className="inspector-input"
+                                  value={selectedCapa.layout || "none"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "layout", e.target.value)}
+                                >
+                                  <option value="none">Libre (FrameLayout)</option>
+                                  <option value="vertical">Lineal Vertical</option>
+                                  <option value="vertical-center">Lineal Vertical Centrado</option>
+                                  <option value="vertical-reverse">Lineal Vertical Inverso (Abajo a Arriba)</option>
+                                  <option value="horizontal">Lineal Horizontal</option>
+                                  <option value="horizontal-center">Lineal Horizontal Centrado</option>
+                                  <option value="horizontal-reverse">Lineal Horizontal Inverso (Derecha a Izquierda)</option>
+                                </select>
+                              </div>
+                            </div>
 
-                        <div className="inspector-section" style={{ marginTop: "12px" }}>
-                          <label className="inspector-label">Contenedor Padre</label>
-                          <select
-                            className="inspector-input"
-                            value={selectedCapa.parentCapaId || ""}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "parentCapaId", e.target.value === "" ? null : e.target.value)}
-                          >
-                            <option value="">(Raíz)</option>
-                            {(plantillaActiva.capas || [])
-                              .filter((c: any) => (c.tipo === "container" || c.tipo === "list") && c.id !== selectedCapa.id && !isDescendant(c.id, selectedCapa.id))
-                              .map((c: any) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.nombre || `${c.tipo === "list" ? "Lista" : "Contenedor"} ${c.id}`}
-                                </option>
-                              ))}
-                          </select>
+                            <div className="inspector-cell">
+                              <div className="inspector-field-label" title="Contenedor Padre">
+                                <label className="inspector-label">Contenedor Padre</label>
+                              </div>
+                              <div className="inspector-field-control">
+                                <select
+                                  className="inspector-input"
+                                  value={selectedCapa.parentCapaId || ""}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "parentCapaId", e.target.value === "" ? null : e.target.value)}
+                                >
+                                  <option value="">(Raíz)</option>
+                                  {(plantillaActiva.capas || [])
+                                    .filter((c: any) => (c.tipo === "container" || c.tipo === "list") && c.id !== selectedCapa.id && !isDescendant(c.id, selectedCapa.id))
+                                    .map((c: any) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.nombre || `${c.tipo === "list" ? "Lista" : "Contenedor"} ${c.id}`}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
 
-                    {/* Capas de Lista (SRS-072) */}
+                    {/* Capas de Lista (SRS-072 + SRS-083) */}
                     {selectedCapa.tipo === "list" && (
                       <div className="inspector-group-section">
-                        <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "8px" }}>
-                          <h4 className="inspector-group-title" style={{ margin: 0 }}>Definición de Lista</h4>
+                        <div className="inspector-group-header">
+                          <h4 className="inspector-group-title">Definición de Lista</h4>
                           {renderExposedEye("items", "Elementos Lista")}
                         </div>
 
-                        <div className="inspector-section">
-                          <label className="inspector-label">Nombre de la Lista</label>
-                          <input
-                            type="text"
-                            className="inspector-input"
-                            value={selectedCapa.nombre || ""}
-                            placeholder="ej. Lista de Ataques"
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
-                          />
-                        </div>
+                        <div className="inspector-table">
+                          <div className="inspector-field-row inspector-section">
+                            <div className="inspector-cell">
+                              <div className="inspector-field-label" title="Tipo de Layout">
+                                <label className="inspector-label">Tipo de Layout</label>
+                              </div>
+                              <div className="inspector-field-control">
+                                <select
+                                  className="inspector-input"
+                                  value={selectedCapa.layout || "vertical"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "layout", e.target.value)}
+                                >
+                                  <option value="vertical">Lineal Vertical</option>
+                                  <option value="vertical-center">Lineal Vertical Centrado</option>
+                                  <option value="vertical-reverse">Lineal Vertical Inverso (Abajo a Arriba)</option>
+                                  <option value="horizontal">Lineal Horizontal</option>
+                                  <option value="horizontal-center">Lineal Horizontal Centrado</option>
+                                  <option value="horizontal-reverse">Lineal Horizontal Inverso (Derecha a Izquierda)</option>
+                                </select>
+                              </div>
+                            </div>
 
-                        <div className="inspector-section" style={{ marginTop: "12px" }}>
-                          <label className="inspector-label">Tipo de Layout</label>
-                          <select
-                            className="inspector-input"
-                            value={selectedCapa.layout || "vertical"}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "layout", e.target.value)}
-                          >
-                            <option value="vertical">Lineal Vertical</option>
-                            <option value="vertical-center">Lineal Vertical Centrado</option>
-                            <option value="vertical-reverse">Lineal Vertical Inverso (Abajo a Arriba)</option>
-                            <option value="horizontal">Lineal Horizontal</option>
-                            <option value="horizontal-center">Lineal Horizontal Centrado</option>
-                            <option value="horizontal-reverse">Lineal Horizontal Inverso (Derecha a Izquierda)</option>
-                          </select>
-                        </div>
-
-                        <div className="inspector-section" style={{ marginTop: "12px" }}>
-                          <label className="inspector-label">Contenedor Padre</label>
-                          <select
-                            className="inspector-input"
-                            value={selectedCapa.parentCapaId || ""}
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "parentCapaId", e.target.value === "" ? null : e.target.value)}
-                          >
-                            <option value="">(Raíz)</option>
-                            {(plantillaActiva.capas || [])
-                              .filter((c: any) => (c.tipo === "container" || c.tipo === "list") && c.id !== selectedCapa.id && !isDescendant(c.id, selectedCapa.id))
-                              .map((c: any) => (
-                                <option key={c.id} value={c.id}>
-                                  {c.nombre || `${c.tipo === "list" ? "Lista" : "Contenedor"} ${c.id}`}
-                                </option>
-                              ))}
-                          </select>
+                            <div className="inspector-cell">
+                              <div className="inspector-field-label" title="Contenedor Padre">
+                                <label className="inspector-label">Contenedor Padre</label>
+                              </div>
+                              <div className="inspector-field-control">
+                                <select
+                                  className="inspector-input"
+                                  value={selectedCapa.parentCapaId || ""}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "parentCapaId", e.target.value === "" ? null : e.target.value)}
+                                >
+                                  <option value="">(Raíz)</option>
+                                  {(plantillaActiva.capas || [])
+                                    .filter((c: any) => (c.tipo === "container" || c.tipo === "list") && c.id !== selectedCapa.id && !isDescendant(c.id, selectedCapa.id))
+                                    .map((c: any) => (
+                                      <option key={c.id} value={c.id}>
+                                        {c.nombre || `${c.tipo === "list" ? "Lista" : "Contenedor"} ${c.id}`}
+                                      </option>
+                                    ))}
+                                </select>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
                         {/* Subplantillas Disponibles (Child Blueprints) */}
-                        <div style={{ marginTop: "16px", borderTop: "1px dashed var(--border-color)", paddingTop: "12px" }}>
+                        <div style={{ marginTop: "3px", borderTop: "1px dashed var(--border-color)", paddingTop: "4px" }}>
                           <label className="inspector-label" style={{ fontWeight: 600 }}>📦 Subplantillas Disponibles ({((selectedCapa.childTemplates || []).length)})</label>
-                          <p style={{ fontSize: "11px", color: "var(--text-secondary)", margin: "4px 0 8px 0" }}>
-                            Las subplantillas se conservan en la lista aunque borres los elementos del lienzo.
-                          </p>
 
                           {((selectedCapa.childTemplates || []).length === 0) ? (
-                            <div style={{ fontSize: "12px", color: "var(--text-secondary)", fontStyle: "italic", padding: "6px 0" }}>
+                            <div style={{ fontSize: "10.5px", color: "var(--text-secondary)", fontStyle: "italic", padding: "2px 0" }}>
                               No hay subplantillas registradas en esta lista.
                             </div>
                           ) : (
-                            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginBottom: "12px" }}>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "3px", marginBottom: "4px" }}>
                               {(selectedCapa.childTemplates || []).map((tmpl: ChildTemplate) => (
-                                <div key={tmpl.id} style={{ display: "flex", alignItems: "center", gap: "6px", background: "var(--bg-secondary)", padding: "6px 8px", borderRadius: "4px", border: "1px solid var(--border-color)" }}>
-                                  <span style={{ fontSize: "14px" }}>📋</span>
-                                  <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "2px" }}>
+                                <div key={tmpl.id} style={{ display: "flex", alignItems: "center", gap: "4px", background: "var(--bg-secondary)", padding: "2px 5px", borderRadius: "3px", border: "1px solid var(--border-color)" }}>
+                                  <span style={{ fontSize: "11px" }}>📋</span>
+                                  <div style={{ flex: 1, display: "flex", flexDirection: "row", gap: "4px" }}>
                                     <input
                                       type="text"
                                       className="inspector-input"
-                                      style={{ fontSize: "12px", padding: "2px 4px", height: "auto" }}
+                                      style={{ fontSize: "10.5px", padding: "1px 4px", height: "19px", flex: 2 }}
                                       value={tmpl.name}
                                       title="Nombre de la subplantilla"
                                       onChange={(e) => handleUpdateChildTemplate(selectedCapa.id, tmpl.id, { name: e.target.value })}
@@ -4201,7 +4292,7 @@ export default function EditCardModal({
                                     <input
                                       type="text"
                                       className="inspector-input"
-                                      style={{ fontSize: "10px", padding: "1px 4px", height: "auto", color: "var(--text-secondary)" }}
+                                      style={{ fontSize: "10px", padding: "1px 4px", height: "19px", color: "var(--text-secondary)", flex: 1 }}
                                       value={tmpl.tag}
                                       title="Tag identificativo"
                                       placeholder="tag"
@@ -4211,7 +4302,7 @@ export default function EditCardModal({
                                   <button
                                     type="button"
                                     className="btn-danger"
-                                    style={{ padding: "4px 6px", fontSize: "11px" }}
+                                    style={{ padding: "1px 4px", fontSize: "10px" }}
                                     title="Eliminar Subplantilla"
                                     onClick={() => {
                                       if (window.confirm(`¿Eliminar la subplantilla "${tmpl.name}"?`)) {
@@ -4227,22 +4318,21 @@ export default function EditCardModal({
                           )}
 
                           {/* Guardar hijo existente como subplantilla */}
-                          <div style={{ background: "var(--bg-tertiary, #2a2a2a)", padding: "8px", borderRadius: "4px", border: "1px solid var(--border-color)", marginTop: "8px" }}>
-                            <div style={{ fontSize: "11px", fontWeight: 600, marginBottom: "6px" }}>➕ Guardar hijo existente como Subplantilla:</div>
+                          <div style={{ background: "var(--bg-tertiary, #2a2a2a)", padding: "4px 6px", borderRadius: "4px", border: "1px solid var(--border-color)", marginTop: "3px" }}>
+                            <div style={{ fontSize: "10.5px", fontWeight: 600, marginBottom: "3px" }}>➕ Guardar hijo existente como Subplantilla:</div>
                             {(() => {
                               const directChildren = (plantillaActiva.capas || []).filter((c: any) => c.parentCapaId === selectedCapa.id);
                               if (directChildren.length === 0) {
                                 return (
-                                  <div style={{ fontSize: "11px", color: "var(--text-secondary)", fontStyle: "italic" }}>
+                                  <div style={{ fontSize: "10px", color: "var(--text-secondary)", fontStyle: "italic" }}>
                                     Añade elementos dentro de esta lista en el árbol de capas para poder guardarlos como subplantilla.
                                   </div>
                                 );
                               }
                               return (
-                                <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
                                   <select
                                     className="inspector-input"
-                                    style={{ fontSize: "12px" }}
                                     value={selectedChildForTemplate}
                                     onChange={(e) => {
                                       setSelectedChildForTemplate(e.target.value);
@@ -4261,32 +4351,32 @@ export default function EditCardModal({
                                     ))}
                                   </select>
                                   {selectedChildForTemplate && (
-                                    <>
+                                    <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
                                       <input
                                         type="text"
                                         className="inspector-input"
-                                        style={{ fontSize: "12px" }}
                                         placeholder="Nombre legible (ej. Ataque Melé)"
                                         value={newTemplateName}
                                         onChange={(e) => setNewTemplateName(e.target.value)}
+                                        style={{ flex: 1.5 }}
                                       />
                                       <input
                                         type="text"
                                         className="inspector-input"
-                                        style={{ fontSize: "11px" }}
                                         placeholder="Tag (ej. mele)"
                                         value={newTemplateTag}
                                         onChange={(e) => setNewTemplateTag(e.target.value)}
+                                        style={{ flex: 1 }}
                                       />
                                       <button
                                         type="button"
                                         className="btn-primary"
-                                        style={{ padding: "4px 8px", fontSize: "11px", alignSelf: "flex-end" }}
+                                        style={{ padding: "2px 6px", fontSize: "10.5px", whiteSpace: "nowrap" }}
                                         onClick={() => handleSaveChildAsTemplate(selectedCapa.id)}
                                       >
                                         ➕ Registrar Subplantilla
                                       </button>
-                                    </>
+                                    </div>
                                   )}
                                 </div>
                               );
@@ -4295,23 +4385,23 @@ export default function EditCardModal({
 
                           {/* Instanciar en la Plantilla */}
                           {(selectedCapa.childTemplates || []).length > 0 && (
-                            <div style={{ marginTop: "12px" }}>
-                              <div style={{ fontSize: "11px", fontWeight: 600, marginBottom: "6px" }}>Insertar instancia en plantilla:</div>
-                              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                            <div style={{ marginTop: "4px" }}>
+                              <div style={{ fontSize: "10.5px", fontWeight: 600, marginBottom: "3px" }}>Insertar instancia en plantilla:</div>
+                              <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
                                 {(selectedCapa.childTemplates || []).map((tmpl: ChildTemplate) => (
                                   <button
                                     key={tmpl.id}
                                     type="button"
                                     className="btn-secondary"
                                     style={{
-                                      padding: "4px 10px",
-                                      fontSize: "11px",
+                                      padding: "2px 6px",
+                                      fontSize: "10.5px",
                                       display: "flex",
                                       alignItems: "center",
-                                      gap: "4px",
+                                      gap: "3px",
                                       backgroundColor: "rgba(147, 51, 234, 0.2)",
                                       color: "#e9d5ff",
-                                      borderRadius: "4px",
+                                      borderRadius: "3px",
                                       border: "1px solid rgba(168, 85, 247, 0.5)",
                                       cursor: "pointer",
                                       fontWeight: 600
@@ -4330,19 +4420,19 @@ export default function EditCardModal({
                             const directChildren = (plantillaActiva.capas || []).filter((c: any) => c.parentCapaId === selectedCapa.id);
                             if (directChildren.length === 0) return null;
                             return (
-                              <div style={{ marginTop: "14px", borderTop: "1px dashed var(--border-color)", paddingTop: "10px" }}>
-                                <div style={{ fontSize: "11px", fontWeight: 600, marginBottom: "6px" }}>Elementos en esta lista ({directChildren.length}):</div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                              <div style={{ marginTop: "4px", borderTop: "1px dashed var(--border-color)", paddingTop: "4px" }}>
+                                <div style={{ fontSize: "10.5px", fontWeight: 600, marginBottom: "3px" }}>Elementos en esta lista ({directChildren.length}):</div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
                                   {directChildren.map((child: any, idx: number) => (
-                                    <div key={child.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-secondary)", padding: "4px 8px", borderRadius: "4px", fontSize: "11px" }}>
-                                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "120px" }}>
+                                    <div key={child.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "var(--bg-secondary)", padding: "2px 5px", borderRadius: "3px", fontSize: "10.5px" }}>
+                                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "180px" }}>
                                         {idx + 1}. {child.nombre || child.id}
                                       </span>
                                       <div style={{ display: "flex", gap: "2px" }}>
                                         <button
                                           type="button"
                                           className="btn-secondary"
-                                          style={{ padding: "2px 4px", fontSize: "10px", color: "#e2e8f0" }}
+                                          style={{ padding: "1px 4px", fontSize: "10px", color: "#e2e8f0" }}
                                           disabled={idx === 0}
                                           title="Mover arriba"
                                           onClick={() => handleMoveCapa(child.id, "up")}
@@ -4352,7 +4442,7 @@ export default function EditCardModal({
                                         <button
                                           type="button"
                                           className="btn-secondary"
-                                          style={{ padding: "2px 4px", fontSize: "10px", color: "#e2e8f0" }}
+                                          style={{ padding: "1px 4px", fontSize: "10px", color: "#e2e8f0" }}
                                           disabled={idx === directChildren.length - 1}
                                           title="Mover abajo"
                                           onClick={() => handleMoveCapa(child.id, "down")}
@@ -4362,7 +4452,7 @@ export default function EditCardModal({
                                         <button
                                           type="button"
                                           className="btn-secondary"
-                                          style={{ padding: "2px 4px", fontSize: "10px", color: "#e2e8f0" }}
+                                          style={{ padding: "1px 4px", fontSize: "10px", color: "#e2e8f0" }}
                                           title="Duplicar elemento"
                                           onClick={() => handleDuplicateCapa(child.id)}
                                         >
@@ -4371,7 +4461,7 @@ export default function EditCardModal({
                                         <button
                                           type="button"
                                           className="btn-danger"
-                                          style={{ padding: "2px 4px", fontSize: "10px" }}
+                                          style={{ padding: "1px 4px", fontSize: "10px" }}
                                           title="Eliminar elemento"
                                           onClick={() => handleDeleteCapa(child.id)}
                                         >
@@ -4391,266 +4481,350 @@ export default function EditCardModal({
                     {/* Capas de Bloque */}
                     {selectedCapa.tipo === "block" && (
                       <div className="inspector-group-section">
-                        <h4 className="inspector-group-title">Definición de Plantilla (Bloque)</h4>
-                        
-                        <div className="inspector-section">
-                          <label className="inspector-label">Nombre del Bloque</label>
-                          <input
-                            type="text"
-                            className="inspector-input"
-                            value={selectedCapa.nombre || ""}
-                            placeholder="ej. Bloque de Fondo"
-                            onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
-                          />
+                        <div className="inspector-group-header">
+                          <h4 className="inspector-group-title">Definición de Plantilla (Bloque)</h4>
+                        </div>
+
+                        <div className="inspector-table">
+                          <div className="inspector-field-row inspector-section">
+                            <div className="inspector-field-label" title="Nombre del Bloque">
+                              <label className="inspector-label">Nombre del Bloque</label>
+                            </div>
+                            <div className="inspector-field-control">
+                              <input
+                                type="text"
+                                className="inspector-input"
+                                value={selectedCapa.nombre || ""}
+                                placeholder="ej. Bloque de Fondo"
+                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "nombre", e.target.value)}
+                              />
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}
 
-                    {/* Bordes, Esquinas y Fondo (text, image, image-switch, container, list, block) */}
+                    {/* Bordes, Esquinas, Fondo y Rotación en Tabla Densa (text, image, image-switch, container, list, block) */}
                     {(selectedCapa.tipo === "text" || selectedCapa.tipo === "image" || selectedCapa.tipo === "image-switch" || selectedCapa.tipo === "container" || selectedCapa.tipo === "list" || selectedCapa.tipo === "block") && (
-                      <div className="inspector-group-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "16px" }}>
-                        
-                        {/* Sección de Bordes */}
-                        <div className="section-header-row" onClick={() => setExpandBorders(!expandBorders)} style={{ display: "flex", alignItems: "center", width: "100%" }}>
-                          <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Bordes de la Capa</h4>
-                          {renderExposedEye("borderTopWidth", "Borde Ancho")}
-                          <span className={`expand-toggle-icon ${expandBorders ? "expanded" : ""}`} style={{ marginLeft: "6px" }}>▶</span>
-                        </div>
-                        
-                        {!expandBorders ? (
-                          <div className="layout-form-grid" style={{ marginTop: "8px" }}>
-                            <div className="inspector-section">
-                              <label className="inspector-label">Grosor General (mm)</label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.borderTopWidth !== undefined ? selectedCapa.borderTopWidth : 0}
-                                onChange={(e) => handleUpdateBorderWidthGeneral(selectedCapa.id, Number(e.target.value))}
-                              />
+                      <div className="inspector-group-section">
+                        <div className="inspector-table">
+                          {/* Fila 1: Bordes de la Capa (Grosor + Color en la misma línea cuando está colapsado) */}
+                          <div className="inspector-field-row inspector-section">
+                            <div
+                              className="inspector-cell"
+                              onClick={() => setExpandBorders(!expandBorders)}
+                              style={{ cursor: "pointer", flex: expandBorders ? 1 : 0.85 }}
+                            >
+                              <div className="inspector-field-label" title="Bordes de la Capa">
+                                <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Bordes de la Capa</h4>
+                                {renderExposedEye("borderTopWidth", "Borde Ancho", true)}
+                                <span className={`expand-toggle-icon ${expandBorders ? "expanded" : ""}`} style={{ marginLeft: "2px" }}>▶</span>
+                              </div>
                             </div>
-                            {renderColorSelector(
-                              "Color General",
-                              selectedCapa.borderTopColor || "#000000",
-                              (val) => handleUpdateBorderColorGeneral(selectedCapa.id, val)
-                            )}
-                          </div>
-                        ) : (
-                          <div className="expanded-inputs-grid" style={{ marginTop: "8px" }}>
-                            {/* Arriba */}
-                            <div className="expanded-input-item">
-                              <label>Grosor Sup. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.borderTopWidth !== undefined ? selectedCapa.borderTopWidth : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopWidth", Number(e.target.value))}
-                              />
-                            </div>
-                            {renderColorSelector(
-                              "Color Superior",
-                              selectedCapa.borderTopColor || "#000000",
-                              (val) => handleUpdateCapaProp(selectedCapa.id, "borderTopColor", val),
-                              true
-                            )}
-                            {/* Derecha */}
-                            <div className="expanded-input-item">
-                              <label>Grosor Der. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.borderRightWidth !== undefined ? selectedCapa.borderRightWidth : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightWidth", Number(e.target.value))}
-                              />
-                            </div>
-                            {renderColorSelector(
-                              "Color Derecho",
-                              selectedCapa.borderRightColor || "#000000",
-                              (val) => handleUpdateCapaProp(selectedCapa.id, "borderRightColor", val),
-                              true
-                            )}
-                            {/* Abajo */}
-                            <div className="expanded-input-item">
-                              <label>Grosor Inf. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.borderBottomWidth !== undefined ? selectedCapa.borderBottomWidth : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomWidth", Number(e.target.value))}
-                              />
-                            </div>
-                            {renderColorSelector(
-                              "Color Inferior",
-                              selectedCapa.borderBottomColor || "#000000",
-                              (val) => handleUpdateCapaProp(selectedCapa.id, "borderBottomColor", val),
-                              true
-                            )}
-                            {/* Izquierda */}
-                            <div className="expanded-input-item">
-                              <label>Grosor Izq. (mm)</label>
-                              <input
-                                type="number"
-                                step="0.1"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.borderLeftWidth !== undefined ? selectedCapa.borderLeftWidth : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftWidth", Number(e.target.value))}
-                              />
-                            </div>
-                            {renderColorSelector(
-                              "Color Izquierdo",
-                              selectedCapa.borderLeftColor || "#000000",
-                              (val) => handleUpdateCapaProp(selectedCapa.id, "borderLeftColor", val),
-                              true
-                            )}
-                          </div>
-                        )}
 
-                        {/* Sección de Radios de Esquinas */}
-                        <div className="section-header-row" onClick={() => setExpandRadii(!expandRadii)} style={{ marginTop: "12px", borderTop: "1px solid var(--border-color)", paddingTop: "12px", display: "flex", alignItems: "center", width: "100%" }}>
-                          <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Redondear Esquinas</h4>
-                          {renderExposedEye("borderTopLeftRadius", "Radio Esquina")}
-                          <span className={`expand-toggle-icon ${expandRadii ? "expanded" : ""}`} style={{ marginLeft: "6px" }}>▶</span>
-                        </div>
-
-                        {!expandRadii ? (
-                          <div className="inspector-section" style={{ marginTop: "8px" }}>
-                            <label className="inspector-label">Radio General (mm)</label>
-                            <input
-                              type="number"
-                              step="0.5"
-                              min="0"
-                              className="inspector-input"
-                              value={selectedCapa.borderTopLeftRadius !== undefined ? selectedCapa.borderTopLeftRadius : 0}
-                              onChange={(e) => handleUpdateBorderRadiusGeneral(selectedCapa.id, Number(e.target.value))}
-                            />
-                          </div>
-                        ) : (
-                          <div className="expanded-inputs-grid" style={{ marginTop: "8px" }}>
-                            <div className="expanded-input-item">
-                              <label>Sup. Izquierda (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.borderTopLeftRadius !== undefined ? selectedCapa.borderTopLeftRadius : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopLeftRadius", Number(e.target.value))}
-                              />
-                            </div>
-                            <div className="expanded-input-item">
-                              <label>Sup. Derecha (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.borderTopRightRadius !== undefined ? selectedCapa.borderTopRightRadius : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopRightRadius", Number(e.target.value))}
-                              />
-                            </div>
-                            <div className="expanded-input-item">
-                              <label>Inf. Derecha (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.borderBottomRightRadius !== undefined ? selectedCapa.borderBottomRightRadius : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomRightRadius", Number(e.target.value))}
-                              />
-                            </div>
-                            <div className="expanded-input-item">
-                              <label>Inf. Izquierda (mm)</label>
-                              <input
-                                type="number"
-                                step="0.5"
-                                min="0"
-                                className="inspector-input"
-                                value={selectedCapa.borderBottomLeftRadius !== undefined ? selectedCapa.borderBottomLeftRadius : 0}
-                                onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomLeftRadius", Number(e.target.value))}
-                              />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Color de Fondo */}
-                        <div className="inspector-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                            <label className="inspector-label" style={{ margin: 0 }}>Color de Fondo de la Capa</label>
-                            {renderExposedEye("backgroundColor", "Color Fondo")}
-                          </div>
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px" }}>
-                            <input
-                              type="checkbox"
-                              id="has-bg-color-checkbox"
-                              checked={!!selectedCapa.backgroundColor}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  handleUpdateCapaProp(selectedCapa.id, "backgroundColor", "#ffffff");
-                                } else {
-                                  handleUpdateCapaProp(selectedCapa.id, "backgroundColor", "");
-                                }
-                              }}
-                            />
-                            <label htmlFor="has-bg-color-checkbox" style={{ fontSize: "13px", cursor: "pointer", userSelect: "none" }}>Activar Fondo</label>
-                            {!!selectedCapa.backgroundColor && (
-                              <div style={{ flex: 1, marginLeft: "auto" }}>
+                            {!expandBorders && (
+                              <>
+                                <div className="inspector-cell" style={{ flex: 0.7 }}>
+                                  <div className="inspector-field-label" title="Grosor General (mm)">
+                                    <label className="inspector-label">Grosor</label>
+                                  </div>
+                                  <div className="inspector-field-control">
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      className="inspector-input"
+                                      value={selectedCapa.borderTopWidth !== undefined ? selectedCapa.borderTopWidth : 0}
+                                      onChange={(e) => handleUpdateBorderWidthGeneral(selectedCapa.id, Number(e.target.value))}
+                                    />
+                                  </div>
+                                </div>
                                 {renderColorSelector(
-                                  "Color de Fondo",
-                                  selectedCapa.backgroundColor,
-                                  (val) => handleUpdateCapaProp(selectedCapa.id, "backgroundColor", val),
+                                  "Color",
+                                  selectedCapa.borderTopColor || "#000000",
+                                  (val) => handleUpdateBorderColorGeneral(selectedCapa.id, val),
                                   true
                                 )}
+                              </>
+                            )}
+                          </div>
+
+                          {expandBorders && (
+                            <div className="expanded-inputs-grid-2col">
+                              {/* Arriba */}
+                              <div className="expanded-input-item">
+                                <label>Sup (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="inspector-input"
+                                  style={{ width: "44px", flexShrink: 0 }}
+                                  value={selectedCapa.borderTopWidth !== undefined ? selectedCapa.borderTopWidth : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopWidth", Number(e.target.value))}
+                                />
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
+                                  value={selectedCapa.borderTopColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopColor", e.target.value)}
+                                />
+                                <input
+                                  type="text"
+                                  className="color-hex-input"
+                                  style={{ flex: 1, minWidth: "46px" }}
+                                  value={selectedCapa.borderTopColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopColor", e.target.value)}
+                                />
+                              </div>
+                              {/* Derecha */}
+                              <div className="expanded-input-item">
+                                <label>Der (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="inspector-input"
+                                  style={{ width: "44px", flexShrink: 0 }}
+                                  value={selectedCapa.borderRightWidth !== undefined ? selectedCapa.borderRightWidth : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightWidth", Number(e.target.value))}
+                                />
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
+                                  value={selectedCapa.borderRightColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightColor", e.target.value)}
+                                />
+                                <input
+                                  type="text"
+                                  className="color-hex-input"
+                                  style={{ flex: 1, minWidth: "46px" }}
+                                  value={selectedCapa.borderRightColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightColor", e.target.value)}
+                                />
+                              </div>
+                              {/* Abajo */}
+                              <div className="expanded-input-item">
+                                <label>Inf (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="inspector-input"
+                                  style={{ width: "44px", flexShrink: 0 }}
+                                  value={selectedCapa.borderBottomWidth !== undefined ? selectedCapa.borderBottomWidth : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomWidth", Number(e.target.value))}
+                                />
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
+                                  value={selectedCapa.borderBottomColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomColor", e.target.value)}
+                                />
+                                <input
+                                  type="text"
+                                  className="color-hex-input"
+                                  style={{ flex: 1, minWidth: "46px" }}
+                                  value={selectedCapa.borderBottomColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomColor", e.target.value)}
+                                />
+                              </div>
+                              {/* Izquierda */}
+                              <div className="expanded-input-item">
+                                <label>Izq (mm)</label>
+                                <input
+                                  type="number"
+                                  step="0.1"
+                                  min="0"
+                                  className="inspector-input"
+                                  style={{ width: "44px", flexShrink: 0 }}
+                                  value={selectedCapa.borderLeftWidth !== undefined ? selectedCapa.borderLeftWidth : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftWidth", Number(e.target.value))}
+                                />
+                                <input
+                                  type="color"
+                                  className="color-picker-input"
+                                  style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
+                                  value={selectedCapa.borderLeftColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftColor", e.target.value)}
+                                />
+                                <input
+                                  type="text"
+                                  className="color-hex-input"
+                                  style={{ flex: 1, minWidth: "46px" }}
+                                  value={selectedCapa.borderLeftColor || "#000000"}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftColor", e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Fila 2: Redondear Esquinas en 1 sola línea cuando está colapsado */}
+                          <div className="inspector-field-row inspector-section">
+                            <div
+                              className="inspector-cell"
+                              onClick={() => setExpandRadii(!expandRadii)}
+                              style={{ cursor: "pointer", flex: expandRadii ? 1 : 1.1 }}
+                            >
+                              <div className="inspector-field-label" title="Redondear Esquinas">
+                                <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Redondear Esquinas</h4>
+                                {renderExposedEye("borderTopLeftRadius", "Radio Esquina", true)}
+                                <span className={`expand-toggle-icon ${expandRadii ? "expanded" : ""}`} style={{ marginLeft: "2px" }}>▶</span>
+                              </div>
+                            </div>
+
+                            {!expandRadii && (
+                              <div className="inspector-cell" style={{ flex: 0.9 }}>
+                                <div className="inspector-field-label" title="Radio General (mm)">
+                                  <label className="inspector-label">Radio (mm)</label>
+                                </div>
+                                <div className="inspector-field-control">
+                                  <input
+                                    type="number"
+                                    step="0.5"
+                                    min="0"
+                                    className="inspector-input"
+                                    value={selectedCapa.borderTopLeftRadius !== undefined ? selectedCapa.borderTopLeftRadius : 0}
+                                    onChange={(e) => handleUpdateBorderRadiusGeneral(selectedCapa.id, Number(e.target.value))}
+                                  />
+                                </div>
                               </div>
                             )}
                           </div>
-                        </div>
 
-                        {/* Rotación (º) */}
-                        <div className="inspector-section" style={{ borderTop: "1px solid var(--border-color)", paddingTop: "12px", marginTop: "12px" }}>
-                          <div style={{ display: "flex", alignItems: "center", width: "100%", marginBottom: "4px" }}>
-                            <label className="inspector-label" style={{ margin: 0 }}>Rotación (º)</label>
-                            {renderExposedEye("rotacion", "Rotación (º)")}
-                          </div>
-                          <div style={{ display: "flex", gap: "8px", alignItems: "center", marginTop: "8px" }}>
-                            <input
-                              type="number"
-                              min="-180"
-                              max="180"
-                              step="1"
-                              className="inspector-input"
-                              style={{ width: "80px" }}
-                              value={selectedCapa.rotacion !== undefined ? selectedCapa.rotacion : 0}
-                              onChange={(e) => {
-                                let val = Number(e.target.value);
-                                if (isNaN(val)) val = 0;
-                                if (val < -180) val = -180;
-                                if (val > 180) val = 180;
-                                handleUpdateCapaProp(selectedCapa.id, "rotacion", val);
-                              }}
-                            />
-                            <input
-                              type="range"
-                              min="-180"
-                              max="180"
-                              step="1"
-                              style={{ flex: 1, cursor: "pointer" }}
-                              value={selectedCapa.rotacion !== undefined ? selectedCapa.rotacion : 0}
-                              onChange={(e) => {
-                                handleUpdateCapaProp(selectedCapa.id, "rotacion", Number(e.target.value));
-                              }}
-                            />
+                          {expandRadii && (
+                            <div className="expanded-inputs-grid">
+                              <div className="expanded-input-item">
+                                <label>Sup.Izq</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderTopLeftRadius !== undefined ? selectedCapa.borderTopLeftRadius : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopLeftRadius", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Sup.Der</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderTopRightRadius !== undefined ? selectedCapa.borderTopRightRadius : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopRightRadius", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Inf.Der</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderBottomRightRadius !== undefined ? selectedCapa.borderBottomRightRadius : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomRightRadius", Number(e.target.value))}
+                                />
+                              </div>
+                              <div className="expanded-input-item">
+                                <label>Inf.Izq</label>
+                                <input
+                                  type="number"
+                                  step="0.5"
+                                  min="0"
+                                  className="inspector-input"
+                                  value={selectedCapa.borderBottomLeftRadius !== undefined ? selectedCapa.borderBottomLeftRadius : 0}
+                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomLeftRadius", Number(e.target.value))}
+                                />
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Fila 3: Color de Fondo + Rotación (º) en la misma fila */}
+                          <div className="inspector-field-row inspector-section">
+                            <div className="inspector-cell" style={{ flex: 1.05 }}>
+                              <div className="inspector-field-label" title="Color de Fondo de la Capa">
+                                <label className="inspector-label">Fondo</label>
+                                {renderExposedEye("backgroundColor", "Color Fondo", true)}
+                              </div>
+                              <div className="inspector-field-control" style={{ gap: "4px" }}>
+                                <input
+                                  type="checkbox"
+                                  id="has-bg-color-checkbox"
+                                  checked={!!selectedCapa.backgroundColor}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      handleUpdateCapaProp(selectedCapa.id, "backgroundColor", "#ffffff");
+                                    } else {
+                                      handleUpdateCapaProp(selectedCapa.id, "backgroundColor", "");
+                                    }
+                                  }}
+                                  style={{ width: "auto", margin: 0, cursor: "pointer" }}
+                                />
+                                {!selectedCapa.backgroundColor ? (
+                                  <label htmlFor="has-bg-color-checkbox" style={{ fontSize: "10.5px", cursor: "pointer", userSelect: "none", whiteSpace: "nowrap", color: "var(--text-secondary)" }}>Activar</label>
+                                ) : (
+                                  <div className="color-picker-group" style={{ flex: 1, minWidth: 0 }}>
+                                    <input
+                                      type="color"
+                                      className="color-picker-input"
+                                      style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
+                                      value={selectedCapa.backgroundColor.startsWith("#") ? selectedCapa.backgroundColor : "#ffffff"}
+                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "backgroundColor", e.target.value)}
+                                    />
+                                    <input
+                                      type="text"
+                                      className="color-hex-input"
+                                      style={{ flex: 1, minWidth: "46px" }}
+                                      value={selectedCapa.backgroundColor}
+                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "backgroundColor", e.target.value)}
+                                    />
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="inspector-cell" style={{ flex: 1.15 }}>
+                              <div className="inspector-field-label" title="Rotación (º)">
+                                <label className="inspector-label">Rotación (º)</label>
+                                {renderExposedEye("rotacion", "Rotación (º)", true)}
+                              </div>
+                              <div className="inspector-field-control" style={{ gap: "3px" }}>
+                                <input
+                                  type="number"
+                                  min="-180"
+                                  max="180"
+                                  step="1"
+                                  className="inspector-input"
+                                  style={{ width: "44px", flexShrink: 0, padding: "1px 3px" }}
+                                  value={selectedCapa.rotacion !== undefined ? selectedCapa.rotacion : 0}
+                                  onChange={(e) => {
+                                    let val = Number(e.target.value);
+                                    if (isNaN(val)) val = 0;
+                                    if (val < -180) val = -180;
+                                    if (val > 180) val = 180;
+                                    handleUpdateCapaProp(selectedCapa.id, "rotacion", val);
+                                  }}
+                                />
+                                <input
+                                  type="range"
+                                  min="-180"
+                                  max="180"
+                                  step="1"
+                                  style={{ flex: 1, cursor: "pointer", height: "14px", minWidth: "40px" }}
+                                  value={selectedCapa.rotacion !== undefined ? selectedCapa.rotacion : 0}
+                                  onChange={(e) => {
+                                    handleUpdateCapaProp(selectedCapa.id, "rotacion", Number(e.target.value));
+                                  }}
+                                />
+                              </div>
+                            </div>
                           </div>
                         </div>
-
                       </div>
                     )}
                   </div>
