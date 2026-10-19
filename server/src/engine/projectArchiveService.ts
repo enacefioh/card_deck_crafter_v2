@@ -149,13 +149,33 @@ export class ProjectArchiveService {
           if (capa.tipo === "image" || capa.tipo === "image-switch") tipo = "image";
           else if (capa.tipo === "text" && (capa.multiline || ep.property === "contenidoRaw")) {
             tipo = capa.multiline ? "multiline" : "string";
+          } else if (
+            typeof (capa as any)[ep.property] === "number" ||
+            ep.property === "fontSizePt" ||
+            ep.property === "rotacion" ||
+            ep.property.endsWith("Width") ||
+            ep.property.endsWith("Radius") ||
+            ep.property.endsWith("Mm")
+          ) {
+            tipo = "number";
+          } else if (typeof (capa as any)[ep.property] === "boolean") {
+            tipo = "boolean";
           }
         }
+        const label = ep.label || capa?.nombre || ep.layerId;
+        const layerName = capa?.nombre || ep.layerId;
+        const directrizEfectiva = (typeof ep.description === "string" && ep.description.trim())
+          ? ep.description.trim()
+          : (typeof capa?.descripcion === "string" && capa.descripcion.trim() ? capa.descripcion.trim() : "");
+        const descripcion = directrizEfectiva
+          ? `${label} de ${layerName} (${directrizEfectiva})`
+          : `${label} de ${layerName}`;
+
         addExposed({
           clave: ep.label || ep.layerId,
-          nombre: ep.label || capa?.nombre || ep.layerId,
+          nombre: label,
           tipo,
-          descripcion: `Campo expuesto para capa "${capa?.nombre || ep.layerId}" (propiedad: ${ep.property})`,
+          descripcion,
           valorDefecto: capa ? (capa as any)[ep.property] : undefined
         });
       }
@@ -188,6 +208,7 @@ export class ProjectArchiveService {
     if (exposedFields.length === 0 && Array.isArray(tmpl.capas)) {
       for (const capa of tmpl.capas) {
         if (!capa) continue;
+        const capaDesc = typeof capa.descripcion === "string" && capa.descripcion.trim() ? capa.descripcion.trim() : "";
         if (capa.tipo === "text") {
           const clave = capa.id;
           const nombre = capa.nombre || capa.id;
@@ -196,7 +217,7 @@ export class ProjectArchiveService {
             clave,
             nombre,
             tipo: capa.multiline ? "multiline" : "string",
-            descripcion: `Capa de texto "${nombre}"`,
+            descripcion: capaDesc ? `${nombre} de ${nombre} (${capaDesc})` : `Capa de texto "${nombre}"`,
             valorDefecto: contenido
           });
 
@@ -209,16 +230,17 @@ export class ProjectArchiveService {
                 clave: varName,
                 nombre: varName,
                 tipo: "string",
-                descripcion: `Variable dinámica en texto`
+                descripcion: capaDesc ? `${varName} de ${nombre} (${capaDesc})` : `Variable dinámica en texto`
               });
             }
           }
         } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
+          const nombre = capa.nombre || capa.id;
           addExposed({
             clave: capa.id,
-            nombre: capa.nombre || capa.id,
+            nombre,
             tipo: "image",
-            descripcion: `Ilustración o imagen en capa "${capa.nombre || capa.id}"`
+            descripcion: capaDesc ? `${nombre} de ${nombre} (${capaDesc})` : `Ilustración o imagen en capa "${nombre}"`
           });
         }
       }
@@ -233,6 +255,7 @@ export class ProjectArchiveService {
           id: capa.id,
           nombre: capa.nombre || capa.id,
           tipo: capa.tipo || "unknown",
+          descripcion: capa.descripcion || undefined,
           parentCapaId: capa.parentCapaId || null,
           contenidoRaw: capa.contenidoRaw || undefined,
           src: capa.src || undefined,

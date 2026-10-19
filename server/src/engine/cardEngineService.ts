@@ -125,11 +125,32 @@ export async function getPublicTemplateSchema(
           tipo = "image";
         } else if (targetLayer?.tipo === "image-switch") {
           tipo = "select";
+        } else if (
+          typeof targetLayer?.[exp.property] === "number" ||
+          exp.property === "fontSizePt" ||
+          exp.property === "rotacion" ||
+          exp.property?.endsWith("Width") ||
+          exp.property?.endsWith("Radius") ||
+          exp.property?.endsWith("Mm")
+        ) {
+          tipo = "number";
+        } else if (typeof targetLayer?.[exp.property] === "boolean") {
+          tipo = "boolean";
         }
+        const label = exp.label || targetLayer?.nombre || clave;
+        const layerName = targetLayer?.nombre || exp.layerId;
+        const directrizEfectiva = (typeof exp.description === "string" && exp.description.trim())
+          ? exp.description.trim()
+          : (typeof targetLayer?.descripcion === "string" && targetLayer.descripcion.trim() ? targetLayer.descripcion.trim() : "");
+        const descripcion = directrizEfectiva
+          ? `${label} de ${layerName} (${directrizEfectiva})`
+          : `${label} de ${layerName}`;
+
         addCampo({
           clave,
-          nombre: exp.label || targetLayer?.nombre || clave,
+          nombre: label,
           tipo,
+          descripcion,
           valorDefecto: targetLayer ? (targetLayer[exp.property] || targetLayer.contenidoRaw) : undefined
         });
       }
@@ -139,6 +160,7 @@ export async function getPublicTemplateSchema(
     if (Array.isArray(tmpl.capas)) {
       for (const layer of tmpl.capas) {
         if (!layer) continue;
+        const layerDesc = typeof layer.descripcion === "string" && layer.descripcion.trim() ? layer.descripcion.trim() : "";
         if (layer.tipo === "image" || layer.tipo === "image-switch") {
           const isSwitch = layer.tipo === "image-switch";
           const layerKey = layer.nombre || layer.id;
@@ -146,7 +168,9 @@ export async function getPublicTemplateSchema(
             clave: layerKey,
             nombre: layer.nombre || layer.id,
             tipo: isSwitch ? "select" : "image",
-            descripcion: isSwitch ? `Selector de imagen (${layer.nombre || layer.id})` : `Imagen (${layer.nombre || layer.id})`,
+            descripcion: layerDesc
+              ? `${layerKey} de ${layerKey} (${layerDesc})`
+              : (isSwitch ? `Selector de imagen (${layer.nombre || layer.id})` : `Imagen (${layer.nombre || layer.id})`),
             opciones: isSwitch && Array.isArray(layer.opcionesSwitch) ? layer.opcionesSwitch : undefined,
             valorDefecto: layer.src || undefined
           });
@@ -161,7 +185,7 @@ export async function getPublicTemplateSchema(
                   clave: tag,
                   nombre: tag,
                   tipo: "string",
-                  descripcion: `Etiqueta dinámica en capa ${layer.nombre || layer.id}`
+                  descripcion: layerDesc ? `${tag} de ${layer.nombre || layer.id} (${layerDesc})` : `Etiqueta dinámica en capa ${layer.nombre || layer.id}`
                 });
               }
             }
@@ -170,6 +194,7 @@ export async function getPublicTemplateSchema(
               clave: layer.nombre,
               nombre: layer.nombre,
               tipo: "string",
+              descripcion: layerDesc ? `${layer.nombre} de ${layer.nombre} (${layerDesc})` : undefined,
               valorDefecto: layer.contenidoRaw || undefined
             });
           }
@@ -185,6 +210,7 @@ export async function getPublicTemplateSchema(
           id: capa.id,
           nombre: capa.nombre || capa.id,
           tipo: capa.tipo || "unknown",
+          descripcion: capa.descripcion || undefined,
           parentCapaId: capa.parentCapaId || null,
           contenidoRaw: capa.contenidoRaw || undefined,
           src: capa.src || undefined,

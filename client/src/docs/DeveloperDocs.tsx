@@ -267,7 +267,7 @@ console.log("Anverso OK:", prevFront.ok, "Reverso OK:", prevBack.ok);
           "clave": "campo_2613",
           "nombre": "Contador",
           "tipo": "string",
-          "descripcion": "Campo editable recomendado para el texto principal",
+          "descripcion": "Contador de Contador_Tiempo (Texto principal del contador, siempre en mayúsculas)",
           "valorDefecto": "**CONTADOR DE TIEMPO**\\n\\nOOOOOOOOOO"
         }
       ],
@@ -276,12 +276,14 @@ console.log("Anverso OK:", prevFront.ok, "Reverso OK:", prevBack.ok);
           "id": "layer_bg",
           "nombre": "Fondo Tecnológico",
           "tipo": "image",
+          "descripcion": "Marco metálico de fondo de ciencia ficción",
           "src": "asset://bg_quantum.png"
         },
         {
           "id": "campo_2613",
-          "nombre": "Contador",
+          "nombre": "Contador_Tiempo",
           "tipo": "text",
+          "descripcion": "Texto principal del contador, siempre en mayúsculas",
           "contenidoRaw": "**CONTADOR DE TIEMPO**\\n\\nOOOOOOOOOO"
         }
       ]

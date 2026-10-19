@@ -4791,10 +4791,14 @@ function AppContent() {
               }
 
               if (coincidenTodas) {
+                const directrizEfectiva = (typeof prop.description === "string" && prop.description.trim())
+                  ? prop.description.trim()
+                  : (typeof capaBase.descripcion === "string" && capaBase.descripcion.trim() ? capaBase.descripcion.trim() : "");
                 camposCoincidentes.push({
                   ruta: rutaBase,
                   property: prop.property,
                   label: prop.label,
+                  description: directrizEfectiva,
                   tipoCapa: capaBase.tipo,
                   multiline: capaBase.multiline,
                   options: capaBase.options,
@@ -5144,6 +5148,7 @@ function AppContent() {
                  displayLabel = labelParts[labelParts.length - 1] || campo.property;
               }
               const labelTruncated = displayLabel.length > 18 ? displayLabel.substring(0, 18) + "..." : displayLabel;
+              const tooltipText = campo.description ? `${displayLabel}: ${campo.description}` : displayLabel;
               const isRowHighlighted = !rightSidebarCollapsed && (hoveredCapaId === currentCapaId || focusedCapaId === currentCapaId);
               const handleFieldFocus = () => { if (!rightSidebarCollapsed) setFocusedCapaId(currentCapaId); };
               const handleFieldBlur = () => { if (!rightSidebarCollapsed) setFocusedCapaId(null); };
@@ -5160,8 +5165,11 @@ function AppContent() {
                     onFocus={handleFieldFocus}
                     onBlur={handleFieldBlur}
                   >
-                    <label className="inspector-label-col" title={displayLabel} style={{ fontWeight: "600", fontSize: "11px" }}>
-                      {labelTruncated}
+                    <label className="inspector-label-col" title={tooltipText} style={{ fontWeight: "600", fontSize: "11px", display: "flex", alignItems: "center", gap: "3px" }}>
+                      <span>{labelTruncated}</span>
+                      {campo.description && (
+                        <span className="inspector-info-icon" title={campo.description} style={{ fontSize: "10px", opacity: 0.75, cursor: "help" }}>ℹ️</span>
+                      )}
                     </label>
                     <div className="inspector-value-col" style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                       <div style={{ display: "flex", justifyContent: "flex-end" }}>
@@ -5240,8 +5248,11 @@ function AppContent() {
                   onFocus={handleFieldFocus}
                   onBlur={handleFieldBlur}
                 >
-                  <label className="inspector-label-col" title={displayLabel}>
-                    {labelTruncated}
+                  <label className="inspector-label-col" title={tooltipText} style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+                    <span>{labelTruncated}</span>
+                    {campo.description && (
+                      <span className="inspector-info-icon" title={campo.description} style={{ fontSize: "10px", opacity: 0.75, cursor: "help" }}>ℹ️</span>
+                    )}
                   </label>
                   <div className="inspector-value-col">
                     {campo.tipoCapa === "text" && campo.property === "contenidoRaw" && (

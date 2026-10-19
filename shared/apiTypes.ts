@@ -13,6 +13,7 @@ export interface TemplateLayerSummary {
   id: string;
   nombre: string;
   tipo: string;
+  descripcion?: string;
   parentCapaId?: string | null;
   contenidoRaw?: string;
   src?: string;

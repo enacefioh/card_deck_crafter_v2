@@ -27,6 +27,16 @@ export interface ExposedProperty {
   layerId: string;
   property: string;
   label: string;
+  description?: string; // Directrices semánticas o aclaraciones específicas para esta propiedad (SRS-082)
+}
+
+export interface CapaBase {
+  id: string;
+  nombre: string;
+  tipo: string;
+  visible?: boolean;
+  descripcion?: string; // Directrices semánticas e indicaciones del elemento (SRS-082)
+  [key: string]: any;
 }
 
 export interface Carta {

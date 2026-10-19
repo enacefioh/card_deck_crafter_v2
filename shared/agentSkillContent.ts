@@ -65,8 +65,8 @@ GET https://cdc2.enacefio.com/api/v1/templates/:templateId/schema
 GET https://cdc2.enacefio.com/api/v1/projects/:projectId
 \`\`\`
 Devuelve un objeto de diseño con dos apartados fundamentales:
-- **\`exposedFields\`**: Array de campos que el diseñador de la plantilla marcó para ser editados (clave, nombre, tipo \`string\`|\`multiline\`|\`image\`|\`number\`|\`select\`). **El agente debe priorizar estos campos.**
-- **\`fullStructure\`**: Jerarquía técnica de todas las capas (\`id\`, \`nombre\`, \`tipo\`, dimensiones, texto base) para modificaciones avanzadas.
+- **\`exposedFields\`**: Array de campos que el diseñador de la plantilla marcó para ser editados (\`clave\`, \`nombre\`, \`tipo\`, \`descripcion\`). **El agente debe priorizar estos campos y leer atentamente \`descripcion\`**, ya que contiene las directrices semánticas y estilísticas del creador (ej. \`"Tamaño Fuente (PT) de Nombre_Monstruo (Nombre del monstruo, siempre debe ir en mayúsculas)"\`).
+- **\`fullStructure\`**: Jerarquía técnica de todas las capas (\`id\`, \`nombre\`, \`tipo\`, \`descripcion\`, dimensiones, texto base) para modificaciones avanzadas.
 
 ### 3.2. Crear Proyecto en la Nube
 \`\`\`http

@@ -1914,35 +1914,201 @@ export default function EditCardModal({
     }
   };
 
+  const [editingExposedDescProp, setEditingExposedDescProp] = useState<{ layerId: string; property: string; label: string } | null>(null);
+  const [draftExposedDesc, setDraftExposedDesc] = useState<string>("");
+
+  const updateExposedPropertyDescription = (layerId: string, property: string, description: string) => {
+    if (!plantillaActiva) return;
+    const currentExposed = plantillaActiva.exposedProperties || [];
+    const nextExposed = currentExposed.map((p: any) =>
+      p.layerId === layerId && p.property === property
+        ? { ...p, description: description.trim() || undefined }
+        : p
+    );
+    const updater = (prev: any) => ({
+      ...prev,
+      exposedProperties: nextExposed
+    });
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+  };
+
   const renderExposedEye = (property: string, propertyLabel: string, isCompact: boolean = false) => {
     if (!selectedCapa) return null;
     const currentExposed = plantillaActiva.exposedProperties || [];
-    const isExposed = currentExposed.some((p: any) => p.layerId === selectedCapa.id && p.property === property);
-    
+    const exposedItem = currentExposed.find((p: any) => p.layerId === selectedCapa.id && p.property === property);
+    const isExposed = !!exposedItem;
+    const hasCustomDesc = !!(exposedItem?.description && exposedItem.description.trim());
+    const isPopoverOpen = editingExposedDescProp?.layerId === selectedCapa.id && editingExposedDescProp?.property === property;
+
     return (
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          togglePropertyExposed(selectedCapa.id, property, propertyLabel);
-        }}
-        title={isExposed ? `Ocultar ${propertyLabel}` : `Exponer ${propertyLabel}`}
+      <div
         style={{
-          background: "none",
-          border: "none",
-          cursor: "pointer",
-          fontSize: isCompact ? "11px" : "14px",
           marginLeft: isCompact ? "2px" : "auto",
-          padding: isCompact ? "0 2px" : "2px 6px",
-          opacity: isExposed ? 1 : 0.3,
-          color: isExposed ? "var(--accent-primary)" : "inherit",
-          transition: "opacity 0.2s ease, color 0.2s ease",
-          display: "flex",
-          alignItems: "center"
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "2px",
+          position: "relative"
         }}
+        onClick={(e) => e.stopPropagation()}
       >
-        👁️
-      </button>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            if (isExposed && isPopoverOpen) {
+              setEditingExposedDescProp(null);
+            }
+            togglePropertyExposed(selectedCapa.id, property, propertyLabel);
+          }}
+          title={isExposed ? `Ocultar ${propertyLabel}` : `Exponer ${propertyLabel}`}
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            fontSize: isCompact ? "11px" : "14px",
+            padding: isCompact ? "0 2px" : "2px 4px",
+            opacity: isExposed ? 1 : 0.3,
+            color: isExposed ? "var(--accent-primary)" : "inherit",
+            transition: "opacity 0.2s ease, color 0.2s ease",
+            display: "flex",
+            alignItems: "center"
+          }}
+        >
+          👁️
+        </button>
+        {isExposed && (
+          <button
+            type="button"
+            className="exposed-desc-trigger-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (isPopoverOpen) {
+                setEditingExposedDescProp(null);
+              } else {
+                setDraftExposedDesc(exposedItem?.description || "");
+                setEditingExposedDescProp({ layerId: selectedCapa.id, property, label: propertyLabel });
+              }
+            }}
+            title={
+              hasCustomDesc
+                ? `Aclaración específica: ${exposedItem.description}`
+                : `Añadir aclaración específica para ${propertyLabel}`
+            }
+            style={{
+              background: "none",
+              border: "none",
+              cursor: "pointer",
+              fontSize: isCompact ? "10px" : "12px",
+              padding: isCompact ? "0 2px" : "2px 4px",
+              opacity: hasCustomDesc || isPopoverOpen ? 1 : 0.45,
+              color: hasCustomDesc ? "var(--accent-primary)" : "inherit",
+              display: "flex",
+              alignItems: "center"
+            }}
+          >
+            📝
+          </button>
+        )}
+        {isExposed && isPopoverOpen && (
+          <div
+            className="exposed-desc-popover"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              position: "absolute",
+              right: 0,
+              top: "100%",
+              marginTop: "4px",
+              zIndex: 500,
+              width: "240px",
+              backgroundColor: "var(--bg-card)",
+              border: "1px solid var(--border-color)",
+              borderRadius: "6px",
+              padding: "10px",
+              boxShadow: "0 6px 18px rgba(0,0,0,0.28)",
+              display: "flex",
+              flexDirection: "column",
+              gap: "6px",
+              textAlign: "left"
+            }}
+          >
+            <div style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-primary)" }}>
+              Aclaración para {propertyLabel}
+            </div>
+            {selectedCapa.descripcion && (
+              <div style={{ fontSize: "10px", color: "var(--text-secondary)", fontStyle: "italic", lineHeight: 1.3 }}>
+                Base del elemento: &ldquo;{selectedCapa.descripcion}&rdquo;
+              </div>
+            )}
+            <textarea
+              className="exposed-desc-popover-textarea"
+              rows={3}
+              value={draftExposedDesc}
+              onChange={(e) => setDraftExposedDesc(e.target.value)}
+              placeholder={
+                selectedCapa.descripcion
+                  ? `Hereda: "${selectedCapa.descripcion}" (escribe aquí para personalizar esta propiedad)...`
+                  : "Escribe una directriz o aclaración específica para esta propiedad..."
+              }
+              style={{
+                width: "100%",
+                fontSize: "11px",
+                padding: "6px",
+                backgroundColor: "var(--bg-app)",
+                border: "1px solid var(--border-color)",
+                borderRadius: "4px",
+                color: "var(--text-primary)",
+                resize: "vertical",
+                fontFamily: "inherit",
+                boxSizing: "border-box"
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "6px" }}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditingExposedDescProp(null);
+                }}
+                style={{
+                  padding: "3px 8px",
+                  fontSize: "11px",
+                  borderRadius: "4px",
+                  border: "1px solid var(--border-color)",
+                  backgroundColor: "var(--bg-app)",
+                  color: "var(--text-secondary)",
+                  cursor: "pointer"
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  updateExposedPropertyDescription(selectedCapa.id, property, draftExposedDesc);
+                  setEditingExposedDescProp(null);
+                }}
+                style={{
+                  padding: "3px 10px",
+                  fontSize: "11px",
+                  borderRadius: "4px",
+                  border: "none",
+                  backgroundColor: "var(--accent-primary)",
+                  color: "#fff",
+                  fontWeight: 600,
+                  cursor: "pointer"
+                }}
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     );
   };
 
@@ -2805,6 +2971,30 @@ export default function EditCardModal({
                         width: "100%",
                         padding: "2px 4px",
                         outline: "none"
+                      }}
+                    />
+                  </div>
+                  {/* SRS-082: Descripción semántica del elemento */}
+                  <div className="inspector-layer-description" style={{ marginTop: "6px", marginBottom: "4px" }}>
+                    <textarea
+                      className="inspector-description-textarea"
+                      rows={2}
+                      value={selectedCapa.descripcion || ""}
+                      placeholder="Directrices e indicaciones de este elemento para IA y maquetadores..."
+                      title="Descripción semántica del elemento (se enviará en la API para guiar a agentes de IA y maquetadores)"
+                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "descripcion", e.target.value || undefined)}
+                      style={{
+                        width: "100%",
+                        fontSize: "11.5px",
+                        padding: "5px 8px",
+                        backgroundColor: "var(--bg-app)",
+                        border: "1px solid var(--border-color)",
+                        borderRadius: "4px",
+                        color: "var(--text-primary)",
+                        resize: "vertical",
+                        fontFamily: "inherit",
+                        boxSizing: "border-box",
+                        lineHeight: 1.35
                       }}
                     />
                   </div>
@@ -4946,6 +5136,40 @@ export default function EditCardModal({
                               onChange={(e) => {
                                 const newLabel = e.target.value;
                                 setTempExposedProperties(prev => prev.map((item, i) => i === idx ? { ...item, label: newLabel } : item));
+                              }}
+                            />
+                          </div>
+                          <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
+                            <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
+                              Aclaración específica (opcional{capa?.descripcion ? ` — hereda: "${capa.descripcion}"` : ""}):
+                            </span>
+                            <textarea
+                              rows={2}
+                              value={prop.description || ""}
+                              placeholder={
+                                capa?.descripcion
+                                  ? `Hereda de capa: "${capa.descripcion}"`
+                                  : "Aclaración o directriz específica para IA..."
+                              }
+                              style={{
+                                width: "100%",
+                                padding: "4px 8px",
+                                fontSize: "11.5px",
+                                backgroundColor: "var(--bg-card)",
+                                border: "1px solid var(--border-color)",
+                                borderRadius: "4px",
+                                color: "var(--text-primary)",
+                                resize: "vertical",
+                                fontFamily: "inherit",
+                                boxSizing: "border-box"
+                              }}
+                              onChange={(e) => {
+                                const newDesc = e.target.value;
+                                setTempExposedProperties(prev =>
+                                  prev.map((item, i) =>
+                                    i === idx ? { ...item, description: newDesc.trim() ? newDesc : undefined } : item
+                                  )
+                                );
                               }}
                             />
                           </div>
