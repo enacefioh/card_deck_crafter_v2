@@ -51,12 +51,12 @@ const mockCarta = {
 };
 
 describe("SRS-083: Densidad Visual e Inspector Compacto en Modal de Edición de Carta", () => {
-  it("RF-1 y RF-2: define la columna derecha del inspector con ancho de 432px (+20%) y estilos compactos en EditCardModal.css", () => {
+  it("RF-1 y RF-2: define la columna derecha del inspector con ancho ampliado (480px) y estilos compactos en EditCardModal.css", () => {
     const cssPath = path.resolve(__dirname, "EditCardModal.css");
     const cssContent = fs.readFileSync(cssPath, "utf-8");
 
-    expect(cssContent).toContain("--edit-inspector-width: 432px;");
-    expect(cssContent).toContain("grid-template-columns: 300px 1fr var(--edit-inspector-width, 432px);");
+    expect(cssContent).toContain("--edit-inspector-width: 480px;");
+    expect(cssContent).toContain("grid-template-columns: 300px 1fr var(--edit-inspector-width, 480px);");
     expect(cssContent).toContain(".inspector-table");
     expect(cssContent).toContain(".inspector-cell");
     expect(cssContent).toContain(".inspector-field-row");

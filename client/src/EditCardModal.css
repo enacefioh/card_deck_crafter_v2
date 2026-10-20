@@ -87,9 +87,9 @@
   gap: 12px;
 }
 
-/* Cuerpo y Layout en 3 Columnas (SRS-083: Inspector 432px +20%) */
+/* Cuerpo y Layout en 3 Columnas (SRS-083 + TKT-057: Inspector 480px) */
 :root {
-  --edit-inspector-width: 432px;
+  --edit-inspector-width: 480px;
   --edit-inspector-col-padding: 6px 8px;
   --edit-inspector-group-gap: 4px;
   --edit-inspector-field-gap: 2px;
@@ -101,7 +101,7 @@
 .edit-modal-body {
   flex: 1;
   display: grid;
-  grid-template-columns: 300px 1fr var(--edit-inspector-width, 432px);
+  grid-template-columns: 300px 1fr var(--edit-inspector-width, 480px);
   overflow: hidden;
   background-color: var(--bg-app);
 }
@@ -440,8 +440,9 @@ select.inspector-input option {
   height: var(--edit-inspector-input-height, 22px);
   font-family: var(--font-mono, monospace);
   font-size: var(--edit-inspector-font-size, 11px);
-  width: 62px;
-  min-width: 54px;
+  width: 56px;
+  min-width: 50px;
+  font-size: 10.5px;
   box-sizing: border-box;
 }
 

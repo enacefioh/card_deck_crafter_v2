@@ -144,7 +144,16 @@ export default function EditCardModal({
   const [showSwitchResourcesPopup, setShowSwitchResourcesPopup] = useState<boolean>(false);
   const [tempSwitchCapaId, setTempSwitchCapaId] = useState<string | null>(null);
 
-  const renderColorSelector = (label: string, value: string, onChange: (val: string) => void, isCompact?: boolean, exposedProperty?: string, exposedPropertyLabel?: string) => {
+  const renderColorSelector = (
+    label: string,
+    value: string,
+    onChange: (val: string) => void,
+    isCompact?: boolean,
+    exposedProperty?: string,
+    exposedPropertyLabel?: string,
+    cellFlex?: string | number,
+    displayLabel?: string
+  ) => {
     const matchingCustomColor = projectColors.find((c) => c.valor.toLowerCase() === (value || "").toLowerCase());
     const innerContent = (
       <div className="color-picker-group">
@@ -177,7 +186,7 @@ export default function EditCardModal({
         <input
           type="text"
           className="color-hex-input"
-          style={{ height: "20px", fontSize: "10.5px", width: "60px", flexShrink: 0 }}
+          style={{ height: "20px", fontSize: "10.5px", width: "54px", flexShrink: 0 }}
           value={value || "#ffffff"}
           onChange={(e) => {
             const val = e.target.value;
@@ -192,10 +201,10 @@ export default function EditCardModal({
 
     if (isCompact) {
       return (
-        <div className="inspector-cell">
+        <div className="inspector-cell" style={cellFlex ? { flex: cellFlex, minWidth: 0 } : undefined}>
           {label && (
             <div className="inspector-field-label" title={label}>
-              <label className="inspector-label">{label}</label>
+              <label className="inspector-label">{displayLabel || label}</label>
               {exposedProperty && renderExposedEye(exposedProperty, exposedPropertyLabel || label, true)}
             </div>
           )}
@@ -3016,7 +3025,7 @@ export default function EditCardModal({
                         <div className="inspector-table">
                           {/* Fila 1: Alineación Rápida + Botón Editar en Lienzo en la misma línea */}
                           <div className="inspector-field-row inspector-section">
-                            <div className="inspector-cell" style={{ flex: 1.55 }}>
+                            <div className="inspector-cell" style={{ flex: 1, minWidth: 0 }}>
                               <div className="inspector-field-label" title="Alineación Rápida">
                                 <label className="inspector-label">Alineación Rápida</label>
                               </div>
@@ -3088,15 +3097,14 @@ export default function EditCardModal({
                                 </div>
                               </div>
                             </div>
-                            <div className="inspector-cell" style={{ flex: 0.85 }}>
+                            <div className="inspector-cell" style={{ flex: "0 0 auto", marginLeft: "auto" }}>
                               <div className="inspector-field-control">
                                 <button
                                   type="button"
                                   className="btn-sec"
                                   style={{
-                                    width: "100%",
                                     height: "20px",
-                                    padding: "1px 6px",
+                                    padding: "1px 8px",
                                     fontSize: "10.5px",
                                     fontWeight: 600,
                                     borderRadius: "3px",
@@ -3531,7 +3539,7 @@ export default function EditCardModal({
 
                           {/* Fila 1 Tabla Tipografía: Tipografía + Tamaño Fuente (pt) */}
                           <div className="inspector-field-row inspector-section">
-                            <div className="inspector-cell" style={{ flex: 1.25 }}>
+                            <div className="inspector-cell" style={{ flex: 1.1, minWidth: 0 }}>
                               <div className="inspector-field-label" title="Tipografía">
                                 <label className="inspector-label">Tipografía</label>
                                 {renderExposedEye("fontFamily", "Tipografía", true)}
@@ -3568,7 +3576,7 @@ export default function EditCardModal({
                               </div>
                             </div>
 
-                            <div className="inspector-cell" style={{ flex: 0.75 }}>
+                            <div className="inspector-cell" style={{ flex: 0.9, minWidth: "125px" }}>
                               <div className="inspector-field-label" title="Tamaño Fuente (pt)">
                                 <label className="inspector-label">Tamaño (pt)</label>
                                 {renderExposedEye("fontSizePt", "Tamaño Fuente", true)}
@@ -3579,6 +3587,7 @@ export default function EditCardModal({
                                   step="1"
                                   min="4"
                                   className="inspector-input"
+                                  style={{ minWidth: "48px", width: "100%", padding: "1px 4px" }}
                                   value={tempCapasOverridesActivos[selectedCapa.id]?.fontSizePt || selectedCapa.fontSizePt || 12}
                                   onChange={(e) => {
                                     const val = Number(e.target.value);
@@ -3723,10 +3732,12 @@ export default function EditCardModal({
                               },
                               true,
                               "color",
-                              "Color Texto"
+                              "Color Texto",
+                              1.1,
+                              "Color"
                             )}
 
-                            <div className="inspector-cell" style={{ flex: 1.2 }}>
+                            <div className="inspector-cell" style={{ flex: 0.9, minWidth: 0 }}>
                               <div className="inspector-field-label" title="Contorno de Texto (Outline)">
                                 <label className="inspector-label">Contorno</label>
                                 {renderExposedEye("textOutlineWidth", "Grosor Contorno", true)}
@@ -3738,7 +3749,7 @@ export default function EditCardModal({
                                   step="0.5"
                                   title="Grosor (px)"
                                   className="inspector-input"
-                                  style={{ width: "38px", flexShrink: 0, padding: "1px 3px" }}
+                                  style={{ width: "34px", flexShrink: 0, padding: "1px 2px" }}
                                   value={tempCapasOverridesActivos[selectedCapa.id]?.textOutlineWidth ?? selectedCapa.textOutlineWidth ?? 0}
                                   onChange={(e) => {
                                     const val = Math.max(0, parseFloat(e.target.value) || 0);
@@ -4351,30 +4362,43 @@ export default function EditCardModal({
                                     ))}
                                   </select>
                                   {selectedChildForTemplate && (
-                                    <div style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+                                    <div style={{ display: "flex", gap: "6px", alignItems: "center", width: "100%", boxSizing: "border-box" }}>
                                       <input
                                         type="text"
                                         className="inspector-input"
-                                        placeholder="Nombre legible (ej. Ataque Melé)"
+                                        placeholder="Nombre (ej. Ataque)"
                                         value={newTemplateName}
                                         onChange={(e) => setNewTemplateName(e.target.value)}
-                                        style={{ flex: 1.5 }}
+                                        style={{ flex: 1.2, minWidth: 0, height: "24px" }}
                                       />
                                       <input
                                         type="text"
                                         className="inspector-input"
-                                        placeholder="Tag (ej. mele)"
+                                        placeholder="Tag (ej. ataque)"
                                         value={newTemplateTag}
                                         onChange={(e) => setNewTemplateTag(e.target.value)}
-                                        style={{ flex: 1 }}
+                                        style={{ flex: 0.8, minWidth: 0, height: "24px" }}
                                       />
                                       <button
                                         type="button"
                                         className="btn-primary"
-                                        style={{ padding: "2px 6px", fontSize: "10.5px", whiteSpace: "nowrap" }}
+                                        style={{
+                                          width: "auto",
+                                          flex: "0 0 auto",
+                                          padding: "0 14px",
+                                          fontSize: "11px",
+                                          height: "24px",
+                                          whiteSpace: "nowrap",
+                                          borderRadius: "4px",
+                                          margin: 0,
+                                          display: "inline-flex",
+                                          alignItems: "center",
+                                          justifyContent: "center",
+                                          cursor: "pointer"
+                                        }}
                                         onClick={() => handleSaveChildAsTemplate(selectedCapa.id)}
                                       >
-                                        ➕ Registrar Subplantilla
+                                        Registrar
                                       </button>
                                     </div>
                                   )}
