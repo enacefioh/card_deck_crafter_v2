@@ -92,7 +92,7 @@ export default function DetailModal({
                   height: `${cardConfig.altoMm * 2.5}px`,
                   border: `${cardConfig.bordeCorteMm > 0 ? cardConfig.bordeCorteMm * 2.5 : 1}px solid ${cardConfig.bordeCorteColor || "#000"}`,
                   overflow: "hidden",
-                  backgroundColor: "#ffffff",
+                  backgroundColor: cardConfig.bordeCorteMm > 0 ? (cardConfig.bordeCorteColor || "#000000") : "#ffffff",
                 }}
               >
                 {carta.plantillaId ? (
@@ -100,18 +100,21 @@ export default function DetailModal({
                     const plantilla = templatesMap[carta.plantillaId];
                     const borderMm = cardConfig.bordeCorteMm;
                     const noOverlap = borderMm > 0;
-                    const scaleX = noOverlap ? (cardConfig.anchoMm - 2 * borderMm) / cardConfig.anchoMm : 1;
-                    const scaleY = noOverlap ? (cardConfig.altoMm - 2 * borderMm) / cardConfig.altoMm : 1;
+                    const overlapMm = noOverlap ? Math.min(0.25, borderMm * 0.15) : 0;
+                    const effectiveBorderMm = Math.max(0, borderMm - overlapMm);
+                    const scaleX = noOverlap ? (cardConfig.anchoMm - 2 * effectiveBorderMm) / cardConfig.anchoMm : 1;
+                    const scaleY = noOverlap ? (cardConfig.altoMm - 2 * effectiveBorderMm) / cardConfig.altoMm : 1;
                     return plantilla ? (
                       <div
                         className="card-template-render"
                         style={{
                           position: "absolute",
-                          left: noOverlap ? `${borderMm * 2.5}px` : 0,
-                          top: noOverlap ? `${borderMm * 2.5}px` : 0,
+                          left: noOverlap ? `${effectiveBorderMm * 2.5}px` : 0,
+                          top: noOverlap ? `${effectiveBorderMm * 2.5}px` : 0,
                           width: `${cardConfig.anchoMm * 2.5}px`,
                           height: `${cardConfig.altoMm * 2.5}px`,
                           overflow: "hidden",
+                          backgroundColor: noOverlap ? (cardConfig.bordeCorteColor || "#000000") : "#ffffff",
                           transform: noOverlap ? `scale(${scaleX}, ${scaleY})` : "none",
                           transformOrigin: "top left",
                         }}
@@ -382,10 +385,12 @@ export default function DetailModal({
                   (() => {
                     const borderMm = cardConfig.bordeCorteMm;
                     const noOverlap = borderMm > 0;
-                    const imgLeft = noOverlap ? borderMm : 0;
-                    const imgTop = noOverlap ? borderMm : 0;
-                    const imgWidth = noOverlap ? (cardConfig.anchoMm - 2 * borderMm) : cardConfig.anchoMm;
-                    const imgHeight = noOverlap ? (cardConfig.altoMm - 2 * borderMm) : cardConfig.altoMm;
+                    const overlapMm = noOverlap ? Math.min(0.25, borderMm * 0.15) : 0;
+                    const effectiveBorderMm = Math.max(0, borderMm - overlapMm);
+                    const imgLeft = noOverlap ? effectiveBorderMm : 0;
+                    const imgTop = noOverlap ? effectiveBorderMm : 0;
+                    const imgWidth = noOverlap ? (cardConfig.anchoMm - 2 * effectiveBorderMm) : cardConfig.anchoMm;
+                    const imgHeight = noOverlap ? (cardConfig.altoMm - 2 * effectiveBorderMm) : cardConfig.altoMm;
                     return (
                       <div
                         style={{
@@ -417,7 +422,7 @@ export default function DetailModal({
                     height: `${cardConfig.altoMm * 2.5}px`,
                     border: `${cardConfig.bordeCorteMm > 0 ? cardConfig.bordeCorteMm * 2.5 : 1}px solid ${cardConfig.bordeCorteColor || "#000"}`,
                     overflow: "hidden",
-                    backgroundColor: "#ffffff",
+                    backgroundColor: cardConfig.bordeCorteMm > 0 ? (cardConfig.bordeCorteColor || "#000000") : "#ffffff",
                   }}
                 >
                   {carta.plantillaTraseraId ? (
@@ -425,18 +430,21 @@ export default function DetailModal({
                       const plantilla = templatesMap[carta.plantillaTraseraId];
                       const borderMm = cardConfig.bordeCorteMm;
                       const noOverlap = borderMm > 0;
-                      const scaleX = noOverlap ? (cardConfig.anchoMm - 2 * borderMm) / cardConfig.anchoMm : 1;
-                      const scaleY = noOverlap ? (cardConfig.altoMm - 2 * borderMm) / cardConfig.altoMm : 1;
+                      const overlapMm = noOverlap ? Math.min(0.25, borderMm * 0.15) : 0;
+                      const effectiveBorderMm = Math.max(0, borderMm - overlapMm);
+                      const scaleX = noOverlap ? (cardConfig.anchoMm - 2 * effectiveBorderMm) / cardConfig.anchoMm : 1;
+                      const scaleY = noOverlap ? (cardConfig.altoMm - 2 * effectiveBorderMm) / cardConfig.altoMm : 1;
                       return plantilla ? (
                         <div
                           className="card-template-render"
                           style={{
                             position: "absolute",
-                            left: noOverlap ? `${borderMm * 2.5}px` : 0,
-                            top: noOverlap ? `${borderMm * 2.5}px` : 0,
+                            left: noOverlap ? `${effectiveBorderMm * 2.5}px` : 0,
+                            top: noOverlap ? `${effectiveBorderMm * 2.5}px` : 0,
                             width: `${cardConfig.anchoMm * 2.5}px`,
                             height: `${cardConfig.altoMm * 2.5}px`,
                             overflow: "hidden",
+                            backgroundColor: noOverlap ? (cardConfig.bordeCorteColor || "#000000") : "#ffffff",
                             transform: noOverlap ? `scale(${scaleX}, ${scaleY})` : "none",
                             transformOrigin: "top left",
                           }}
@@ -707,10 +715,12 @@ export default function DetailModal({
                     (() => {
                       const borderMm = cardConfig.bordeCorteMm;
                       const noOverlap = borderMm > 0;
-                      const imgLeft = noOverlap ? borderMm : 0;
-                      const imgTop = noOverlap ? borderMm : 0;
-                      const imgWidth = noOverlap ? (cardConfig.anchoMm - 2 * borderMm) : cardConfig.anchoMm;
-                      const imgHeight = noOverlap ? (cardConfig.altoMm - 2 * borderMm) : cardConfig.altoMm;
+                      const overlapMm = noOverlap ? Math.min(0.25, borderMm * 0.15) : 0;
+                      const effectiveBorderMm = Math.max(0, borderMm - overlapMm);
+                      const imgLeft = noOverlap ? effectiveBorderMm : 0;
+                      const imgTop = noOverlap ? effectiveBorderMm : 0;
+                      const imgWidth = noOverlap ? (cardConfig.anchoMm - 2 * effectiveBorderMm) : cardConfig.anchoMm;
+                      const imgHeight = noOverlap ? (cardConfig.altoMm - 2 * effectiveBorderMm) : cardConfig.altoMm;
                       return (
                         <div
                           style={{

@@ -272,7 +272,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261020.1",
+      version: "v2.261020.2",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1421,20 +1421,22 @@ function generarHtmlImpresion(
       const borderColor = slot.bordeCorteColor || "#000000";
 
       const noOverlap = borderMm > 0;
-      const scaleX = noOverlap ? (width - 2 * borderMm) / width : 1;
-      const scaleY = noOverlap ? (height - 2 * borderMm) / height : 1;
+      const overlapMm = noOverlap ? Math.min(0.25, borderMm * 0.15) : 0;
+      const effectiveBorderMm = Math.max(0, borderMm - overlapMm);
+      const scaleX = noOverlap ? (width - 2 * effectiveBorderMm) / width : 1;
+      const scaleY = noOverlap ? (height - 2 * effectiveBorderMm) / height : 1;
 
       // Para plantillas
-      const templateLeft = noOverlap ? borderMm : 0;
-      const templateTop = noOverlap ? borderMm : 0;
+      const templateLeft = noOverlap ? effectiveBorderMm : 0;
+      const templateTop = noOverlap ? effectiveBorderMm : 0;
       const templateWidth = width;
       const templateHeight = height;
 
       // Para imágenes normales
-      const imgLeft = noOverlap ? borderMm : 0;
-      const imgTop = noOverlap ? borderMm : 0;
-      const imgWidth = width - 2 * borderMm;
-      const imgHeight = height - 2 * borderMm;
+      const imgLeft = noOverlap ? effectiveBorderMm : 0;
+      const imgTop = noOverlap ? effectiveBorderMm : 0;
+      const imgWidth = width - 2 * effectiveBorderMm;
+      const imgHeight = height - 2 * effectiveBorderMm;
 
       let marksHtml = "";
       if (canvasConfig.marcasCorteEsquinas) {
@@ -1695,8 +1697,8 @@ function generarHtmlImpresion(
           const layersHtml = renderCapaRecursiva(null);
 
         return `
-          <div class="card-slot" style="left: ${x * MM_TO_PX}px; top: ${y * MM_TO_PX}px; width: ${width * MM_TO_PX}px; height: ${height * MM_TO_PX}px;">
-            <div class="card-template-render-wrapper" style="position: absolute; left: ${templateLeft * MM_TO_PX}px; top: ${templateTop * MM_TO_PX}px; width: ${templateWidth * MM_TO_PX}px; height: ${templateHeight * MM_TO_PX}px; overflow: hidden; background-color: #ffffff; ${noOverlap ? `transform: scale(${scaleX}, ${scaleY}); transform-origin: top left;` : ""}">
+          <div class="card-slot" style="left: ${x * MM_TO_PX}px; top: ${y * MM_TO_PX}px; width: ${width * MM_TO_PX}px; height: ${height * MM_TO_PX}px; background-color: ${borderMm > 0 ? borderColor : "transparent"};">
+            <div class="card-template-render-wrapper" style="position: absolute; left: ${templateLeft * MM_TO_PX}px; top: ${templateTop * MM_TO_PX}px; width: ${templateWidth * MM_TO_PX}px; height: ${templateHeight * MM_TO_PX}px; overflow: hidden; background-color: ${borderMm > 0 ? borderColor : "#ffffff"}; ${noOverlap ? `transform: scale(${scaleX}, ${scaleY}); transform-origin: top left;` : ""}">
               ${layersHtml}
             </div>
             ${borderHtml}
@@ -1713,7 +1715,7 @@ function generarHtmlImpresion(
       const imgHtml = imgPath ? `<img src="${imgPath}" style="width: 100%; height: 100%; object-fit: ${objectFit}; display: block;" />` : "";
 
       return `
-        <div class="card-slot" style="left: ${x * MM_TO_PX}px; top: ${y * MM_TO_PX}px; width: ${width * MM_TO_PX}px; height: ${height * MM_TO_PX}px;">
+        <div class="card-slot" style="left: ${x * MM_TO_PX}px; top: ${y * MM_TO_PX}px; width: ${width * MM_TO_PX}px; height: ${height * MM_TO_PX}px; background-color: ${borderMm > 0 ? borderColor : "transparent"};">
           <div class="card-image-render" style="left: ${imgLeft * MM_TO_PX}px; top: ${imgTop * MM_TO_PX}px; width: ${imgWidth * MM_TO_PX}px; height: ${imgHeight * MM_TO_PX}px; overflow: hidden;">
             ${imgHtml}
           </div>
@@ -1824,6 +1826,7 @@ function generarHtmlImpresion(
           right: 0;
           bottom: 0;
           pointer-events: none;
+          z-index: 2;
         }
         .corner-cut-mark {
           position: absolute;

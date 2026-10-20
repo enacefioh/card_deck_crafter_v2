@@ -242,6 +242,7 @@
   bottom: 0;
   pointer-events: none;
   box-sizing: border-box;
+  z-index: 2;
 }
 
 /* Líneas de Corte de lado a lado */

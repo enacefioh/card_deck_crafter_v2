@@ -3717,6 +3717,7 @@ function AppContent() {
                             top: `${slot.yMm * zoomFactor}px`,
                             width: `${slot.anchoMm * zoomFactor}px`,
                             height: `${slot.altoMm * zoomFactor}px`,
+                            backgroundColor: slot.bordeCorteMm > 0 ? (slot.bordeCorteColor || "#000000") : "transparent",
                           }}
                         >
                           {(() => {
@@ -3726,19 +3727,21 @@ function AppContent() {
                             if (plantilla) {
                               const borderMm = slot.bordeCorteMm;
                               const noOverlap = borderMm > 0;
-                              const scaleX = noOverlap ? (slot.anchoMm - 2 * borderMm) / slot.anchoMm : 1;
-                              const scaleY = noOverlap ? (slot.altoMm - 2 * borderMm) / slot.altoMm : 1;
+                              const overlapMm = noOverlap ? Math.min(0.25, borderMm * 0.15) : 0;
+                              const effectiveBorderMm = Math.max(0, borderMm - overlapMm);
+                              const scaleX = noOverlap ? (slot.anchoMm - 2 * effectiveBorderMm) / slot.anchoMm : 1;
+                              const scaleY = noOverlap ? (slot.altoMm - 2 * effectiveBorderMm) / slot.altoMm : 1;
                               return (
                                 <div
                                   className="card-template-render"
                                   style={{
                                     position: "absolute",
-                                    left: noOverlap ? `${borderMm * zoomFactor}px` : 0,
-                                    top: noOverlap ? `${borderMm * zoomFactor}px` : 0,
+                                    left: noOverlap ? `${effectiveBorderMm * zoomFactor}px` : 0,
+                                    top: noOverlap ? `${effectiveBorderMm * zoomFactor}px` : 0,
                                     width: `${slot.anchoMm * zoomFactor}px`,
                                     height: `${slot.altoMm * zoomFactor}px`,
                                     overflow: "hidden",
-                                    backgroundColor: "#ffffff",
+                                    backgroundColor: noOverlap ? (slot.bordeCorteColor || "#000000") : "#ffffff",
                                     transform: noOverlap ? `scale(${scaleX}, ${scaleY})` : "none",
                                     transformOrigin: "top left",
                                   }}
@@ -4090,11 +4093,13 @@ function AppContent() {
                             } else {
                               const borderMm = slot.bordeCorteMm;
                               const noOverlap = borderMm > 0;
+                              const overlapMm = noOverlap ? Math.min(0.25, borderMm * 0.15) : 0;
+                              const effectiveBorderMm = Math.max(0, borderMm - overlapMm);
                               
-                              const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
-                              const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
-                              const imgWidth = noOverlap ? (slot.anchoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
-                              const imgHeight = noOverlap ? (slot.altoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
+                              const imgLeft = noOverlap ? (effectiveBorderMm - slot.sangradoMm) : -slot.sangradoMm;
+                              const imgTop = noOverlap ? (effectiveBorderMm - slot.sangradoMm) : -slot.sangradoMm;
+                              const imgWidth = noOverlap ? (slot.anchoMm - 2 * effectiveBorderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
+                              const imgHeight = noOverlap ? (slot.altoMm - 2 * effectiveBorderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
                               const fitMode = cardConfig.modoAjuste || "cover";
 
                               return (
@@ -4201,6 +4206,7 @@ function AppContent() {
                               top: `${slot.yMm * zoomFactor}px`,
                               width: `${slot.anchoMm * zoomFactor}px`,
                               height: `${slot.altoMm * zoomFactor}px`,
+                              backgroundColor: slot.bordeCorteMm > 0 ? (slot.bordeCorteColor || "#000000") : "transparent",
                             }}
                           >
                              {/* Renderizar Imagen con Sangrado */}
@@ -4211,19 +4217,21 @@ function AppContent() {
                                if (plantilla) {
                                  const borderMm = slot.bordeCorteMm;
                                  const noOverlap = borderMm > 0;
-                                 const scaleX = noOverlap ? (slot.anchoMm - 2 * borderMm) / slot.anchoMm : 1;
-                                 const scaleY = noOverlap ? (slot.altoMm - 2 * borderMm) / slot.altoMm : 1;
+                                 const overlapMm = noOverlap ? Math.min(0.25, borderMm * 0.15) : 0;
+                                 const effectiveBorderMm = Math.max(0, borderMm - overlapMm);
+                                 const scaleX = noOverlap ? (slot.anchoMm - 2 * effectiveBorderMm) / slot.anchoMm : 1;
+                                 const scaleY = noOverlap ? (slot.altoMm - 2 * effectiveBorderMm) / slot.altoMm : 1;
                                  return (
                                    <div
                                      className="card-template-render"
                                      style={{
                                        position: "absolute",
-                                       left: noOverlap ? `${borderMm * zoomFactor}px` : 0,
-                                       top: noOverlap ? `${borderMm * zoomFactor}px` : 0,
+                                       left: noOverlap ? `${effectiveBorderMm * zoomFactor}px` : 0,
+                                       top: noOverlap ? `${effectiveBorderMm * zoomFactor}px` : 0,
                                        width: `${slot.anchoMm * zoomFactor}px`,
                                        height: `${slot.altoMm * zoomFactor}px`,
                                        overflow: "hidden",
-                                       backgroundColor: "#ffffff",
+                                       backgroundColor: noOverlap ? (slot.bordeCorteColor || "#000000") : "#ffffff",
                                        transform: noOverlap ? `scale(${scaleX}, ${scaleY})` : "none",
                                        transformOrigin: "top left",
                                      }}
@@ -4610,10 +4618,12 @@ function AppContent() {
                                   const borderMm = slot.bordeCorteMm;
                                   const noOverlap = borderMm > 0;
                                  
-                                 const imgLeft = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
-                                 const imgTop = noOverlap ? (borderMm - slot.sangradoMm) : -slot.sangradoMm;
-                                 const imgWidth = noOverlap ? (slot.anchoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
-                                 const imgHeight = noOverlap ? (slot.altoMm - 2 * borderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
+                                 const overlapMm = noOverlap ? Math.min(0.25, borderMm * 0.15) : 0;
+                                 const effectiveBorderMm = Math.max(0, borderMm - overlapMm);
+                                 const imgLeft = noOverlap ? (effectiveBorderMm - slot.sangradoMm) : -slot.sangradoMm;
+                                 const imgTop = noOverlap ? (effectiveBorderMm - slot.sangradoMm) : -slot.sangradoMm;
+                                 const imgWidth = noOverlap ? (slot.anchoMm - 2 * effectiveBorderMm + 2 * slot.sangradoMm) : (slot.anchoMm + 2 * slot.sangradoMm);
+                                 const imgHeight = noOverlap ? (slot.altoMm - 2 * effectiveBorderMm + 2 * slot.sangradoMm) : (slot.altoMm + 2 * slot.sangradoMm);
                                  const fitMode = cardConfig.modoAjuste || "cover";
 
                                  return (
