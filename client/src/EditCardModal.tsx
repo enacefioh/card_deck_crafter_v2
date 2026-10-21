@@ -595,6 +595,18 @@ export default function EditCardModal({
         src: "",
         modoAjuste: "contain" as const,
         tinteColor: null,
+        borderTopWidth: 0,
+        borderRightWidth: 0,
+        borderBottomWidth: 0,
+        borderLeftWidth: 0,
+        borderTopColor: "#000000",
+        borderRightColor: "#000000",
+        borderBottomColor: "#000000",
+        borderLeftColor: "#000000",
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderBottomLeftRadius: 0
       };
     } else if (isImageSwitch) {
       newLayer = {
@@ -611,6 +623,18 @@ export default function EditCardModal({
         selectedOptionId: undefined,
         modoAjuste: "contain" as const,
         tinteColor: null,
+        borderTopWidth: 0,
+        borderRightWidth: 0,
+        borderBottomWidth: 0,
+        borderLeftWidth: 0,
+        borderTopColor: "#000000",
+        borderRightColor: "#000000",
+        borderBottomColor: "#000000",
+        borderLeftColor: "#000000",
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderBottomLeftRadius: 0
       };
     } else if (isContainer) {
       newLayer = {
@@ -714,7 +738,19 @@ export default function EditCardModal({
         contenidoRaw: defaultText,
         multiline: false,
         lineHeight: 1.2,
-        alineacionVertical: "top" as const
+        alineacionVertical: "top" as const,
+        borderTopWidth: 0,
+        borderRightWidth: 0,
+        borderBottomWidth: 0,
+        borderLeftWidth: 0,
+        borderTopColor: "#000000",
+        borderRightColor: "#000000",
+        borderBottomColor: "#000000",
+        borderLeftColor: "#000000",
+        borderTopLeftRadius: 0,
+        borderTopRightRadius: 0,
+        borderBottomRightRadius: 0,
+        borderBottomLeftRadius: 0
       };
     }
 
@@ -1916,10 +1952,25 @@ export default function EditCardModal({
       ];
     }
 
-    const updater = (prev: any) => ({
-      ...prev,
-      exposedProperties: nextExposed
-    });
+    const updater = (prev: any) => {
+      let updatedCapas = prev.capas;
+      if (!isExposed && property.startsWith("border") && property.endsWith("Color")) {
+        updatedCapas = (prev.capas || []).map((c: any) => {
+          if (c.id === layerId && (c[property] === undefined || c[property] === "")) {
+            return {
+              ...c,
+              [property]: c.borderTopColor || c.borderColor || "#000000"
+            };
+          }
+          return c;
+        });
+      }
+      return {
+        ...prev,
+        capas: updatedCapas,
+        exposedProperties: nextExposed
+      };
+    };
 
     if (activeTab === "frontal") {
       setTempPlantilla(updater);
@@ -2129,32 +2180,62 @@ export default function EditCardModal({
   // --- Obtener la capa actualmente seleccionada ---
   const selectedCapa = plantillaActiva?.capas?.find((c: any) => c.id === selectedLayerId);
 
+  const handleUpdateCapaMultipleProps = (capaId: string, propsObj: Record<string, any>) => {
+    const updater = (prev: any) => ({
+      ...prev,
+      capas: (prev.capas || []).map((c: any) => (c.id === capaId ? { ...c, ...propsObj } : c)),
+    });
+    if (activeTab === "frontal") {
+      setTempPlantilla(updater);
+    } else {
+      setTempPlantillaTrasera(updater);
+    }
+    setTempCapasOverridesActivos((prev) => {
+      if (!prev[capaId]) return prev;
+      return {
+        ...prev,
+        [capaId]: {
+          ...prev[capaId],
+          ...propsObj,
+        },
+      };
+    });
+  };
+
   const handleUpdateBorderWidthGeneral = (capaId: string, val: number) => {
-    handleUpdateCapaProp(capaId, "borderTopWidth", val);
-    handleUpdateCapaProp(capaId, "borderRightWidth", val);
-    handleUpdateCapaProp(capaId, "borderBottomWidth", val);
-    handleUpdateCapaProp(capaId, "borderLeftWidth", val);
+    handleUpdateCapaMultipleProps(capaId, {
+      borderTopWidth: val,
+      borderRightWidth: val,
+      borderBottomWidth: val,
+      borderLeftWidth: val,
+    });
   };
 
   const handleUpdatePaddingGeneral = (capaId: string, val: number) => {
-    handleUpdateCapaProp(capaId, "paddingTopMm", val);
-    handleUpdateCapaProp(capaId, "paddingRightMm", val);
-    handleUpdateCapaProp(capaId, "paddingBottomMm", val);
-    handleUpdateCapaProp(capaId, "paddingLeftMm", val);
+    handleUpdateCapaMultipleProps(capaId, {
+      paddingTopMm: val,
+      paddingRightMm: val,
+      paddingBottomMm: val,
+      paddingLeftMm: val,
+    });
   };
 
   const handleUpdateBorderColorGeneral = (capaId: string, color: string) => {
-    handleUpdateCapaProp(capaId, "borderTopColor", color);
-    handleUpdateCapaProp(capaId, "borderRightColor", color);
-    handleUpdateCapaProp(capaId, "borderBottomColor", color);
-    handleUpdateCapaProp(capaId, "borderLeftColor", color);
+    handleUpdateCapaMultipleProps(capaId, {
+      borderTopColor: color,
+      borderRightColor: color,
+      borderBottomColor: color,
+      borderLeftColor: color,
+    });
   };
 
   const handleUpdateBorderRadiusGeneral = (capaId: string, radius: number) => {
-    handleUpdateCapaProp(capaId, "borderTopLeftRadius", radius);
-    handleUpdateCapaProp(capaId, "borderTopRightRadius", radius);
-    handleUpdateCapaProp(capaId, "borderBottomRightRadius", radius);
-    handleUpdateCapaProp(capaId, "borderBottomLeftRadius", radius);
+    handleUpdateCapaMultipleProps(capaId, {
+      borderTopLeftRadius: radius,
+      borderTopRightRadius: radius,
+      borderBottomRightRadius: radius,
+      borderBottomLeftRadius: radius,
+    });
   };
 
   const fieldKey = selectedCapa && selectedCapa.tipo === "text" ? selectedCapa.nombre : null;
@@ -4610,20 +4691,20 @@ export default function EditCardModal({
                             <div
                               className="inspector-cell"
                               onClick={() => setExpandBorders(!expandBorders)}
-                              style={{ cursor: "pointer", flex: expandBorders ? 1 : 0.85 }}
+                              style={{ cursor: "pointer", flex: expandBorders ? 1 : "0 0 62px" }}
                             >
-                              <div className="inspector-field-label" title="Bordes de la Capa">
-                                <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Bordes de la Capa</h4>
-                                {renderExposedEye("borderTopWidth", "Borde Ancho", true)}
+                              <div className="inspector-field-label" title="Bordes">
+                                <h4 className="inspector-group-title" style={{ cursor: "pointer", margin: 0 }}>Bordes</h4>
                                 <span className={`expand-toggle-icon ${expandBorders ? "expanded" : ""}`} style={{ marginLeft: "2px" }}>▶</span>
                               </div>
                             </div>
 
                             {!expandBorders && (
                               <>
-                                <div className="inspector-cell" style={{ flex: 0.7 }}>
+                                <div className="inspector-cell" style={{ flex: 0.9 }}>
                                   <div className="inspector-field-label" title="Grosor General (mm)">
                                     <label className="inspector-label">Grosor</label>
+                                    {renderExposedEye("borderTopWidth", "Grosor Borde", true)}
                                   </div>
                                   <div className="inspector-field-control">
                                     <input
@@ -4631,6 +4712,7 @@ export default function EditCardModal({
                                       step="0.1"
                                       min="0"
                                       className="inspector-input"
+                                      style={{ width: "100%", minWidth: "46px" }}
                                       value={selectedCapa.borderTopWidth !== undefined ? selectedCapa.borderTopWidth : 0}
                                       onChange={(e) => handleUpdateBorderWidthGeneral(selectedCapa.id, Number(e.target.value))}
                                     />
@@ -4640,121 +4722,143 @@ export default function EditCardModal({
                                   "Color",
                                   selectedCapa.borderTopColor || "#000000",
                                   (val) => handleUpdateBorderColorGeneral(selectedCapa.id, val),
-                                  true
+                                  true,
+                                  "borderTopColor",
+                                  "Color Borde",
+                                  1.15
                                 )}
                               </>
                             )}
                           </div>
 
                           {expandBorders && (
-                            <div className="expanded-inputs-grid-2col">
-                              {/* Arriba */}
-                              <div className="expanded-input-item">
-                                <label>Sup (mm)</label>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  className="inspector-input"
-                                  style={{ width: "44px", flexShrink: 0 }}
-                                  value={selectedCapa.borderTopWidth !== undefined ? selectedCapa.borderTopWidth : 0}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopWidth", Number(e.target.value))}
-                                />
-                                <input
-                                  type="color"
-                                  className="color-picker-input"
-                                  style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
-                                  value={selectedCapa.borderTopColor || "#000000"}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopColor", e.target.value)}
-                                />
-                                <input
-                                  type="text"
-                                  className="color-hex-input"
-                                  style={{ flex: 1, minWidth: "46px" }}
-                                  value={selectedCapa.borderTopColor || "#000000"}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopColor", e.target.value)}
-                                />
+                            <div className="inspector-expanded-borders" style={{ display: "flex", flexDirection: "column", width: "100%", gap: "2px", padding: "4px 0", borderBottom: "1px solid rgba(255, 255, 255, 0.05)" }}>
+                              {/* Arriba / Superior */}
+                              <div className="inspector-field-row" style={{ padding: "2px 4px", borderBottom: "1px dashed rgba(255, 255, 255, 0.04)" }}>
+                                <div className="inspector-cell" style={{ flex: "0 0 58px" }}>
+                                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)" }}>Superior</span>
+                                </div>
+                                <div className="inspector-cell" style={{ flex: 0.75 }}>
+                                  <div className="inspector-field-label" title="Grosor Superior (mm)">
+                                    <label className="inspector-label">Grosor</label>
+                                    {renderExposedEye("borderTopWidth", "Grosor Borde Sup", true)}
+                                  </div>
+                                  <div className="inspector-field-control">
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      className="inspector-input"
+                                      value={selectedCapa.borderTopWidth !== undefined ? selectedCapa.borderTopWidth : 0}
+                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderTopWidth", Number(e.target.value))}
+                                    />
+                                  </div>
+                                </div>
+                                {renderColorSelector(
+                                  "Color",
+                                  selectedCapa.borderTopColor || "#000000",
+                                  (val) => handleUpdateCapaProp(selectedCapa.id, "borderTopColor", val),
+                                  true,
+                                  "borderTopColor",
+                                  "Color Borde Sup",
+                                  1.1
+                                )}
                               </div>
+
                               {/* Derecha */}
-                              <div className="expanded-input-item">
-                                <label>Der (mm)</label>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  className="inspector-input"
-                                  style={{ width: "44px", flexShrink: 0 }}
-                                  value={selectedCapa.borderRightWidth !== undefined ? selectedCapa.borderRightWidth : 0}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightWidth", Number(e.target.value))}
-                                />
-                                <input
-                                  type="color"
-                                  className="color-picker-input"
-                                  style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
-                                  value={selectedCapa.borderRightColor || "#000000"}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightColor", e.target.value)}
-                                />
-                                <input
-                                  type="text"
-                                  className="color-hex-input"
-                                  style={{ flex: 1, minWidth: "46px" }}
-                                  value={selectedCapa.borderRightColor || "#000000"}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightColor", e.target.value)}
-                                />
+                              <div className="inspector-field-row" style={{ padding: "2px 4px", borderBottom: "1px dashed rgba(255, 255, 255, 0.04)" }}>
+                                <div className="inspector-cell" style={{ flex: "0 0 58px" }}>
+                                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)" }}>Derecho</span>
+                                </div>
+                                <div className="inspector-cell" style={{ flex: 0.75 }}>
+                                  <div className="inspector-field-label" title="Grosor Derecho (mm)">
+                                    <label className="inspector-label">Grosor</label>
+                                    {renderExposedEye("borderRightWidth", "Grosor Borde Der", true)}
+                                  </div>
+                                  <div className="inspector-field-control">
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      className="inspector-input"
+                                      value={selectedCapa.borderRightWidth !== undefined ? selectedCapa.borderRightWidth : 0}
+                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderRightWidth", Number(e.target.value))}
+                                    />
+                                  </div>
+                                </div>
+                                {renderColorSelector(
+                                  "Color",
+                                  selectedCapa.borderRightColor || "#000000",
+                                  (val) => handleUpdateCapaProp(selectedCapa.id, "borderRightColor", val),
+                                  true,
+                                  "borderRightColor",
+                                  "Color Borde Der",
+                                  1.1
+                                )}
                               </div>
-                              {/* Abajo */}
-                              <div className="expanded-input-item">
-                                <label>Inf (mm)</label>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  className="inspector-input"
-                                  style={{ width: "44px", flexShrink: 0 }}
-                                  value={selectedCapa.borderBottomWidth !== undefined ? selectedCapa.borderBottomWidth : 0}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomWidth", Number(e.target.value))}
-                                />
-                                <input
-                                  type="color"
-                                  className="color-picker-input"
-                                  style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
-                                  value={selectedCapa.borderBottomColor || "#000000"}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomColor", e.target.value)}
-                                />
-                                <input
-                                  type="text"
-                                  className="color-hex-input"
-                                  style={{ flex: 1, minWidth: "46px" }}
-                                  value={selectedCapa.borderBottomColor || "#000000"}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomColor", e.target.value)}
-                                />
+
+                              {/* Abajo / Inferior */}
+                              <div className="inspector-field-row" style={{ padding: "2px 4px", borderBottom: "1px dashed rgba(255, 255, 255, 0.04)" }}>
+                                <div className="inspector-cell" style={{ flex: "0 0 58px" }}>
+                                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)" }}>Inferior</span>
+                                </div>
+                                <div className="inspector-cell" style={{ flex: 0.75 }}>
+                                  <div className="inspector-field-label" title="Grosor Inferior (mm)">
+                                    <label className="inspector-label">Grosor</label>
+                                    {renderExposedEye("borderBottomWidth", "Grosor Borde Inf", true)}
+                                  </div>
+                                  <div className="inspector-field-control">
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      className="inspector-input"
+                                      value={selectedCapa.borderBottomWidth !== undefined ? selectedCapa.borderBottomWidth : 0}
+                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderBottomWidth", Number(e.target.value))}
+                                    />
+                                  </div>
+                                </div>
+                                {renderColorSelector(
+                                  "Color",
+                                  selectedCapa.borderBottomColor || "#000000",
+                                  (val) => handleUpdateCapaProp(selectedCapa.id, "borderBottomColor", val),
+                                  true,
+                                  "borderBottomColor",
+                                  "Color Borde Inf",
+                                  1.1
+                                )}
                               </div>
+
                               {/* Izquierda */}
-                              <div className="expanded-input-item">
-                                <label>Izq (mm)</label>
-                                <input
-                                  type="number"
-                                  step="0.1"
-                                  min="0"
-                                  className="inspector-input"
-                                  style={{ width: "44px", flexShrink: 0 }}
-                                  value={selectedCapa.borderLeftWidth !== undefined ? selectedCapa.borderLeftWidth : 0}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftWidth", Number(e.target.value))}
-                                />
-                                <input
-                                  type="color"
-                                  className="color-picker-input"
-                                  style={{ width: "20px", height: "20px", padding: 0, flexShrink: 0 }}
-                                  value={selectedCapa.borderLeftColor || "#000000"}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftColor", e.target.value)}
-                                />
-                                <input
-                                  type="text"
-                                  className="color-hex-input"
-                                  style={{ flex: 1, minWidth: "46px" }}
-                                  value={selectedCapa.borderLeftColor || "#000000"}
-                                  onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftColor", e.target.value)}
-                                />
+                              <div className="inspector-field-row" style={{ padding: "2px 4px" }}>
+                                <div className="inspector-cell" style={{ flex: "0 0 58px" }}>
+                                  <span style={{ fontSize: "11px", fontWeight: 600, color: "var(--text-secondary)" }}>Izquierdo</span>
+                                </div>
+                                <div className="inspector-cell" style={{ flex: 0.75 }}>
+                                  <div className="inspector-field-label" title="Grosor Izquierdo (mm)">
+                                    <label className="inspector-label">Grosor</label>
+                                    {renderExposedEye("borderLeftWidth", "Grosor Borde Izq", true)}
+                                  </div>
+                                  <div className="inspector-field-control">
+                                    <input
+                                      type="number"
+                                      step="0.1"
+                                      min="0"
+                                      className="inspector-input"
+                                      value={selectedCapa.borderLeftWidth !== undefined ? selectedCapa.borderLeftWidth : 0}
+                                      onChange={(e) => handleUpdateCapaProp(selectedCapa.id, "borderLeftWidth", Number(e.target.value))}
+                                    />
+                                  </div>
+                                </div>
+                                {renderColorSelector(
+                                  "Color",
+                                  selectedCapa.borderLeftColor || "#000000",
+                                  (val) => handleUpdateCapaProp(selectedCapa.id, "borderLeftColor", val),
+                                  true,
+                                  "borderLeftColor",
+                                  "Color Borde Izq",
+                                  1.1
+                                )}
                               </div>
                             </div>
                           )}
@@ -5147,8 +5251,14 @@ export default function EditCardModal({
                         { property: "yMm", label: "Posición Y" },
                         { property: "anchoMm", label: "Ancho" },
                         { property: "altoMm", label: "Alto" },
-                        { property: "borderTopWidth", label: "Grosor Borde" },
-                        { property: "borderTopColor", label: "Color Borde" },
+                        { property: "borderTopWidth", label: "Grosor Borde (o Sup)" },
+                        { property: "borderTopColor", label: "Color Borde (o Sup)" },
+                        { property: "borderRightWidth", label: "Grosor Borde Der" },
+                        { property: "borderRightColor", label: "Color Borde Der" },
+                        { property: "borderBottomWidth", label: "Grosor Borde Inf" },
+                        { property: "borderBottomColor", label: "Color Borde Inf" },
+                        { property: "borderLeftWidth", label: "Grosor Borde Izq" },
+                        { property: "borderLeftColor", label: "Color Borde Izq" },
                         { property: "backgroundColor", label: "Color Fondo" },
                         { property: "borderTopLeftRadius", label: "Radio Esquinas" },
                         { property: "rotacion", label: "Rotación (º)" },

@@ -122,8 +122,14 @@ function getCatalogPropertiesForLayer(capa: any): Array<{ property: string; labe
       { property: "anchoMm", label: "Ancho" },
       { property: "altoMm", label: "Alto" },
       { property: "backgroundColor", label: "Color Fondo" },
-      { property: "borderTopWidth", label: "Grosor Borde" },
-      { property: "borderTopColor", label: "Color Borde" },
+      { property: "borderTopWidth", label: "Grosor Borde (o Sup)" },
+      { property: "borderTopColor", label: "Color Borde (o Sup)" },
+      { property: "borderRightWidth", label: "Grosor Borde Der" },
+      { property: "borderRightColor", label: "Color Borde Der" },
+      { property: "borderBottomWidth", label: "Grosor Borde Inf" },
+      { property: "borderBottomColor", label: "Color Borde Inf" },
+      { property: "borderLeftWidth", label: "Grosor Borde Izq" },
+      { property: "borderLeftColor", label: "Color Borde Izq" },
       { property: "borderTopLeftRadius", label: "Radio Esquinas" },
       { property: "rotacion", label: "Rotación (º)" },
       { property: "canvasEditMode", label: "Posición y Dimensiones (Lienzo)" }
@@ -5207,14 +5213,18 @@ function AppContent() {
                   }
                 }
                 const overrideObj = (isBack ? c.capasOverridesTrasera?.[capaId] : c.capasOverrides?.[capaId]) as any;
-                if (overrideObj?.[campo.property] !== undefined) {
+                if (overrideObj?.[campo.property] !== undefined && overrideObj[campo.property] !== "") {
                   return overrideObj[campo.property];
                 }
                 const p = isBack
                   ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
                   : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null));
                 const layerObj = p?.capas?.find((x: any) => x.id === capaId) as any;
-                return layerObj?.[campo.property] || "";
+                let val = layerObj?.[campo.property];
+                if ((val === undefined || val === "") && campo.property.startsWith("border") && campo.property.endsWith("Color")) {
+                  val = layerObj?.borderTopColor || layerObj?.borderColor || "#000000";
+                }
+                return val !== undefined ? val : "";
               });
 
               const todosIguales = valores.every((v) => v === valores[0]);
@@ -5466,12 +5476,15 @@ function AppContent() {
                       </div>
                     )}
 
-                    {(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) && (
+                    {(campo.property === "colorFill" || campo.property === "color" || campo.property === "backgroundColor" || campo.property.endsWith("Color")) && (() => {
+                      const defaultColor = (campo.property.startsWith("border") || campo.property === "color") ? "#000000" : "#ffffff";
+                      const colorValorMostrar = todosIguales && valorMostrar.startsWith("#") ? valorMostrar : (todosIguales && valorMostrar ? valorMostrar : defaultColor);
+                      return (
                       <div style={{ display: "flex", gap: "4px", width: "100%", alignItems: "center" }}>
                         <input
                           type="color"
                           style={{ width: "20px", height: "20px", padding: 0, border: "1px solid var(--border-color)", borderRadius: "3px", cursor: "pointer", flexShrink: 0 }}
-                          value={todosIguales && valorMostrar.startsWith("#") ? valorMostrar : "#ffffff"}
+                          value={colorValorMostrar}
                           onFocus={handleFieldFocus}
                           onBlur={handleFieldBlur}
                           onChange={(e) => handleUpdateValorLote(e.target.value)}
@@ -5501,15 +5514,16 @@ function AppContent() {
                             type="text"
                             className="inspector-input"
                             style={{ flex: 1, minWidth: 0, height: "22px", fontSize: "11px" }}
-                            value={valorMostrar}
-                            placeholder={placeholderTexto || "#ffffff"}
+                            value={valorMostrar || (todosIguales ? colorValorMostrar : "")}
+                            placeholder={placeholderTexto || defaultColor}
                             onFocus={handleFieldFocus}
                             onBlur={handleFieldBlur}
                             onChange={(e) => handleUpdateValorLote(e.target.value)}
                           />
                         )}
                       </div>
-                    )}
+                      );
+                    })()}
 
                     {(campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src" && (
                       <div style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
@@ -5909,7 +5923,7 @@ function AppContent() {
                       !((campo.tipoCapa === "image" || campo.tipoCapa === "image-switch") && campo.property === "src") && (
                         <input
                           type="number"
-                          step={campo.property === "textOutlineWidth" ? "0.5" : "0.5"}
+                          step={campo.property.includes("Width") ? "0.1" : (campo.property === "textOutlineWidth" ? "0.5" : "0.5")}
                           className="inspector-input"
                           style={{ height: "22px", fontSize: "11px", width: "100%" }}
                           value={todosIguales && valorMostrar !== undefined ? valorMostrar : ""}
