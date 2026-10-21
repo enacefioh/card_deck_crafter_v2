@@ -713,7 +713,8 @@ export default function EditCardModal({
         italic: false,
         contenidoRaw: defaultText,
         multiline: false,
-        lineHeight: 1.2
+        lineHeight: 1.2,
+        alineacionVertical: "top" as const
       };
     }
 
@@ -2797,6 +2798,9 @@ export default function EditCardModal({
                               style={{
                                 ...layerStyle,
                                 ...borderCornersStyle,
+                                display: "flex",
+                                flexDirection: "column",
+                                justifyContent: (tempCapasOverridesActivos[capa.id]?.alineacionVertical || resolvedCapa.alineacionVertical) === "bottom" ? "flex-end" : (tempCapasOverridesActivos[capa.id]?.alineacionVertical || resolvedCapa.alineacionVertical) === "center" ? "center" : "flex-start",
                                 fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                 fontSize: `${fontSizePx}px`,
                                 color: resolvedCapa.color || "#000000",
@@ -2831,7 +2835,7 @@ export default function EditCardModal({
                               onMouseEnter={() => setHoveredLayerId(capa.id)}
                               onMouseLeave={() => setHoveredLayerId(null)}
                             >
-                              <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%", height: "100%" }} />
+                              <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%" }} />
                               {isEditActive && (
                                 <div
                                   className="canvas-resize-handle"
@@ -3804,7 +3808,7 @@ export default function EditCardModal({
                             </div>
                           </div>
 
-                          {/* Fila 4 Tabla Tipografía: Interlineado (Line Height) (SRS-085) */}
+                          {/* Fila 4 Tabla Tipografía: Interlineado + Alineación Vertical (SRS-085 & SRS-086) */}
                           <div className="inspector-field-row inspector-section">
                             <div className="inspector-cell" style={{ flex: 1, minWidth: 0 }}>
                               <div className="inspector-field-label" title="Interlineado (multiplicador relativo al tamaño de fuente, por defecto 1.2)">
@@ -3834,6 +3838,40 @@ export default function EditCardModal({
                                     }));
                                   }}
                                 />
+                              </div>
+                            </div>
+
+                            <div className="inspector-cell" style={{ flex: 1, minWidth: 0 }}>
+                              <div className="inspector-field-label" title="Alineación Vertical">
+                                <label className="inspector-label">Alineación V.</label>
+                                {renderExposedEye("alineacionVertical", "Alineación Vertical", true)}
+                              </div>
+                              <div className="inspector-field-control">
+                                <div className="alignment-group">
+                                  {(["top", "center", "bottom"] as const).map((valign) => {
+                                    const activeValign = tempCapasOverridesActivos[selectedCapa.id]?.alineacionVertical || selectedCapa.alineacionVertical || "top";
+                                    return (
+                                      <button
+                                        key={valign}
+                                        type="button"
+                                        className={`align-btn ${activeValign === valign ? "active" : ""}`}
+                                        onClick={() => {
+                                          handleUpdateCapaProp(selectedCapa.id, "alineacionVertical", valign);
+                                          setTempCapasOverridesActivos((prev) => ({
+                                            ...prev,
+                                            [selectedCapa.id]: {
+                                              ...(prev[selectedCapa.id] || {}),
+                                              alineacionVertical: valign,
+                                            },
+                                          }));
+                                        }}
+                                        title={valign === "top" ? "Alinear Arriba" : valign === "center" ? "Alinear Centro Vertical" : "Alinear Abajo"}
+                                      >
+                                        {valign === "top" ? "⬆️" : valign === "center" ? "↕️" : "⬇️"}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
                               </div>
                             </div>
                           </div>
@@ -5128,6 +5166,7 @@ export default function EditCardModal({
                           { property: "textOutlineWidth", label: "Grosor Contorno Texto" },
                           { property: "textOutlineColor", label: "Color Contorno Texto" },
                           { property: "lineHeight", label: "Interlineado" },
+                          { property: "alineacionVertical", label: "Alineación Vertical" },
                           { property: "paddingTopMm", label: "Padding Texto" }
                         );
                       } else if (capa.tipo === "image" || capa.tipo === "image-switch") {

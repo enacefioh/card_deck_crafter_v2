@@ -93,6 +93,7 @@ function getCatalogPropertiesForLayer(capa: any): Array<{ property: string; labe
       { property: "textOutlineWidth", label: "Grosor Contorno" },
       { property: "textOutlineColor", label: "Color Contorno" },
       { property: "lineHeight", label: "Interlineado" },
+      { property: "alineacionVertical", label: "Alineación Vertical" },
       { property: "paddingTopMm", label: "Padding Texto" }
     );
   } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
@@ -2538,6 +2539,7 @@ function AppContent() {
               italic: !!capa.italic,
               underline: !!capa.underline,
               lineHeight: capa.lineHeight || 1.2,
+              alineacionVertical: capa.alineacionVertical || "top",
             };
           } else if (capa.tipo === "image") {
             if (capa.src) {
@@ -2589,6 +2591,7 @@ function AppContent() {
               italic: !!capa.italic,
               underline: !!capa.underline,
               lineHeight: capa.lineHeight || 1.2,
+              alineacionVertical: capa.alineacionVertical || "top",
             };
           } else if (capa.tipo === "image") {
             if (capa.src) {
@@ -3936,6 +3939,9 @@ function AppContent() {
                                               style={{
                                                 ...style,
                                                 ...borderCornersStyle,
+                                                display: "flex",
+                                                flexDirection: "column",
+                                                justifyContent: resolvedCapa.alineacionVertical === "bottom" ? "flex-end" : resolvedCapa.alineacionVertical === "center" ? "center" : "flex-start",
                                                 fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                                 fontSize: `${fontSizePx}px`,
                                                 color: resolvedCapa.color || "#000000",
@@ -3957,7 +3963,7 @@ function AppContent() {
                                                 overflow: isEditActive ? "visible" : "hidden",
                                               }}
                                             >
-                                              <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%", height: "100%" }} />
+                                              <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%" }} />
                                               {isEditActive && (
                                                 <div
                                                   className="canvas-resize-handle"
@@ -4578,7 +4584,10 @@ function AppContent() {
                                                   style={{
                                                     ...style,
                                                     ...borderCornersStyle,
-                                                    fontFamily: resolvedCapa.fontFamily || "sans-serif",
+                                                    display: "flex",
+                                                flexDirection: "column",
+                                                justifyContent: resolvedCapa.alineacionVertical === "bottom" ? "flex-end" : resolvedCapa.alineacionVertical === "center" ? "center" : "flex-start",
+                                                fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                                     fontSize: `${fontSizePx}px`,
                                                     color: resolvedCapa.color || "#000000",
                                                     backgroundColor: resolvedCapa.backgroundColor || "transparent",
@@ -4599,7 +4608,7 @@ function AppContent() {
                                                     overflow: isEditActive ? "visible" : "hidden",
                                                   }}
                                                 >
-                                                  <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%", height: "100%" }} />
+                                                  <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%" }} />
                                                   {isEditActive && (
                                                     <div
                                                       className="canvas-resize-handle"
@@ -5787,6 +5796,38 @@ function AppContent() {
                       </div>
                     )}
 
+                    {campo.property === "alineacionVertical" && (
+                      <div style={{ display: "flex", gap: "2px", width: "100%" }}>
+                        {(["top", "center", "bottom"] as const).map((valign) => {
+                          const isSelected = todosIguales && (valorMostrar || "top") === valign;
+                          return (
+                            <button
+                              key={valign}
+                              type="button"
+                              className="style-btn"
+                              style={{
+                                flex: 1,
+                                height: "22px",
+                                padding: 0,
+                                fontSize: "10px",
+                                border: isSelected ? "1px solid var(--accent-primary)" : "1px solid var(--border-color)",
+                                backgroundColor: isSelected ? "var(--accent-primary)" : "var(--bg-app)",
+                                color: isSelected ? "white" : "var(--text-primary)",
+                                borderRadius: "3px",
+                                cursor: "pointer"
+                              }}
+                              onFocus={handleFieldFocus}
+                              onBlur={handleFieldBlur}
+                              onClick={() => handleUpdateValorLote(valign)}
+                              title={valign === "top" ? "Alinear Arriba" : valign === "center" ? "Alinear Centro Vertical" : "Alinear Abajo"}
+                            >
+                              {valign === "top" ? "⬆️" : valign === "center" ? "↕️" : "⬇️"}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {(campo.property === "bold" || campo.property === "italic" || campo.property === "underline") && (
                       <button
                         type="button"
@@ -5857,6 +5898,7 @@ function AppContent() {
                       campo.property !== "fontSizePt" &&
                       campo.property !== "lineHeight" &&
                       campo.property !== "alineacion" &&
+                      campo.property !== "alineacionVertical" &&
                       campo.property !== "bold" &&
                       campo.property !== "italic" &&
                       campo.property !== "underline" &&

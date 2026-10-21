@@ -221,6 +221,9 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
             key={capa.id}
             style={{
               ...layerStyle,
+              display: "flex",
+              flexDirection: "column",
+              justifyContent: capa.alineacionVertical === "bottom" ? "flex-end" : capa.alineacionVertical === "center" ? "center" : "flex-start",
               fontFamily: capa.fontFamily || "sans-serif",
               fontSize: `${fontSizePx}px`,
               color: capa.color || "#000000",
@@ -233,8 +236,9 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
               padding: "2px",
               wordBreak: "break-word",
             }}
-            dangerouslySetInnerHTML={{ __html: htmlText }}
-          />
+          >
+            <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%" }} />
+          </div>
         );
       }
 

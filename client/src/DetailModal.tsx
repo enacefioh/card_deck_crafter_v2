@@ -352,6 +352,9 @@ export default function DetailModal({
                                     style={{
                                       ...style,
                                       ...borderCornersStyle,
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      justifyContent: resolvedCapa.alineacionVertical === "bottom" ? "flex-end" : resolvedCapa.alineacionVertical === "center" ? "center" : "flex-start",
                                       fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                       fontSize: `${fontSizePx}px`,
                                       color: resolvedCapa.color || "#000000",
@@ -364,8 +367,9 @@ export default function DetailModal({
                                       wordBreak: "break-word",
                                       lineHeight: (typeof resolvedCapa.lineHeight === "number" && resolvedCapa.lineHeight > 0 ? resolvedCapa.lineHeight : 1.2),
                                     }}
-                                    dangerouslySetInnerHTML={{ __html: htmlText }}
-                                  />
+                                  >
+                                    <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%" }} />
+                                  </div>
                                 );
                               }
 
@@ -682,6 +686,9 @@ export default function DetailModal({
                                     style={{
                                       ...style,
                                       ...borderCornersStyle,
+                                      display: "flex",
+                                      flexDirection: "column",
+                                      justifyContent: resolvedCapa.alineacionVertical === "bottom" ? "flex-end" : resolvedCapa.alineacionVertical === "center" ? "center" : "flex-start",
                                       fontFamily: resolvedCapa.fontFamily || "sans-serif",
                                       fontSize: `${fontSizePx}px`,
                                       color: resolvedCapa.color || "#000000",
@@ -694,8 +701,9 @@ export default function DetailModal({
                                       wordBreak: "break-word",
                                       lineHeight: (typeof resolvedCapa.lineHeight === "number" && resolvedCapa.lineHeight > 0 ? resolvedCapa.lineHeight : 1.2),
                                     }}
-                                    dangerouslySetInnerHTML={{ __html: htmlText }}
-                                  />
+                                  >
+                                    <div dangerouslySetInnerHTML={{ __html: htmlText }} style={{ width: "100%" }} />
+                                  </div>
                                 );
                               }
 

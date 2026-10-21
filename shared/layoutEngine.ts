@@ -63,6 +63,7 @@ export interface Carta {
     underline?: boolean;
     visibility?: "visible" | "hidden" | "collapsed";
     lineHeight?: number;
+    alineacionVertical?: "top" | "center" | "bottom";
   }>;
   plantillaTraseraId?: string;
   valoresCamposTrasera?: Record<string, string>;
@@ -82,6 +83,7 @@ export interface Carta {
     underline?: boolean;
     visibility?: "visible" | "hidden" | "collapsed";
     lineHeight?: number;
+    alineacionVertical?: "top" | "center" | "bottom";
   }>;
   exposedProperties?: ExposedProperty[];
   plantilla?: PlantillaCDC2;
