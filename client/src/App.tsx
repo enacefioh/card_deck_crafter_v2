@@ -337,13 +337,18 @@ function AppContent() {
         ? (c.plantillaTrasera || (c.plantillaTraseraId ? templatesMap[c.plantillaTraseraId] : null))
         : (c.plantilla || (c.plantillaId ? templatesMap[c.plantillaId] : null));
       
-      const exposed = isBack ? (p?.exposedProperties || []) : (c.exposedProperties || p?.exposedProperties || []);
-      const originalProp = exposed.find((eo: any) => eo.layerId === targetCapaId);
       let targetLayerId = targetCapaId;
-      if (originalProp) {
-        const match = exposed.find((eo: any) => eo.property === originalProp.property);
-        if (match) {
-          targetLayerId = match.layerId;
+      if (p?.capas && !p.capas.some((x: any) => x.id === targetCapaId)) {
+        const baseCard = cartas.find(x => selectedCardIds.includes(x.id));
+        const baseP = isBack
+          ? (baseCard?.plantillaTrasera || (baseCard?.plantillaTraseraId ? templatesMap[baseCard.plantillaTraseraId] : null))
+          : (baseCard?.plantilla || (baseCard?.plantillaId ? templatesMap[baseCard.plantillaId] : null));
+        const baseLayer = baseP?.capas?.find((x: any) => x.id === targetCapaId);
+        if (baseLayer) {
+          const matchLayer = p.capas.find((x: any) => x.nombre === baseLayer.nombre && x.tipo === baseLayer.tipo);
+          if (matchLayer) {
+            targetLayerId = matchLayer.id;
+          }
         }
       }
 
