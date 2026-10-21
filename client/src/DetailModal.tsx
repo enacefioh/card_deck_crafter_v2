@@ -362,7 +362,7 @@ export default function DetailModal({
                                       textDecoration: resolvedCapa.underline ? "underline" : "none",
                                       whiteSpace: "pre-wrap",
                                       wordBreak: "break-word",
-                                      lineHeight: 1.2,
+                                      lineHeight: (typeof resolvedCapa.lineHeight === "number" && resolvedCapa.lineHeight > 0 ? resolvedCapa.lineHeight : 1.2),
                                     }}
                                     dangerouslySetInnerHTML={{ __html: htmlText }}
                                   />
@@ -692,7 +692,7 @@ export default function DetailModal({
                                       textDecoration: resolvedCapa.underline ? "underline" : "none",
                                       whiteSpace: "pre-wrap",
                                       wordBreak: "break-word",
-                                      lineHeight: 1.2,
+                                      lineHeight: (typeof resolvedCapa.lineHeight === "number" && resolvedCapa.lineHeight > 0 ? resolvedCapa.lineHeight : 1.2),
                                     }}
                                     dangerouslySetInnerHTML={{ __html: htmlText }}
                                   />

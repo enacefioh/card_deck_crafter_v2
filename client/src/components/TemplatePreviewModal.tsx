@@ -229,7 +229,7 @@ export const TemplatePreviewModal: React.FC<TemplatePreviewModalProps> = ({
               fontWeight: capa.bold ? "bold" : "normal",
               fontStyle: capa.italic ? "italic" : "normal",
               textDecoration: capa.underline ? "underline" : "none",
-              lineHeight: "1.2",
+              lineHeight: (typeof capa.lineHeight === "number" && capa.lineHeight > 0 ? capa.lineHeight : 1.2),
               padding: "2px",
               wordBreak: "break-word",
             }}

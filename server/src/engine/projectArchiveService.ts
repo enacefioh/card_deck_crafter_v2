@@ -152,6 +152,7 @@ export class ProjectArchiveService {
           } else if (
             typeof (capa as any)[ep.property] === "number" ||
             ep.property === "fontSizePt" ||
+            ep.property === "lineHeight" ||
             ep.property === "rotacion" ||
             ep.property.endsWith("Width") ||
             ep.property.endsWith("Radius") ||

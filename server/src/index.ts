@@ -272,7 +272,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261020.3",
+      version: "v2.261021.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1645,8 +1645,9 @@ function generarHtmlImpresion(
                 const textOutlineCss = textOutlinePx > 0
                   ? `-webkit-text-stroke-width: ${textOutlinePx}px; -webkit-text-stroke-color: ${resolvedCapa.textOutlineColor || '#000000'}; paint-order: stroke fill;`
                   : '';
+                const lineH = typeof resolvedCapa.lineHeight === "number" && resolvedCapa.lineHeight > 0 ? resolvedCapa.lineHeight : 1.2;
 
-                return `<div style="${baseStyle} font-family: ${resolvedCapa.fontFamily === 'sans-serif' || !resolvedCapa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : resolvedCapa.fontFamily}; font-size: ${fontSizePx}px; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; ${paddingCss} ${borderCornersCss} ${textOutlineCss}">${htmlText}</div>`;
+                return `<div style="${baseStyle} font-family: ${resolvedCapa.fontFamily === 'sans-serif' || !resolvedCapa.fontFamily ? "'Inter', 'Segoe UI', sans-serif" : resolvedCapa.fontFamily}; font-size: ${fontSizePx}px; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: ${lineH}; ${paddingCss} ${borderCornersCss} ${textOutlineCss}">${htmlText}</div>`;
               }
 
               if (capa.tipo === "image" || capa.tipo === "image-switch") {

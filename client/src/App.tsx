@@ -92,6 +92,7 @@ function getCatalogPropertiesForLayer(capa: any): Array<{ property: string; labe
       { property: "alineacion", label: "Alineación Texto" },
       { property: "textOutlineWidth", label: "Grosor Contorno" },
       { property: "textOutlineColor", label: "Color Contorno" },
+      { property: "lineHeight", label: "Interlineado" },
       { property: "paddingTopMm", label: "Padding Texto" }
     );
   } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
@@ -2536,6 +2537,7 @@ function AppContent() {
               bold: !!capa.bold,
               italic: !!capa.italic,
               underline: !!capa.underline,
+              lineHeight: capa.lineHeight || 1.2,
             };
           } else if (capa.tipo === "image") {
             if (capa.src) {
@@ -2586,6 +2588,7 @@ function AppContent() {
               bold: !!capa.bold,
               italic: !!capa.italic,
               underline: !!capa.underline,
+              lineHeight: capa.lineHeight || 1.2,
             };
           } else if (capa.tipo === "image") {
             if (capa.src) {
@@ -3946,7 +3949,7 @@ function AppContent() {
                                                 paintOrder: (resolvedCapa.textOutlineWidth || 0) > 0 ? ("stroke fill" as any) : undefined,
                                                 whiteSpace: "pre-wrap",
                                                 wordBreak: "break-word",
-                                                lineHeight: 1.2,
+                                                lineHeight: (typeof resolvedCapa.lineHeight === "number" && resolvedCapa.lineHeight > 0 ? resolvedCapa.lineHeight : 1.2),
                                                 paddingTop: paddingTopPx > 0 ? `${paddingTopPx}px` : "2px",
                                                 paddingRight: paddingRightPx > 0 ? `${paddingRightPx}px` : "2px",
                                                 paddingBottom: paddingBottomPx > 0 ? `${paddingBottomPx}px` : "2px",
@@ -4588,7 +4591,7 @@ function AppContent() {
                                                     paintOrder: (resolvedCapa.textOutlineWidth || 0) > 0 ? ("stroke fill" as any) : undefined,
                                                     whiteSpace: "pre-wrap",
                                                     wordBreak: "break-word",
-                                                    lineHeight: 1.2,
+                                                    lineHeight: (typeof resolvedCapa.lineHeight === "number" && resolvedCapa.lineHeight > 0 ? resolvedCapa.lineHeight : 1.2),
                                                     paddingTop: paddingTopPx > 0 ? `${paddingTopPx}px` : "2px",
                                                     paddingRight: paddingRightPx > 0 ? `${paddingRightPx}px` : "2px",
                                                     paddingBottom: paddingBottomPx > 0 ? `${paddingBottomPx}px` : "2px",
@@ -5733,6 +5736,25 @@ function AppContent() {
                       />
                     )}
 
+                    {campo.property === "lineHeight" && (
+                      <input
+                        type="number"
+                        min="0.5"
+                        max="3"
+                        step="0.05"
+                        className="inspector-input"
+                        style={{ height: "22px", fontSize: "11px", width: "100%" }}
+                        value={todosIguales && valorMostrar !== "" && valorMostrar !== undefined ? valorMostrar : ""}
+                        placeholder={placeholderTexto || "1.2"}
+                        onFocus={handleFieldFocus}
+                        onBlur={handleFieldBlur}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          handleUpdateValorLote(isNaN(val) ? 1.2 : val);
+                        }}
+                      />
+                    )}
+
                     {campo.property === "alineacion" && (
                       <div style={{ display: "flex", gap: "2px", width: "100%" }}>
                         {(["left", "center", "right", "justify"] as const).map((align) => {
@@ -5833,6 +5855,7 @@ function AppContent() {
                       campo.property !== "rotacion" &&
                       campo.property !== "fontFamily" &&
                       campo.property !== "fontSizePt" &&
+                      campo.property !== "lineHeight" &&
                       campo.property !== "alineacion" &&
                       campo.property !== "bold" &&
                       campo.property !== "italic" &&

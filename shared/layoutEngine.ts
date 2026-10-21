@@ -62,6 +62,7 @@ export interface Carta {
     italic?: boolean;
     underline?: boolean;
     visibility?: "visible" | "hidden" | "collapsed";
+    lineHeight?: number;
   }>;
   plantillaTraseraId?: string;
   valoresCamposTrasera?: Record<string, string>;
@@ -80,6 +81,7 @@ export interface Carta {
     italic?: boolean;
     underline?: boolean;
     visibility?: "visible" | "hidden" | "collapsed";
+    lineHeight?: number;
   }>;
   exposedProperties?: ExposedProperty[];
   plantilla?: PlantillaCDC2;
@@ -482,7 +484,8 @@ export function calculateLayerEffectiveDimensions(
 
     const fontSizePt = typeof resolved.fontSizePt === "number" && resolved.fontSizePt > 0 ? resolved.fontSizePt : 12;
     const fontSizeMm = (fontSizePt * 25.4) / 72; // ~4.233 mm para 12pt
-    const lineH = Math.max(fontSizeMm * 1.35, 5.0);
+    const lineHMult = typeof resolved.lineHeight === "number" && resolved.lineHeight > 0 ? resolved.lineHeight : 1.2;
+    const lineH = Math.max(fontSizeMm * lineHMult, 5.0);
     const charWidthMm = fontSizeMm * 0.55;
 
     const text = resolved.contenidoRaw !== undefined ? resolved.contenidoRaw : (resolved.contenido !== undefined ? resolved.contenido : (resolved.nombre || ""));

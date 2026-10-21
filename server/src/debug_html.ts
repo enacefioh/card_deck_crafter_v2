@@ -351,7 +351,7 @@ function generarHtmlImpresion(
                 : "padding: 2px;";
 
               return `
-                <div style="${baseStyle} font-family: ${resolvedCapa.fontFamily || 'sans-serif'}; font-size: ${fontSizePt * 0.352778}mm; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: 1.2; pointer-events: none; ${paddingCss} ${borderCornersCss}">
+                <div style="${baseStyle} font-family: ${resolvedCapa.fontFamily || 'sans-serif'}; font-size: ${fontSizePt * 0.352778}mm; color: ${resolvedCapa.color || '#000000'}; background-color: ${resolvedCapa.backgroundColor || 'transparent'}; text-align: ${align}; font-weight: ${weight}; font-style: ${styleOpt}; text-decoration: ${decoration}; white-space: pre-wrap; word-break: break-word; line-height: ${typeof resolvedCapa.lineHeight === 'number' && resolvedCapa.lineHeight > 0 ? resolvedCapa.lineHeight : 1.2}; pointer-events: none; ${paddingCss} ${borderCornersCss}">
                   ${htmlText}
                 </div>
               `;

@@ -128,6 +128,7 @@ export async function getPublicTemplateSchema(
         } else if (
           typeof targetLayer?.[exp.property] === "number" ||
           exp.property === "fontSizePt" ||
+          exp.property === "lineHeight" ||
           exp.property === "rotacion" ||
           exp.property?.endsWith("Width") ||
           exp.property?.endsWith("Radius") ||

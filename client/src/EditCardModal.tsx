@@ -712,7 +712,8 @@ export default function EditCardModal({
         bold: false,
         italic: false,
         contenidoRaw: defaultText,
-        multiline: false
+        multiline: false,
+        lineHeight: 1.2
       };
     }
 
@@ -2815,7 +2816,7 @@ export default function EditCardModal({
                                 paintOrder: (resolvedCapa.textOutlineWidth || 0) > 0 ? ("stroke fill" as any) : undefined,
                                 whiteSpace: "pre-wrap",
                                 wordBreak: "break-word",
-                                lineHeight: 1.2,
+                                lineHeight: (typeof resolvedCapa.lineHeight === "number" && resolvedCapa.lineHeight > 0 ? resolvedCapa.lineHeight : 1.2),
                                 paddingTop: paddingTopPx > 0 ? `${paddingTopPx}px` : "2px",
                                 paddingRight: paddingRightPx > 0 ? `${paddingRightPx}px` : "2px",
                                 paddingBottom: paddingBottomPx > 0 ? `${paddingBottomPx}px` : "2px",
@@ -3795,6 +3796,40 @@ export default function EditCardModal({
                                       [selectedCapa.id]: {
                                         ...(prev[selectedCapa.id] || {}),
                                         textOutlineColor: val,
+                                      },
+                                    }));
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Fila 4 Tabla Tipografía: Interlineado (Line Height) (SRS-085) */}
+                          <div className="inspector-field-row inspector-section">
+                            <div className="inspector-cell" style={{ flex: 1, minWidth: 0 }}>
+                              <div className="inspector-field-label" title="Interlineado (multiplicador relativo al tamaño de fuente, por defecto 1.2)">
+                                <label className="inspector-label">Interlineado</label>
+                                {renderExposedEye("lineHeight", "Interlineado", true)}
+                              </div>
+                              <div className="inspector-field-control">
+                                <input
+                                  type="number"
+                                  min="0.5"
+                                  max="3"
+                                  step="0.05"
+                                  placeholder="1.2"
+                                  title="Interlineado (multiplicador e.g. 1.2)"
+                                  className="inspector-input"
+                                  value={tempCapasOverridesActivos[selectedCapa.id]?.lineHeight ?? selectedCapa.lineHeight ?? 1.2}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    const finalVal = isNaN(val) ? 1.2 : val;
+                                    handleUpdateCapaProp(selectedCapa.id, "lineHeight", finalVal);
+                                    setTempCapasOverridesActivos((prev) => ({
+                                      ...prev,
+                                      [selectedCapa.id]: {
+                                        ...(prev[selectedCapa.id] || {}),
+                                        lineHeight: finalVal,
                                       },
                                     }));
                                   }}
@@ -5092,6 +5127,7 @@ export default function EditCardModal({
                           { property: "alineacion", label: "Alineación Texto" },
                           { property: "textOutlineWidth", label: "Grosor Contorno Texto" },
                           { property: "textOutlineColor", label: "Color Contorno Texto" },
+                          { property: "lineHeight", label: "Interlineado" },
                           { property: "paddingTopMm", label: "Padding Texto" }
                         );
                       } else if (capa.tipo === "image" || capa.tipo === "image-switch") {
