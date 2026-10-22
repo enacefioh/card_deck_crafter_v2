@@ -724,6 +724,56 @@ function AppContent() {
     }
   };
 
+  const handleCollapseAllInspector = () => {
+    const selectedCartas = cartas.filter((c) => selectedCardIds.includes(c.id));
+    const isBack = inspectorTab === "back" && generarReversos;
+    const newCollapsed: Record<string, boolean> = {};
+    const newExpandedList: Record<string, boolean> = {};
+
+    selectedCartas.forEach((card) => {
+      const p = isBack
+        ? (card.plantillaTrasera || (card.plantillaTraseraId ? templatesMap[card.plantillaTraseraId] : null))
+        : (card.plantilla || (card.plantillaId ? templatesMap[card.plantillaId] : null));
+      (p?.capas || []).forEach((capa: any) => {
+        if (capa.tipo === "container") {
+          newCollapsed[capa.id] = true;
+        }
+        if (capa.tipo === "list") {
+          const children = (p?.capas || []).filter((c: any) => c.parentCapaId === capa.id);
+          children.forEach((ch: any) => {
+            newExpandedList[ch.id] = false;
+          });
+        }
+      });
+    });
+
+    setCollapsedSections(newCollapsed);
+    setExpandedListItems(newExpandedList);
+  };
+
+  const handleExpandAllInspector = () => {
+    const selectedCartas = cartas.filter((c) => selectedCardIds.includes(c.id));
+    const isBack = inspectorTab === "back" && generarReversos;
+    const newExpandedList: Record<string, boolean> = {};
+
+    selectedCartas.forEach((card) => {
+      const p = isBack
+        ? (card.plantillaTrasera || (card.plantillaTraseraId ? templatesMap[card.plantillaTraseraId] : null))
+        : (card.plantilla || (card.plantillaId ? templatesMap[card.plantillaId] : null));
+      (p?.capas || []).forEach((capa: any) => {
+        if (capa.tipo === "list") {
+          const children = (p?.capas || []).filter((c: any) => c.parentCapaId === capa.id);
+          children.forEach((ch: any) => {
+            newExpandedList[ch.id] = true;
+          });
+        }
+      });
+    });
+
+    setCollapsedSections({});
+    setExpandedListItems(newExpandedList);
+  };
+
   const handleCapaClick = (capaId: string) => {
     if (rightSidebarCollapsed) return;
     const elements = document.querySelectorAll<HTMLElement>(
@@ -4759,7 +4809,51 @@ function AppContent() {
                 ▶
               </button>
             </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-start", width: "100%", paddingTop: "2px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", paddingTop: "2px", gap: "6px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  title="Colapsar todos los elementos"
+                  data-testid="btn-collapse-all-inspector"
+                  onClick={handleCollapseAllInspector}
+                  style={{
+                    padding: "1px 6px",
+                    fontSize: "10px",
+                    height: "20px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "3px",
+                    cursor: "pointer",
+                    borderRadius: "3px",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-secondary)"
+                  }}
+                >
+                  ▶ Colapsar
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  title="Expandir todos los elementos"
+                  data-testid="btn-expand-all-inspector"
+                  onClick={handleExpandAllInspector}
+                  style={{
+                    padding: "1px 6px",
+                    fontSize: "10px",
+                    height: "20px",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "3px",
+                    cursor: "pointer",
+                    borderRadius: "3px",
+                    border: "1px solid var(--border-color)",
+                    color: "var(--text-secondary)"
+                  }}
+                >
+                  ▼ Expandir
+                </button>
+              </div>
               <label style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "var(--text-secondary)", cursor: "pointer", userSelect: "none" }}>
                 <input
                   type="checkbox"
@@ -5969,7 +6063,7 @@ function AppContent() {
               if (!layer) return false;
               let currentId = layer.parentCapaId;
               while (currentId) {
-                if (collapsedSections[currentId] !== false) {
+                if (collapsedSections[currentId] === true) {
                   return true;
                 }
                 const parent = baseCapas.find((l: any) => l.id === currentId);
@@ -6047,7 +6141,7 @@ function AppContent() {
               <div style={{ display: "flex", flexDirection: "column", gap: "1px", width: "100%" }}>
                 {renderableItems.map((item, _itemIdx) => {
                   if (item.type === "header") {
-                    const isCollapsed = collapsedSections[item.id] !== false;
+                    const isCollapsed = collapsedSections[item.id] === true;
                     if (isAncestorCollapsed(item.id)) {
                       return null;
                     }
@@ -6173,7 +6267,7 @@ function AppContent() {
                             ) : (
                               <div style={{ display: "flex", flexDirection: "column", gap: "3px" }}>
                                 {listChildren.map((child: any, idx: number) => {
-                                  const isExpanded = expandedListItems[child.id] === true;
+                                  const isExpanded = expandedListItems[child.id] !== false;
                                   const childTreeIds = new Set([child.id, ...getDescendantIds(child.id, baseCapas)]);
                                   const itemCampos = camposCoincidentes.filter(cc => childTreeIds.has(cc.mapaCartaCapaId[cartaBase.id]));
 
@@ -6270,7 +6364,7 @@ function AppContent() {
                   }
 
                   const campo = item.campo;
-                  const isCollapsed = collapsedSections[item.layerId] !== false;
+                  const isCollapsed = collapsedSections[item.layerId] === true;
                   const layer = baseCapas.find((l: any) => l.id === item.layerId);
                   const hideField = (layer?.tipo === "container" && isCollapsed) || isAncestorCollapsed(item.layerId);
                   if (hideField) {
