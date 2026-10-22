@@ -5223,17 +5223,26 @@ function AppContent() {
                 const rootCapa = p.capas.find((x: any) => x.id === childId);
                 if (!rootCapa) return c;
 
-                const descendants = getDescendantIds(rootCapa.id, p.capas);
-                const { newRoot, newDescendants, idMap } = cloneLayerTreeWithNewIds(rootCapa, descendants, listLayerId);
+                const descendantIds = getDescendantIds(rootCapa.id, p.capas);
+                const descendantCapas = descendantIds
+                  .map((id: string) => p.capas.find((x: any) => x.id === id))
+                  .filter(Boolean);
+                const { newRoot, newDescendants, idMap } = cloneLayerTreeWithNewIds(rootCapa, descendantCapas, listLayerId);
 
-                const allOriginalIds = new Set([rootCapa.id, ...descendants]);
+                const allOriginalIds = new Set([rootCapa.id, ...descendantIds]);
                 const relatedExposed = (p.exposedProperties || []).filter((ep: any) => allOriginalIds.has(ep.layerId));
-                const newExposed = relatedExposed.map((ep: any) => ({
-                  ...ep,
-                  layerId: idMap.get(ep.layerId)!
-                }));
+                const newExposed = relatedExposed
+                  .map((ep: any) => {
+                    const mappedId = idMap.get(ep.layerId);
+                    if (!mappedId) return null;
+                    return {
+                      ...ep,
+                      layerId: mappedId
+                    };
+                  })
+                  .filter(Boolean);
 
-                const lastDescendantId = descendants.length > 0 ? descendants[descendants.length - 1] : rootCapa.id;
+                const lastDescendantId = descendantIds.length > 0 ? descendantIds[descendantIds.length - 1] : rootCapa.id;
                 const insertIdx = p.capas.findIndex((x: any) => x.id === lastDescendantId);
                 const nextCapas = [...p.capas];
                 nextCapas.splice(insertIdx + 1, 0, newRoot, ...newDescendants);

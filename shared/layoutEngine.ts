@@ -409,9 +409,12 @@ export function cloneLayerTreeWithNewIds(
   const newRootId = `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   idMap.set(rootCapa.id, newRootId);
 
-  // 2. Generar nuevas IDs para todas las descendientes
+  // 2. Generar nuevas IDs para todas las descendientes (soportando objetos o string IDs)
   descendantCapas.forEach((c) => {
-    idMap.set(c.id, `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`);
+    const origId = typeof c === "string" ? c : c?.id;
+    if (origId) {
+      idMap.set(origId, `layer_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`);
+    }
   });
 
   // 3. Clonar y reasignar raíz
@@ -421,13 +424,15 @@ export function cloneLayerTreeWithNewIds(
     parentCapaId: targetParentId
   };
 
-  // 4. Clonar y reasignar descendientes
-  const newDescendants = descendantCapas.map((c) => {
-    const cloned = JSON.parse(JSON.stringify(c));
-    cloned.id = idMap.get(c.id)!;
-    cloned.parentCapaId = idMap.get(c.parentCapaId) || newRootId;
-    return cloned;
-  });
+  // 4. Clonar y reasignar descendientes (filtrando solo objetos válidos)
+  const newDescendants = descendantCapas
+    .filter((c) => typeof c === "object" && c !== null)
+    .map((c) => {
+      const cloned = JSON.parse(JSON.stringify(c));
+      cloned.id = idMap.get(c.id)!;
+      cloned.parentCapaId = idMap.get(c.parentCapaId) || newRootId;
+      return cloned;
+    });
 
   return { newRoot, newDescendants, idMap };
 }
