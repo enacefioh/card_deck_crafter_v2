@@ -2457,33 +2457,11 @@ function AppContent() {
         return [...prev, templateData];
       });
 
-      setCartas((prev) =>
-        prev.map((c) => {
-          let updated = c;
-          if (c.plantillaId === templateData.id) {
-            updated = { ...updated, plantilla: JSON.parse(JSON.stringify(templateData)) };
-          }
-          if (c.plantillaTraseraId === templateData.id) {
-            updated = { ...updated, plantillaTrasera: JSON.parse(JSON.stringify(templateData)) };
-          }
-          return updated;
-        })
-      );
-      setDocumentos((prevDocs) =>
-        prevDocs.map((doc) => ({
-          ...doc,
-          cards: doc.cards.map((c) => {
-            let updated = c;
-            if (c.plantillaId === templateData.id) {
-              updated = { ...updated, plantilla: JSON.parse(JSON.stringify(templateData)) };
-            }
-            if (c.plantillaTraseraId === templateData.id) {
-              updated = { ...updated, plantillaTrasera: JSON.parse(JSON.stringify(templateData)) };
-            }
-            return updated;
-          })
-        }))
-      );
+      setTemplatesMap((prev) => ({
+        ...prev,
+        [templateData.id]: templateData,
+      }));
+      setIsDirty(true);
 
       alert(`Plantilla "${templateData.nombre}" importada con éxito.`);
     } catch (err: any) {
@@ -6455,33 +6433,7 @@ function AppContent() {
               }
               return [...prev, plantilla];
             });
-            setCartas((prev) =>
-              prev.map((c) => {
-                let updated = c;
-                if (c.plantillaId === plantilla.id) {
-                  updated = { ...updated, plantilla: JSON.parse(JSON.stringify(plantilla)) };
-                }
-                if (c.plantillaTraseraId === plantilla.id) {
-                  updated = { ...updated, plantillaTrasera: JSON.parse(JSON.stringify(plantilla)) };
-                }
-                return updated;
-              })
-            );
-            setDocumentos((prevDocs) =>
-              prevDocs.map((doc) => ({
-                ...doc,
-                cards: doc.cards.map((c) => {
-                  let updated = c;
-                  if (c.plantillaId === plantilla.id) {
-                    updated = { ...updated, plantilla: JSON.parse(JSON.stringify(plantilla)) };
-                  }
-                  if (c.plantillaTraseraId === plantilla.id) {
-                    updated = { ...updated, plantillaTrasera: JSON.parse(JSON.stringify(plantilla)) };
-                  }
-                  return updated;
-                })
-              }))
-            );
+            setIsDirty(true);
           }}
           projectAssets={projectAssets}
           projectFonts={projectFonts}
