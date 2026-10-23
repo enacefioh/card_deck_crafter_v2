@@ -83,7 +83,7 @@ export class McpStreamableHttpHandler {
       // 1. Si viene con ID de sesión existente, buscar la sesión activa
       if (sessionId && this.activeSessions.has(sessionId)) {
         const session = this.activeSessions.get(sessionId)!;
-        await session.transport.handleRequest(req, res);
+        await session.transport.handleRequest(req, res, req.body);
         return;
       }
 
@@ -132,7 +132,7 @@ export class McpStreamableHttpHandler {
       };
 
       await server.connect(transport);
-      await transport.handleRequest(req, res);
+      await transport.handleRequest(req, res, req.body);
     } catch (err: any) {
       console.error("[McpStreamableHttpHandler] Error procesando petición:", err);
       if (!res.headersSent) {
