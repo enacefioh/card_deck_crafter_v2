@@ -20,6 +20,7 @@ import { getPublicTemplateSchema, renderCardToPng } from "./engine/cardEngineSer
 import { ProjectArchiveService } from "./engine/projectArchiveService.js";
 import { generarHtmlExportacionPng } from "./engine/cardRenderer.js";
 import { AGENT_SKILL_MARKDOWN } from "./engine/agentSkillContent.js";
+import { McpSseHandler } from "./mcp/transport/sse.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -272,7 +273,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261022.3",
+      version: "v2.261023.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1181,6 +1182,18 @@ app.get("/api/v1/projects/:id/download", requireAuth, async (req, res) => {
 });
 
 
+
+// ==================== SERVIDOR MCP (MODEL CONTEXT PROTOCOL) - SRS-087 ====================
+const mcpHandler = new McpSseHandler({
+  getApiKeyService,
+  getAuthService: () => authService,
+  getProjectArchiveService,
+  getStorageService,
+  getPublicTemplateService,
+});
+
+app.get("/mcp/sse", mcpHandler.handleSseConnection);
+app.post("/mcp/messages", mcpHandler.handlePostMessage);
 
 // Cargar configuración de servidor (config.json) (SRS-060)
 const CONFIG_PATH = path.join(__dirname, "../config.json");

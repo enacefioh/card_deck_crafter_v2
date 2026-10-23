@@ -12,6 +12,8 @@ export const DeveloperDocs: React.FC<DeveloperDocsProps> = ({
 }) => {
   const [activeCodeLang, setActiveCodeLang] = useState<"curl" | "python" | "node">("curl");
   const [activeProjectLang, setActiveProjectLang] = useState<"curl" | "python" | "node">("curl");
+  const [activeMcpTab, setActiveMcpTab] = useState<"cursor" | "claude" | "remote">("cursor");
+  const [mcpApiKeyInput, setMcpApiKeyInput] = useState<string>("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   const handleDownloadSkill = () => {
@@ -244,6 +246,45 @@ console.log("Anverso OK:", prevFront.ok, "Reverso OK:", prevBack.ok);
       setCopiedKey((prev) => (prev === key ? null : prev));
     }, 2000);
   };
+
+  const resolvedMcpKey = mcpApiKeyInput.trim() || "cdc2_live_TU_API_KEY_AQUI";
+
+  const cursorMcpJson = JSON.stringify(
+    {
+      mcpServers: {
+        "card-deck-crafter": {
+          url: `${origin}/mcp/sse?apiKey=${resolvedMcpKey}`
+        }
+      }
+    },
+    null,
+    2
+  );
+
+  const claudeDesktopMcpJson = JSON.stringify(
+    {
+      mcpServers: {
+        "card-deck-crafter": {
+          url: `${origin}/mcp/sse?apiKey=${resolvedMcpKey}`
+        }
+      }
+    },
+    null,
+    2
+  );
+
+  const remoteSseMcpJson = JSON.stringify(
+    {
+      name: "card-deck-crafter",
+      transport: "sse",
+      url: `${origin}/mcp/sse`,
+      headers: {
+        Authorization: `Bearer ${resolvedMcpKey}`
+      }
+    },
+    null,
+    2
+  );
 
   const sampleTemplateId = "ce50cc07-7014-49c4-8026-ae7268491269";
   const sampleDesignId = "template_1791468472459_okugs";
@@ -653,6 +694,160 @@ if (renderResp.ok) {
             <code style={{ fontSize: "12px", color: "#38bdf8", fontFamily: "monospace", backgroundColor: "#06060a", padding: "4px 8px", borderRadius: "4px" }}>
               curl -s {origin}/api/v1/docs/agent-skill &gt; .agents/skills/card-deck-crafter/SKILL.md
             </code>
+          </div>
+        </div>
+
+        {/* ==================== SECCIÓN DESTACADA: MODEL CONTEXT PROTOCOL (MCP) (SRS-087) ==================== */}
+        <div
+          style={{
+            background: "linear-gradient(135deg, #13172e 0%, #1a1e3b 50%, #152438 100%)",
+            border: "1px solid #38bdf8",
+            borderRadius: "14px",
+            padding: "30px",
+            marginBottom: "36px",
+            boxShadow: "0 8px 32px rgba(56, 189, 248, 0.15)"
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "14px", marginBottom: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <span style={{ fontSize: "30px" }}>⚡</span>
+              <div>
+                <h2 style={{ fontSize: "22px", fontWeight: "800", color: "#fff", margin: "0 0 4px 0" }}>
+                  Model Context Protocol (MCP) - Conexión Nativa para IA
+                </h2>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  <span style={{ fontSize: "11px", backgroundColor: "rgba(56, 189, 248, 0.25)", color: "#7dd3fc", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                    Transporte Remoto SSE & Stdio
+                  </span>
+                  <span style={{ fontSize: "11px", backgroundColor: "rgba(168, 85, 247, 0.25)", color: "#d8b4fe", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                    Claude Desktop & Cursor
+                  </span>
+                  <span style={{ fontSize: "11px", backgroundColor: "rgba(52, 211, 153, 0.25)", color: "#6ee7b7", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                    10 Tools + Resources + Prompts
+                  </span>
+                  <span style={{ fontSize: "11px", backgroundColor: "rgba(251, 191, 36, 0.25)", color: "#fde68a", padding: "2px 8px", borderRadius: "4px", fontWeight: "600" }}>
+                    Preview Multimodal PNG
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <p style={{ fontSize: "14px", color: "#cbd5e1", lineHeight: "1.7", margin: "0 0 20px 0" }}>
+            Card Deck Crafter v2 expone un <strong>Servidor MCP oficial</strong> según el estándar abierto de Anthropic. Al configurarlo en tu cliente de IA preferido (Claude Desktop, Cursor, Cline, Windsurf o agentes autónomos), el modelo gana acceso directo a herramientas para inspeccionar plantillas, maquetar cartas frontales y traseras con ilustraciones, y ver el resultado visual con renderizado PNG en alta resolución.
+          </p>
+
+          {/* Selector de API Key dinámico */}
+          <div style={{ backgroundColor: "#0c101c", border: "1px solid #1e293b", borderRadius: "10px", padding: "16px 20px", marginBottom: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: "12px", marginBottom: "12px" }}>
+              <label htmlFor="mcp-api-key-input" style={{ fontSize: "13px", fontWeight: "700", color: "#38bdf8", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span>🔑</span> Tu API Key de CDC2 (para autocompletar la configuración):
+              </label>
+              <input
+                id="mcp-api-key-input"
+                type="text"
+                placeholder="Pega aquí tu clave cdc2_live_... (opcional)"
+                value={mcpApiKeyInput}
+                onChange={(e) => setMcpApiKeyInput(e.target.value)}
+                style={{
+                  flex: "1",
+                  maxWidth: "420px",
+                  backgroundColor: "#161e2e",
+                  border: "1px solid #334155",
+                  borderRadius: "6px",
+                  padding: "7px 12px",
+                  color: "#f8fafc",
+                  fontSize: "13px",
+                  fontFamily: "monospace"
+                }}
+              />
+            </div>
+            <p style={{ fontSize: "12px", color: "#64748b", margin: 0 }}>
+              💡 El servidor MCP utiliza el mismo sistema unificado de API Keys de CDC2. Puedes generar tus claves en la pestaña <strong>Acceso API</strong> del panel de Proyectos.
+            </p>
+          </div>
+
+          {/* Tabs de clientes MCP y Snippet */}
+          <div style={{ marginBottom: "24px" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
+              <div style={{ display: "flex", gap: "8px" }}>
+                {(["cursor", "claude", "remote"] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    type="button"
+                    onClick={() => setActiveMcpTab(tab)}
+                    style={{
+                      padding: "6px 14px",
+                      borderRadius: "6px",
+                      border: activeMcpTab === tab ? "none" : "1px solid #334155",
+                      backgroundColor: activeMcpTab === tab ? "#0284c7" : "#0f172a",
+                      color: activeMcpTab === tab ? "#fff" : "#94a3b8",
+                      fontSize: "12px",
+                      fontWeight: "700",
+                      cursor: "pointer",
+                      textTransform: "uppercase"
+                    }}
+                  >
+                    {tab === "cursor" ? "Cursor" : tab === "claude" ? "Claude Desktop" : "SSE Remoto"}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const content = activeMcpTab === "cursor" ? cursorMcpJson : activeMcpTab === "claude" ? claudeDesktopMcpJson : remoteSseMcpJson;
+                  handleCopy(content, `mcp-${activeMcpTab}`);
+                }}
+                style={{
+                  backgroundColor: copiedKey === `mcp-${activeMcpTab}` ? "#10b981" : "#0284c7",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "6px",
+                  padding: "7px 14px",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.3)"
+                }}
+              >
+                <span>{copiedKey === `mcp-${activeMcpTab}` ? "✓" : "📋"}</span>
+                {copiedKey === `mcp-${activeMcpTab}` ? "¡Configuración Copiada!" : "Copiar Configuración MCP"}
+              </button>
+            </div>
+
+            <pre style={{ margin: 0, backgroundColor: "#080c14", border: "1px solid #1e293b", borderRadius: "10px", padding: "18px", color: "#38bdf8", fontSize: "12px", fontFamily: "monospace", overflowX: "auto", lineHeight: "1.6" }}>
+              {activeMcpTab === "cursor" ? cursorMcpJson : activeMcpTab === "claude" ? claudeDesktopMcpJson : remoteSseMcpJson}
+            </pre>
+          </div>
+
+          {/* Catálogo de Herramientas MCP */}
+          <div>
+            <h3 style={{ fontSize: "15px", fontWeight: "700", color: "#f8fafc", marginBottom: "12px", display: "flex", alignItems: "center", gap: "8px" }}>
+              <span>🛠️</span> Herramientas MCP Disponibles (10 Tools Nativas)
+            </h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "10px" }}>
+              {[
+                { name: "cdc2_list_projects", desc: "Lista proyectos en la nube con contador de cartas y tamaño" },
+                { name: "cdc2_get_project", desc: "Obtiene la estructura completa de un proyecto .cdc2" },
+                { name: "cdc2_create_project", desc: "Crea un nuevo proyecto clonando una plantilla base" },
+                { name: "cdc2_list_documents", desc: "Lista documentos/mazos dentro de un proyecto" },
+                { name: "cdc2_create_document", desc: "Crea un nuevo documento independiente (ej. mazo temático)" },
+                { name: "cdc2_get_template_schema", desc: "Inspecciona campos editables y semántica de plantilla" },
+                { name: "cdc2_add_cards", desc: "Añade cartas frontales y traseras con textos e ilustraciones" },
+                { name: "cdc2_update_card", desc: "Modifica textos, imágenes o reverso de una carta" },
+                { name: "cdc2_delete_card", desc: "Elimina una carta de un proyecto" },
+                { name: "cdc2_render_card_preview", desc: "Renderiza imagen PNG de alta fidelidad para evaluación visual" },
+              ].map((tool) => (
+                <div key={tool.name} style={{ backgroundColor: "#0b101d", border: "1px solid #1e293b", borderRadius: "8px", padding: "10px 14px" }}>
+                  <code style={{ fontSize: "12px", color: "#38bdf8", fontWeight: "700" }}>{tool.name}</code>
+                  <p style={{ margin: "4px 0 0 0", fontSize: "11px", color: "#94a3b8", lineHeight: "1.4" }}>{tool.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
