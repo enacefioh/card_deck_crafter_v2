@@ -253,7 +253,7 @@ console.log("Anverso OK:", prevFront.ok, "Reverso OK:", prevBack.ok);
     {
       mcpServers: {
         "card-deck-crafter": {
-          url: `${origin}/mcp?apiKey=${resolvedMcpKey}`
+          url: `${origin}/api/mcp?apiKey=${resolvedMcpKey}`
         }
       }
     },
@@ -265,7 +265,7 @@ console.log("Anverso OK:", prevFront.ok, "Reverso OK:", prevBack.ok);
     {
       mcpServers: {
         "card-deck-crafter": {
-          url: `${origin}/mcp/sse?apiKey=${resolvedMcpKey}`
+          url: `${origin}/api/mcp/sse?apiKey=${resolvedMcpKey}`
         }
       }
     },
@@ -277,7 +277,7 @@ console.log("Anverso OK:", prevFront.ok, "Reverso OK:", prevBack.ok);
     {
       mcpServers: {
         "card-deck-crafter": {
-          url: `${origin}/mcp/sse?apiKey=${resolvedMcpKey}`
+          url: `${origin}/api/mcp/sse?apiKey=${resolvedMcpKey}`
         }
       }
     },
@@ -289,7 +289,7 @@ console.log("Anverso OK:", prevFront.ok, "Reverso OK:", prevBack.ok);
     {
       name: "card-deck-crafter",
       transport: "sse",
-      url: `${origin}/mcp/sse`,
+      url: `${origin}/api/mcp/sse`,
       headers: {
         Authorization: `Bearer ${resolvedMcpKey}`
       }

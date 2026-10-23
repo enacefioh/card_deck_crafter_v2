@@ -274,7 +274,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261023.2",
+      version: "v2.261023.3",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1201,7 +1201,13 @@ const mcpStreamableHandler = new McpStreamableHttpHandler({
   getPublicTemplateService,
 });
 
+// 1. Transporte Streamable HTTP (MCP Spec 2025-03-26) para Antigravity y clientes modernos
 app.all("/mcp", mcpStreamableHandler.handleRequest);
+app.all("/api/mcp", mcpStreamableHandler.handleRequest);
+
+// 2. Transporte SSE Remoto (MCP Spec 2024-11-05) para Cursor, Claude Desktop y clientes legacy
+app.get("/api/mcp/sse", mcpHandler.handleSseConnection);
+app.post("/api/mcp/messages", mcpHandler.handlePostMessage);
 app.get("/mcp/sse", mcpHandler.handleSseConnection);
 app.post("/mcp/messages", mcpHandler.handlePostMessage);
 

@@ -87,7 +87,8 @@ export class McpSseHandler {
       }
 
       // Inicializar el transporte SSE indicando el endpoint POST para mensajes
-      const transport = new SSEServerTransport("/mcp/messages", res);
+      const messagesEndpoint = req.originalUrl?.includes("/api/") ? "/api/mcp/messages" : "/mcp/messages";
+      const transport = new SSEServerTransport(messagesEndpoint, res);
 
       const mcpContext: McpContext = {
         userId: auth.userId,

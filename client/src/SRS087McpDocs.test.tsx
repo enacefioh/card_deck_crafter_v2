@@ -31,20 +31,20 @@ describe("SRS-087: Documentación de Servidor MCP en DeveloperDocs", () => {
     render(<DeveloperDocs onBackToStore={vi.fn()} onBackToEditor={vi.fn()} />);
 
     // Por defecto pestaña Antigravity (Streamable HTTP)
-    expect(screen.getByText(/\/mcp\?apiKey=cdc2_live_TU_API_KEY_AQUI/i)).toBeDefined();
+    expect(screen.getByText(/\/api\/mcp\?apiKey=cdc2_live_TU_API_KEY_AQUI/i)).toBeDefined();
 
     // Escribir una API Key en el input
     const input = screen.getByLabelText(/Tu API Key de CDC2/i);
     fireEvent.change(input, { target: { value: "cdc2_live_secret_token_123" } });
 
     // Comprobar que el bloque JSON se actualiza en tiempo real
-    expect(screen.getByText(/\/mcp\?apiKey=cdc2_live_secret_token_123/i)).toBeDefined();
+    expect(screen.getByText(/\/api\/mcp\?apiKey=cdc2_live_secret_token_123/i)).toBeDefined();
 
     // Cambiar a pestaña Cursor
     const cursorBtn = screen.getByRole("button", { name: /Cursor/i });
     fireEvent.click(cursorBtn);
 
-    expect(screen.getByText(/\/mcp\/sse\?apiKey=cdc2_live_secret_token_123/i)).toBeDefined();
+    expect(screen.getByText(/\/api\/mcp\/sse\?apiKey=cdc2_live_secret_token_123/i)).toBeDefined();
 
     // Cambiar a pestaña SSE Remoto
     const remoteBtn = screen.getByRole("button", { name: /SSE Remoto/i });
@@ -56,7 +56,7 @@ describe("SRS-087: Documentación de Servidor MCP en DeveloperDocs", () => {
     const claudeBtn = screen.getByRole("button", { name: /Claude Desktop/i });
     fireEvent.click(claudeBtn);
 
-    expect(screen.getByText(/\/mcp\/sse\?apiKey=cdc2_live_secret_token_123/i)).toBeDefined();
+    expect(screen.getByText(/\/api\/mcp\/sse\?apiKey=cdc2_live_secret_token_123/i)).toBeDefined();
   });
 
   it("RF-6: botón de copiar configuración MCP copia al portapapeles y da feedback", () => {
