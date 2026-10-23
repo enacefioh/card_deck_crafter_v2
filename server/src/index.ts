@@ -21,6 +21,7 @@ import { ProjectArchiveService } from "./engine/projectArchiveService.js";
 import { generarHtmlExportacionPng } from "./engine/cardRenderer.js";
 import { AGENT_SKILL_MARKDOWN } from "./engine/agentSkillContent.js";
 import { McpSseHandler } from "./mcp/transport/sse.js";
+import { McpStreamableHttpHandler } from "./mcp/transport/streamableHttp.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -273,7 +274,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261023.1",
+      version: "v2.261023.2",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1192,6 +1193,15 @@ const mcpHandler = new McpSseHandler({
   getPublicTemplateService,
 });
 
+const mcpStreamableHandler = new McpStreamableHttpHandler({
+  getApiKeyService,
+  getAuthService: () => authService,
+  getProjectArchiveService,
+  getStorageService,
+  getPublicTemplateService,
+});
+
+app.all("/mcp", mcpStreamableHandler.handleRequest);
 app.get("/mcp/sse", mcpHandler.handleSseConnection);
 app.post("/mcp/messages", mcpHandler.handlePostMessage);
 

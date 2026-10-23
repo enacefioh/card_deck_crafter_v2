@@ -12,7 +12,7 @@ export const DeveloperDocs: React.FC<DeveloperDocsProps> = ({
 }) => {
   const [activeCodeLang, setActiveCodeLang] = useState<"curl" | "python" | "node">("curl");
   const [activeProjectLang, setActiveProjectLang] = useState<"curl" | "python" | "node">("curl");
-  const [activeMcpTab, setActiveMcpTab] = useState<"cursor" | "claude" | "remote">("cursor");
+  const [activeMcpTab, setActiveMcpTab] = useState<"antigravity" | "cursor" | "claude" | "remote">("antigravity");
   const [mcpApiKeyInput, setMcpApiKeyInput] = useState<string>("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -248,6 +248,18 @@ console.log("Anverso OK:", prevFront.ok, "Reverso OK:", prevBack.ok);
   };
 
   const resolvedMcpKey = mcpApiKeyInput.trim() || "cdc2_live_TU_API_KEY_AQUI";
+
+  const antigravityMcpJson = JSON.stringify(
+    {
+      mcpServers: {
+        "card-deck-crafter": {
+          url: `${origin}/mcp?apiKey=${resolvedMcpKey}`
+        }
+      }
+    },
+    null,
+    2
+  );
 
   const cursorMcpJson = JSON.stringify(
     {
@@ -771,7 +783,7 @@ if (renderResp.ok) {
           <div style={{ marginBottom: "24px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px", flexWrap: "wrap", gap: "10px" }}>
               <div style={{ display: "flex", gap: "8px" }}>
-                {(["cursor", "claude", "remote"] as const).map((tab) => (
+                {(["antigravity", "cursor", "claude", "remote"] as const).map((tab) => (
                   <button
                     key={tab}
                     type="button"
@@ -788,7 +800,7 @@ if (renderResp.ok) {
                       textTransform: "uppercase"
                     }}
                   >
-                    {tab === "cursor" ? "Cursor" : tab === "claude" ? "Claude Desktop" : "SSE Remoto"}
+                    {tab === "antigravity" ? "Antigravity" : tab === "cursor" ? "Cursor" : tab === "claude" ? "Claude Desktop" : "SSE Remoto"}
                   </button>
                 ))}
               </div>
@@ -796,7 +808,14 @@ if (renderResp.ok) {
               <button
                 type="button"
                 onClick={() => {
-                  const content = activeMcpTab === "cursor" ? cursorMcpJson : activeMcpTab === "claude" ? claudeDesktopMcpJson : remoteSseMcpJson;
+                  const content =
+                    activeMcpTab === "antigravity"
+                      ? antigravityMcpJson
+                      : activeMcpTab === "cursor"
+                      ? cursorMcpJson
+                      : activeMcpTab === "claude"
+                      ? claudeDesktopMcpJson
+                      : remoteSseMcpJson;
                   handleCopy(content, `mcp-${activeMcpTab}`);
                 }}
                 style={{
@@ -819,9 +838,14 @@ if (renderResp.ok) {
               </button>
             </div>
 
-            <pre style={{ margin: 0, backgroundColor: "#080c14", border: "1px solid #1e293b", borderRadius: "10px", padding: "18px", color: "#38bdf8", fontSize: "12px", fontFamily: "monospace", overflowX: "auto", lineHeight: "1.6" }}>
-              {activeMcpTab === "cursor" ? cursorMcpJson : activeMcpTab === "claude" ? claudeDesktopMcpJson : remoteSseMcpJson}
+            <pre style={{ margin: "0 0 8px 0", backgroundColor: "#080c14", border: "1px solid #1e293b", borderRadius: "10px", padding: "18px", color: "#38bdf8", fontSize: "12px", fontFamily: "monospace", overflowX: "auto", lineHeight: "1.6" }}>
+              {activeMcpTab === "antigravity" ? antigravityMcpJson : activeMcpTab === "cursor" ? cursorMcpJson : activeMcpTab === "claude" ? claudeDesktopMcpJson : remoteSseMcpJson}
             </pre>
+            {activeMcpTab === "antigravity" && (
+              <p style={{ margin: 0, fontSize: "12px", color: "#94a3b8" }}>
+                💡 En <strong>Antigravity</strong>, copia este JSON en tu archivo de configuración global: <code style={{ color: "#38bdf8" }}>~/.gemini/config/mcp_config.json</code> (o <code style={{ color: "#38bdf8" }}>%USERPROFILE%\.gemini\config\mcp_config.json</code>).
+              </p>
+            )}
           </div>
 
           {/* Catálogo de Herramientas MCP */}

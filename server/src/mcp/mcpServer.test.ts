@@ -4,6 +4,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { createMcpServer } from "./server.js";
 import type { McpContext } from "./types.js";
 import { McpSseHandler } from "./transport/sse.js";
+import { McpStreamableHttpHandler } from "./transport/streamableHttp.js";
 
 describe("SRS-087: Servidor MCP Integrado (Tools, Resources, Prompts y SSE)", () => {
   let mockContext: McpContext;
@@ -344,6 +345,38 @@ describe("SRS-087: Servidor MCP Integrado (Tools, Resources, Prompts y SSE)", ()
       await handler.handleSseConnection(mockReq, mockRes);
       expect(mockRes.status).toHaveBeenCalledWith(401);
       expect(mockRes.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining("No autorizado") }));
+    });
+  });
+
+  describe("McpStreamableHttpHandler - Streamable HTTP (MCP 2025-03-26)", () => {
+    it("Rechaza peticiones no autenticadas con código 401", async () => {
+      const handler = new McpStreamableHttpHandler({
+        getApiKeyService: () => mockContext.apiKeyService,
+        getAuthService: () => ({ getSessionUser: vi.fn().mockResolvedValue(null) } as any),
+        getProjectArchiveService: () => mockContext.projectArchiveService,
+        getStorageService: () => mockContext.storageService,
+        getPublicTemplateService: () => mockContext.publicTemplateService,
+      });
+
+      const mockReq: any = {
+        headers: {},
+        query: {},
+        cookies: {},
+      };
+      const mockRes: any = {
+        status: vi.fn().mockReturnThis(),
+        json: vi.fn(),
+      };
+
+      await handler.handleRequest(mockReq, mockRes);
+      expect(mockRes.status).toHaveBeenCalledWith(401);
+      expect(mockRes.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: expect.objectContaining({
+            message: expect.stringContaining("No autorizado"),
+          }),
+        })
+      );
     });
   });
 });
