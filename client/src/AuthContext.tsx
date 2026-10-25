@@ -25,6 +25,26 @@ interface AuthContextType {
   refreshUser: () => Promise<void>;
 }
 
+async function parseAuthResponse(res: Response): Promise<any> {
+  const contentType = res.headers.get("content-type");
+  if (contentType && contentType.includes("application/json")) {
+    try {
+      return await res.json();
+    } catch {
+      // JSON parse failed, fall through to status text handling
+    }
+  }
+
+  if (!res.ok) {
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      throw new Error("El servidor backend no está respondiendo en este momento (502 Bad Gateway). Por favor, inténtalo de nuevo en unos minutos.");
+    }
+    throw new Error(`Error en el servidor (${res.status} ${res.statusText || "Error"}).`);
+  }
+
+  throw new Error("Respuesta no válida del servidor.");
+}
+
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -72,7 +92,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ email, password })
       });
 
-      const data = await res.json();
+      const data = await parseAuthResponse(res);
       if (!res.ok) {
         return { status: "OK" as const, error: data.error || "Credenciales incorrectas." };
       }
@@ -104,7 +124,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         })
       });
 
-      const data = await res.json();
+      const data = await parseAuthResponse(res);
       if (!res.ok) {
         return { success: false, error: data.error || "Error al activar la contraseña." };
       }
@@ -132,7 +152,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         body: JSON.stringify({ email, password })
       });
 
-      const data = await res.json();
+      const data = await parseAuthResponse(res);
       if (!res.ok) {
         return { success: false, error: data.error || "Error al configurar el administrador." };
       }

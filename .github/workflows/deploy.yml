@@ -27,5 +27,7 @@ jobs:
             npm install
             npm rebuild better-sqlite3
             npm run client:build
-            pm2 restart carta-backend
+            pm2 restart carta-backend || pm2 start npm --name "carta-backend" -- run server:start
+            pm2 save
             npm cache clean --force
+            pm2 list
