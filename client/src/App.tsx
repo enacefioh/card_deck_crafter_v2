@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from "react";
+import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { calcularDistribucion, isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle, cloneLayerTreeWithNewIds, calculateAutoDimensionsForFreeContainer } from "shared";
 import type { CanvasConfig, CardConfig, Carta, DocumentoCDC2, UserStorageInfo, CloudProjectMetadata, CloudTemplateMetadata, ChildTemplate } from "shared";
 import JSZip from "jszip";
@@ -25,6 +25,7 @@ import {
   downloadCloudTemplateBlob
 } from "./services/storageService";
 import { generarMiniaturaPlantilla } from "./utils/thumbnailUtils";
+import { useHistory } from "./hooks/useHistory";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -208,7 +209,15 @@ function AppContent() {
   const fileInputTemplateRef = useRef<HTMLInputElement>(null);
 
   // --- Estados de Configuración ---
-  const [documentos, setDocumentos] = useState<DocumentoCDC2[]>([
+  const {
+    state: documentos,
+    set: setDocumentosHistory,
+    undo: undoDocumentos,
+    redo: redoDocumentos,
+    reset: resetDocumentos,
+    canUndo,
+    canRedo
+  } = useHistory<DocumentoCDC2[]>([
     {
       id: "doc_default",
       nombre: "Documento 1",
@@ -239,7 +248,26 @@ function AppContent() {
       imagenTraseraComun: null,
       cards: []
     }
-  ]);
+  ], { maxHistory: 40 });
+
+  const setDocumentos = (
+    newVal: DocumentoCDC2[] | ((prev: DocumentoCDC2[]) => DocumentoCDC2[]),
+    options?: { skipHistory?: boolean }
+  ) => {
+    setDocumentosHistory(newVal, options);
+  };
+
+  const handleUndo = useCallback(() => {
+    if (!canUndo) return;
+    undoDocumentos();
+    setIsDirty(true);
+  }, [canUndo, undoDocumentos]);
+
+  const handleRedo = useCallback(() => {
+    if (!canRedo) return;
+    redoDocumentos();
+    setIsDirty(true);
+  }, [canRedo, redoDocumentos]);
   const [activeDocumentoId, setActiveDocumentoId] = useState<string>("doc_default");
 
   const activeDocumento = documentos.find(d => d.id === activeDocumentoId) || documentos[0];
@@ -302,7 +330,7 @@ function AppContent() {
     }));
   };
 
-  const setCartasInternal = (newVal: Carta[] | ((prev: Carta[]) => Carta[])) => {
+  const setCartasInternal = (newVal: Carta[] | ((prev: Carta[]) => Carta[]), options?: { skipHistory?: boolean }) => {
     setDocumentos(prev => prev.map(d => {
       if (d.id === activeDocumentoId) {
         return {
@@ -311,7 +339,7 @@ function AppContent() {
         };
       }
       return d;
-    }));
+    }), options);
   };
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [activeCanvasEditLayerId, setActiveCanvasEditLayerId] = useState<string | null>(null);
@@ -407,9 +435,11 @@ function AppContent() {
         return { ...c, capasOverrides: nextOverrides };
       }
     });
-    setCartas(cartasZeroRotations);
+    let hasMoved = false;
+    setCartas(cartasZeroRotations, { skipHistory: true });
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
+      hasMoved = true;
       const deltaX = moveEvent.clientX - startX;
       const deltaY = moveEvent.clientY - startY;
       
@@ -459,7 +489,7 @@ function AppContent() {
         }
       });
 
-      setCartas(nuevasCartas);
+      setCartas(nuevasCartas, { skipHistory: true });
     };
 
     const handleMouseUp = () => {
@@ -489,7 +519,8 @@ function AppContent() {
             });
             return { ...c, capasOverrides: nextOverrides };
           }
-        })
+        }),
+        { skipHistory: !hasMoved }
       );
 
       document.removeEventListener("mousemove", handleMouseMove);
@@ -811,8 +842,8 @@ function AppContent() {
     setIsDirty(true);
   };
 
-  const setCartas = (value: React.SetStateAction<Carta[]>) => {
-    setCartasInternal(value);
+  const setCartas = (value: React.SetStateAction<Carta[]>, options?: { skipHistory?: boolean }) => {
+    setCartasInternal(value, options);
     setIsDirty(true);
   };
 
@@ -2121,7 +2152,7 @@ function AppContent() {
       }));
       setImportedTemplates(newImported);
 
-      setDocumentos(proyecto.documentos);
+      resetDocumentos(proyecto.documentos);
       setActiveDocumentoId(proyecto.activeDocumentoId);
 
       if (proyecto.meta && proyecto.meta.nombre) {
@@ -2774,35 +2805,42 @@ function AppContent() {
         URL.revokeObjectURL(imagenTraseraComun);
       }
 
-      setCartasInternal([]);
+      resetDocumentos([
+        {
+          id: "doc_default",
+          nombre: "Documento 1",
+          canvasConfig: {
+            tipo: "A4",
+            anchoMm: 210,
+            altoMm: 297,
+            orientacion: "vertical",
+            margenTopMm: 8,
+            margenBottomMm: 8,
+            margenLeftMm: 8,
+            margenRightMm: 8,
+            lineasCorteContinuas: true,
+            marcasCorteEsquinas: true,
+          },
+          cardConfig: {
+            anchoMm: 63.5,
+            altoMm: 88.9,
+            espaciadoXMm: 0,
+            espaciadoYMm: 0,
+            sangradoMm: 0.5,
+            bordeCorteMm: 0,
+            bordeCorteColor: "#000000",
+            modoAjuste: "contain",
+            reducirArteAlBorde: false,
+          },
+          modoTraseras: "ninguno",
+          imagenTraseraComun: null,
+          cards: []
+        }
+      ]);
+      setActiveDocumentoId("doc_default");
       setTemplatesMap({});
-      setImagenTraseraComunInternal(null);
-      setGenerarReversosInternal(false);
       setCanvasType("A4");
-      setCanvasConfigInternal({
-        tipo: "A4",
-        anchoMm: 210,
-        altoMm: 297,
-        orientacion: "vertical",
-        margenTopMm: 8,
-        margenBottomMm: 8,
-        margenLeftMm: 8,
-        margenRightMm: 8,
-        lineasCorteContinuas: true,
-        marcasCorteEsquinas: true,
-      });
       setCardPreset("standard");
-      setCardConfigInternal({
-        anchoMm: 63.5,
-        altoMm: 88.9,
-        espaciadoXMm: 0,
-        espaciadoYMm: 0,
-        sangradoMm: 0.5,
-        bordeCorteMm: 0,
-        bordeCorteColor: "#000000",
-        modoAjuste: "contain",
-        reducirArteAlBorde: false,
-      });
       setNombreProyectoInternal("Mi Baraja");
       setTempNombreProyecto("Mi Baraja");
       setDescripcionProyectoInternal("");
@@ -3086,7 +3124,16 @@ function AppContent() {
       const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
       const ctrlKey = isMac ? e.metaKey : e.ctrlKey;
 
-      if (ctrlKey && e.key.toLowerCase() === "a") {
+      if (ctrlKey && e.key.toLowerCase() === "z" && !e.shiftKey) {
+        e.preventDefault();
+        handleUndo();
+      } else if (
+        (ctrlKey && e.key.toLowerCase() === "y") ||
+        (ctrlKey && e.key.toLowerCase() === "z" && e.shiftKey)
+      ) {
+        e.preventDefault();
+        handleRedo();
+      } else if (ctrlKey && e.key.toLowerCase() === "a") {
         e.preventDefault();
         handleSelectAll();
       } else if (e.key === "Escape") {
@@ -3120,7 +3167,7 @@ function AppContent() {
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [cartas, selectedCardIds, puedeMoverArriba, puedeMoverAbajo, editingCardId]);
+  }, [cartas, selectedCardIds, puedeMoverArriba, puedeMoverAbajo, editingCardId, handleUndo, handleRedo]);
 
   // Detección de ruta de administración dedicada (/admin) - SRS-063
   const [isAdminPath] = useState(() => {
@@ -3603,6 +3650,32 @@ function AppContent() {
       <main className="workspace" onClick={handleWorkspaceClick}>
         {/* Barra de Herramientas de Visualización */}
         <div className="workspace-toolbar">
+          {/* BARRA DE DESHACER / REHACER (SRS-088) */}
+          <div className="undo-redo-toolbar-group" style={{ display: "flex", gap: "4px", alignItems: "center" }}>
+            <button
+              type="button"
+              className="toolbar-btn"
+              onClick={handleUndo}
+              disabled={!canUndo}
+              title="Deshacer (Ctrl+Z)"
+              aria-label="Deshacer última acción"
+            >
+              ↺
+            </button>
+            <button
+              type="button"
+              className="toolbar-btn"
+              onClick={handleRedo}
+              disabled={!canRedo}
+              title="Rehacer (Ctrl+Y)"
+              aria-label="Rehacer última acción"
+            >
+              ↻
+            </button>
+          </div>
+
+          <span className="toolbar-separator" />
+
           {/* BARRA DE ACCIONES DE SELECCIÓN CON ICONOS */}
           {cartas.length > 0 && (
             <div className="card-selection-toolbar" style={{ margin: 0, border: "none", backgroundColor: "transparent", padding: 0 }}>
