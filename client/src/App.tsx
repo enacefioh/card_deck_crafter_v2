@@ -270,6 +270,40 @@ function AppContent() {
     redoDocumentos();
     setIsDirty(true);
   }, [canRedo, redoDocumentos]);
+
+  // Sesión de edición de texto en el inspector (TKT-063: Consolidación por Foco/Blur)
+  const isEditingTextSessionRef = useRef<boolean>(false);
+  const textSessionTimeoutRef = useRef<any>(null);
+
+  const startTextEditSession = useCallback(() => {
+    isEditingTextSessionRef.current = false;
+  }, []);
+
+  const endTextEditSession = useCallback(() => {
+    if (textSessionTimeoutRef.current) {
+      clearTimeout(textSessionTimeoutRef.current);
+      textSessionTimeoutRef.current = null;
+    }
+    isEditingTextSessionRef.current = false;
+  }, []);
+
+  const updateTextValueInspector = useCallback((updateFn: (opts?: { skipHistory?: boolean }) => void) => {
+    if (textSessionTimeoutRef.current) {
+      clearTimeout(textSessionTimeoutRef.current);
+    }
+
+    const isFirstKeystroke = !isEditingTextSessionRef.current;
+    if (isFirstKeystroke) {
+      isEditingTextSessionRef.current = true;
+    }
+
+    const opts = isFirstKeystroke ? undefined : { skipHistory: true };
+    updateFn(opts);
+
+    textSessionTimeoutRef.current = setTimeout(() => {
+      isEditingTextSessionRef.current = false;
+    }, 1000);
+  }, []);
   const [activeDocumentoId, setActiveDocumentoId] = useState<string>("doc_default");
 
   const activeDocumento = documentos.find(d => d.id === activeDocumentoId) || documentos[0];
@@ -724,6 +758,7 @@ function AppContent() {
   const [activeSymbolPopover, setActiveSymbolPopover] = useState<string | null>(null);
 
   const handleInsertSymbol = (tag: string, inputId: string, currentValue: string, onUpdate: (val: string) => void) => {
+    endTextEditSession();
     const input = document.getElementById(inputId) as HTMLInputElement | HTMLTextAreaElement | null;
     if (input) {
       const start = input.selectionStart ?? currentValue.length;
@@ -3031,9 +3066,10 @@ function AppContent() {
   }, [paginasFrontales, canvasConfig.lineasCorteContinuas]);
 
   // --- Lógica de Selección y Acciones Avanzadas ---
-  const handleUpdateCartaNombre = (id: string, nuevoNombre: string) => {
+  const handleUpdateCartaNombre = (id: string, nuevoNombre: string, options?: { skipHistory?: boolean }) => {
     setCartas((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, nombre: nuevoNombre } : c))
+      prev.map((c) => (c.id === id ? { ...c, nombre: nuevoNombre } : c)),
+      options
     );
   };
 
@@ -3545,7 +3581,12 @@ function AppContent() {
                       <input
                         type="text"
                         value={selectedCarta.nombre}
-                        onChange={(e) => handleUpdateCartaNombre(selectedCarta.id, e.target.value)}
+                        onFocus={startTextEditSession}
+                        onBlur={endTextEditSession}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          updateTextValueInspector((opts) => handleUpdateCartaNombre(selectedCarta.id, val, opts));
+                        }}
                       />
                     </div>
                     
@@ -5416,7 +5457,7 @@ function AppContent() {
               const valorMostrar = todosIguales ? (valores[0] || "") : "";
               const placeholderTexto = todosIguales ? "" : "<Valores múltiples>";
 
-              const handleUpdateValorLote = (nuevoValor: any) => {
+              const handleUpdateValorLote = (nuevoValor: any, options?: { skipHistory?: boolean }) => {
                 const nuevasCartas = cartas.map((c) => {
                   if (!selectedCardIds.includes(c.id)) return c;
                   const capaId = campo.mapaCartaCapaId[c.id];
@@ -5485,7 +5526,7 @@ function AppContent() {
                     return { ...c, capasOverrides: nextOverrides };
                   }
                 });
-                setCartas(nuevasCartas);
+                setCartas(nuevasCartas, options);
                 setIsDirty(true);
               };
 
@@ -5575,10 +5616,17 @@ function AppContent() {
                         className="inspector-textarea"
                         value={valorMostrar}
                         placeholder={placeholderTexto}
-                        onFocus={handleFieldFocus}
-                        onBlur={handleFieldBlur}
+                        onFocus={() => {
+                          handleFieldFocus();
+                          startTextEditSession();
+                        }}
+                        onBlur={() => {
+                          handleFieldBlur();
+                          endTextEditSession();
+                        }}
                         onChange={(e) => {
-                          handleUpdateValorLote(e.target.value);
+                          const val = e.target.value;
+                          updateTextValueInspector((opts) => handleUpdateValorLote(val, opts));
                           e.target.style.height = "auto";
                           e.target.style.height = `${Math.max(34, e.target.scrollHeight)}px`;
                         }}
@@ -5614,9 +5662,18 @@ function AppContent() {
                           className="inspector-input"
                           value={valorMostrar}
                           placeholder={placeholderTexto}
-                          onFocus={handleFieldFocus}
-                          onBlur={handleFieldBlur}
-                          onChange={(e) => handleUpdateValorLote(e.target.value)}
+                          onFocus={() => {
+                            handleFieldFocus();
+                            startTextEditSession();
+                          }}
+                          onBlur={() => {
+                            handleFieldBlur();
+                            endTextEditSession();
+                          }}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            updateTextValueInspector((opts) => handleUpdateValorLote(val, opts));
+                          }}
                           style={{ height: "22px", fontSize: "11px", flex: 1, minWidth: 0 }}
                         />
                         <div className="symbols-helper-container" style={{ position: "relative" }}>
@@ -5701,9 +5758,18 @@ function AppContent() {
                             style={{ flex: 1, minWidth: 0, height: "22px", fontSize: "11px" }}
                             value={valorMostrar || (todosIguales ? colorValorMostrar : "")}
                             placeholder={placeholderTexto || defaultColor}
-                            onFocus={handleFieldFocus}
-                            onBlur={handleFieldBlur}
-                            onChange={(e) => handleUpdateValorLote(e.target.value)}
+                            onFocus={() => {
+                              handleFieldFocus();
+                              startTextEditSession();
+                            }}
+                            onBlur={() => {
+                              handleFieldBlur();
+                              endTextEditSession();
+                            }}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              updateTextValueInspector((opts) => handleUpdateValorLote(val, opts));
+                            }}
                           />
                         )}
                       </div>
