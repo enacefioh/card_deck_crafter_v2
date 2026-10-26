@@ -28,6 +28,7 @@ import { generarMiniaturaPlantilla } from "./utils/thumbnailUtils";
 import { useHistory } from "./hooks/useHistory";
 import { exportarProyectoPngEnCliente, type ExportProgressInfo } from "./services/clientPngExportService";
 import { ExportProgressModal } from "./components/ExportProgressModal";
+import { ExportPdfModal, type PdfExportOptions } from "./components/ExportPdfModal";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -1677,16 +1678,29 @@ function AppContent() {
 
   // --- Exportación a PDF vía Servidor Local ---
   const [exportandoPdf, setExportandoPdf] = useState<boolean>(false);
+  const [showExportPdfModal, setShowExportPdfModal] = useState<boolean>(false);
 
-  const handleExportarPdf = async () => {
+  const handleOpenExportPdfModal = () => {
+    if (cartas.length === 0) {
+      alert("No hay cartas en el documento actual para exportar a PDF.");
+      return;
+    }
+    setShowExportPdfModal(true);
+  };
+
+  const handleExportarPdf = async (opciones?: PdfExportOptions) => {
     if (cartas.length === 0) return;
     
     try {
+      setShowExportPdfModal(false);
       setExportandoPdf(true);
       const zipContentBlob = await generarProyectoZip();
 
       const formData = new FormData();
       formData.append("archivoProyecto", zipContentBlob, "proyecto.cdc2");
+      if (opciones) {
+        formData.append("opcionesExportacion", JSON.stringify(opciones));
+      }
 
       const response = await fetch("/api/exportar/pdf", {
         method: "POST",
@@ -1698,7 +1712,10 @@ function AppContent() {
         throw new Error(errorText || "Error en el servidor al generar el PDF.");
       }
 
-      trackEvent("export_pdf", { num_cartas: cartas.length });
+      trackEvent("export_pdf", { 
+        num_cartas: cartas.length,
+        tipo_alcance: opciones?.scopeType || "todas"
+      });
       const pdfBlob = await response.blob();
       const downloadUrl = URL.createObjectURL(pdfBlob);
       const link = document.createElement("a");
@@ -1709,6 +1726,7 @@ function AppContent() {
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
 
+      setShowExportPdfModal(false);
     } catch (error: any) {
       alert(`Error al generar el PDF: ${error.message || error}`);
     } finally {
@@ -3357,7 +3375,7 @@ function AppContent() {
         onShowSymbolsGallery={() => setShowSymbolsGallery(true)}
         onShowProjectConfig={() => setShowProjectConfig(true)}
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
-        onExportarPdf={handleExportarPdf}
+        onExportarPdf={handleOpenExportPdfModal}
         exportandoPdf={exportandoPdf}
         onExportarPng={handleExportarPng}
         exportandoPng={exportandoPng}
@@ -8266,6 +8284,21 @@ function AppContent() {
         progress={exportProgress}
         onCancel={handleCancelExport}
       />
+
+      {/* Modal de Opciones de Exportación PDF (SRS-091) */}
+      {showExportPdfModal && (
+        <ExportPdfModal
+          documentoNombre={activeDocumento.nombre}
+          totalCartas={cartas.length}
+          totalPaginasEstimadas={paginasFrontales.length + (generarReversos && paginasTraseras ? paginasTraseras.length : 0)}
+          tieneReversos={generarReversos}
+          selectedCardIds={selectedCardIds}
+          cartasPorPagina={paginasFrontales[0]?.slots?.length || 9}
+          isExporting={exportandoPdf}
+          onExport={handleExportarPdf}
+          onClose={() => setShowExportPdfModal(false)}
+        />
+      )}
     </div>
     </div>
   );

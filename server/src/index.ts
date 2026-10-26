@@ -274,7 +274,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261026.3",
+      version: "v2.261026.4",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -2074,13 +2074,38 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
       };
     }
 
+    // Parsear opciones de exportación si se enviaron (SRS-091)
+    let opcionesExportacion: any = null;
+    if (req.body.opcionesExportacion) {
+      try {
+        opcionesExportacion = typeof req.body.opcionesExportacion === "string"
+          ? JSON.parse(req.body.opcionesExportacion)
+          : req.body.opcionesExportacion;
+      } catch (e) {
+        console.warn("[PDF EXPORT] No se pudo parsear opcionesExportacion:", e);
+      }
+    }
+
     // 4. Calcular distribución de slots del documento activo
     const documentos = proyecto.documentos || [];
     const activeDoc = documentos.find((d: any) => d.id === proyecto.activeDocumentoId) || documentos[0];
+
+    // Si se especificó alcance de selección de cartas, filtrar antes de calcular distribución para compactar sin huecos
+    let cardsParaExportar = activeDoc.cards || [];
+    if (
+      opcionesExportacion?.scopeType === "seleccion" &&
+      Array.isArray(opcionesExportacion?.selectedCardIds) &&
+      opcionesExportacion.selectedCardIds.length > 0
+    ) {
+      cardsParaExportar = cardsParaExportar.filter((c: any) =>
+        opcionesExportacion.selectedCardIds.includes(c.id)
+      );
+    }
+
     const { paginasFrontales, paginasTraseras } = calcularDistribucion(
       activeDoc.canvasConfig,
       activeDoc.cardConfig,
-      activeDoc.cards || [],
+      cardsParaExportar,
       activeDoc.modoTraseras,
       activeDoc.imagenTraseraComun
     );
@@ -2161,7 +2186,8 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
       width: `${activeDoc.canvasConfig.anchoMm}mm`,
       height: `${activeDoc.canvasConfig.altoMm}mm`,
       margin: { top: 0, bottom: 0, left: 0, right: 0 },
-      printBackground: true
+      printBackground: true,
+      pageRanges: opcionesExportacion?.pageRangesResolved || undefined
     });
 
     await browser.close();
