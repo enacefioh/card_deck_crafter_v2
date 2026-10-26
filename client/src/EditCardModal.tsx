@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { CardConfig, Carta, ExposedProperty, ChildTemplate } from "shared";
 import { isVerticalLayout, isHorizontalLayout, isFlexLayout, getContainerFlexStyle, cloneLayerTreeWithNewIds, calculateAutoDimensionsForFreeContainer } from "shared";
 import JSZip from "jszip";
 import { actualizarClavePlantillaYValores, prepararPlantillaParaExportacion, parsearTextoConSimbolos, parseMarkdownToHtml } from "./utils/projectUtils";
 import { generarMiniaturaPlantilla } from "./utils/thumbnailUtils";
+import { useHistory } from "./hooks/useHistory";
 import "./EditCardModal.css";
 
 const PROPERTY_WEIGHTS: Record<string, number> = {
@@ -17,6 +18,15 @@ const PROPERTY_WEIGHTS: Record<string, number> = {
   anchoMm: 8,
   altoMm: 9,
 };
+
+export interface CardEditorHistoryState {
+  tempPlantilla: any;
+  tempPlantillaTrasera: any;
+  tempValoresCampos: Record<string, string>;
+  tempCapasOverrides: Record<string, any>;
+  tempValoresCamposTrasera: Record<string, string>;
+  tempCapasOverridesTrasera: Record<string, any>;
+}
 
 interface EditCardModalProps {
   carta: Carta;
@@ -84,42 +94,200 @@ export default function EditCardModal({
   onAddUserAsset,
   projectSymbols = [],
 }: EditCardModalProps) {
-  // --- Estados de Plantilla Editables Localmente ---
-  const [tempPlantilla, setTempPlantilla] = useState<any>(() => {
-    if (carta.plantilla) return JSON.parse(JSON.stringify(carta.plantilla));
-    return carta.plantillaId && templatesMap[carta.plantillaId]
-      ? JSON.parse(JSON.stringify(templatesMap[carta.plantillaId]))
-      : null;
-  });
-  const [tempPlantillaTrasera, setTempPlantillaTrasera] = useState<any>(() => {
-    if (carta.plantillaTrasera) return JSON.parse(JSON.stringify(carta.plantillaTrasera));
-    return carta.plantillaTraseraId && templatesMap[carta.plantillaTraseraId]
-      ? JSON.parse(JSON.stringify(templatesMap[carta.plantillaTraseraId]))
-      : null;
-  });
+  // --- Estados de Edición de Carta con Historial Deshacer/Rehacer (SRS-090) ---
+  const initialEditorHistoryState: CardEditorHistoryState = useMemo(() => {
+    const pFront = carta.plantilla
+      ? JSON.parse(JSON.stringify(carta.plantilla))
+      : (carta.plantillaId && templatesMap[carta.plantillaId]
+          ? JSON.parse(JSON.stringify(templatesMap[carta.plantillaId]))
+          : null);
 
-  // --- Estados locales temporales de valores ---
-  const [tempValoresCampos, setTempValoresCampos] = useState<Record<string, string>>(() => ({
-    ...(carta.valoresCampos || {}),
-  }));
-  const [tempCapasOverrides, setTempCapasOverrides] = useState<Record<string, any>>(() => ({
-    ...(carta.capasOverrides || {}),
-  }));
+    const pBack = carta.plantillaTrasera
+      ? JSON.parse(JSON.stringify(carta.plantillaTrasera))
+      : (carta.plantillaTraseraId && templatesMap[carta.plantillaTraseraId]
+          ? JSON.parse(JSON.stringify(templatesMap[carta.plantillaTraseraId]))
+          : null);
 
-  const [tempValoresCamposTrasera, setTempValoresCamposTrasera] = useState<Record<string, string>>(() => ({
-    ...(carta.valoresCamposTrasera || {}),
-  }));
-  const [tempCapasOverridesTrasera, setTempCapasOverridesTrasera] = useState<Record<string, any>>(() => ({
-    ...(carta.capasOverridesTrasera || {}),
-  }));
+    return {
+      tempPlantilla: pFront,
+      tempPlantillaTrasera: pBack,
+      tempValoresCampos: { ...(carta.valoresCampos || {}) },
+      tempCapasOverrides: { ...(carta.capasOverrides || {}) },
+      tempValoresCamposTrasera: { ...(carta.valoresCamposTrasera || {}) },
+      tempCapasOverridesTrasera: { ...(carta.capasOverridesTrasera || {}) },
+    };
+  }, []);
+
+  const {
+    state: editorState,
+    set: setEditorState,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+  } = useHistory<CardEditorHistoryState>(initialEditorHistoryState, { maxHistory: 30 });
+
+  const {
+    tempPlantilla,
+    tempPlantillaTrasera,
+    tempValoresCampos,
+    tempCapasOverrides,
+    tempValoresCamposTrasera,
+    tempCapasOverridesTrasera,
+  } = editorState;
 
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null);
   const [hoveredLayerId, setHoveredLayerId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"frontal" | "trasera">("frontal");
 
+  const setTempPlantilla = useCallback((updater: React.SetStateAction<any>, opts?: { skipHistory?: boolean }) => {
+    setEditorState(prev => ({
+      ...prev,
+      tempPlantilla: typeof updater === "function" ? (updater as (p: any) => any)(prev.tempPlantilla) : updater
+    }), opts);
+  }, [setEditorState]);
+
+  const setTempPlantillaTrasera = useCallback((updater: React.SetStateAction<any>, opts?: { skipHistory?: boolean }) => {
+    setEditorState(prev => ({
+      ...prev,
+      tempPlantillaTrasera: typeof updater === "function" ? (updater as (p: any) => any)(prev.tempPlantillaTrasera) : updater
+    }), opts);
+  }, [setEditorState]);
+
+  const setTempValoresCampos = useCallback((updater: React.SetStateAction<Record<string, any>>, opts?: { skipHistory?: boolean }) => {
+    setEditorState(prev => ({
+      ...prev,
+      tempValoresCampos: typeof updater === "function" ? (updater as (p: Record<string, any>) => Record<string, any>)(prev.tempValoresCampos) : updater
+    }), opts);
+  }, [setEditorState]);
+
+  const setTempCapasOverrides = useCallback((updater: React.SetStateAction<Record<string, any>>, opts?: { skipHistory?: boolean }) => {
+    setEditorState(prev => ({
+      ...prev,
+      tempCapasOverrides: typeof updater === "function" ? (updater as (p: Record<string, any>) => Record<string, any>)(prev.tempCapasOverrides) : updater
+    }), opts);
+  }, [setEditorState]);
+
+  const setTempValoresCamposTrasera = useCallback((updater: React.SetStateAction<Record<string, any>>, opts?: { skipHistory?: boolean }) => {
+    setEditorState(prev => ({
+      ...prev,
+      tempValoresCamposTrasera: typeof updater === "function" ? (updater as (p: Record<string, any>) => Record<string, any>)(prev.tempValoresCamposTrasera) : updater
+    }), opts);
+  }, [setEditorState]);
+
+  const setTempCapasOverridesTrasera = useCallback((updater: React.SetStateAction<Record<string, any>>, opts?: { skipHistory?: boolean }) => {
+    setEditorState(prev => ({
+      ...prev,
+      tempCapasOverridesTrasera: typeof updater === "function" ? (updater as (p: Record<string, any>) => Record<string, any>)(prev.tempCapasOverridesTrasera) : updater
+    }), opts);
+  }, [setEditorState]);
+
+  // Sesión de edición de texto (RF-4: Consolidación por Foco/Blur sin saturar historial)
+  const isEditingTextSessionRef = useRef<boolean>(false);
+  const textSessionTimeoutRef = useRef<any>(null);
+
+  const startTextEditSession = useCallback(() => {
+    isEditingTextSessionRef.current = false;
+  }, []);
+
+  const endTextEditSession = useCallback(() => {
+    if (textSessionTimeoutRef.current) {
+      clearTimeout(textSessionTimeoutRef.current);
+      textSessionTimeoutRef.current = null;
+    }
+    isEditingTextSessionRef.current = false;
+  }, []);
+
+  const updateTextValue = useCallback((val: string, capaId: string) => {
+    if (textSessionTimeoutRef.current) {
+      clearTimeout(textSessionTimeoutRef.current);
+    }
+
+    const isFirstKeystroke = !isEditingTextSessionRef.current;
+    if (isFirstKeystroke) {
+      isEditingTextSessionRef.current = true;
+    }
+
+    const opts = isFirstKeystroke ? undefined : { skipHistory: true };
+
+    setEditorState(prev => {
+      const isFront = activeTab === "frontal";
+      const targetPlantilla = isFront ? prev.tempPlantilla : prev.tempPlantillaTrasera;
+
+      let updatedPlantilla = targetPlantilla;
+      if (targetPlantilla && targetPlantilla.capas) {
+        updatedPlantilla = {
+          ...targetPlantilla,
+          capas: targetPlantilla.capas.map((c: any) =>
+            c.id === capaId ? { ...c, contenidoRaw: val } : c
+          ),
+        };
+      }
+
+      if (isFront) {
+        return {
+          ...prev,
+          tempPlantilla: updatedPlantilla,
+          tempValoresCampos: { ...prev.tempValoresCampos, [capaId]: val },
+          tempCapasOverrides: {
+            ...prev.tempCapasOverrides,
+            [capaId]: {
+              ...(prev.tempCapasOverrides[capaId] || {}),
+              contenidoRaw: val,
+            },
+          },
+        };
+      } else {
+        return {
+          ...prev,
+          tempPlantillaTrasera: updatedPlantilla,
+          tempValoresCamposTrasera: { ...prev.tempValoresCamposTrasera, [capaId]: val },
+          tempCapasOverridesTrasera: {
+            ...prev.tempCapasOverridesTrasera,
+            [capaId]: {
+              ...(prev.tempCapasOverridesTrasera[capaId] || {}),
+              contenidoRaw: val,
+            },
+          },
+        };
+      }
+    }, opts);
+
+    textSessionTimeoutRef.current = setTimeout(() => {
+      isEditingTextSessionRef.current = false;
+    }, 1000);
+  }, [activeTab, setEditorState]);
+
+  // Atajos de teclado en modal (Ctrl+Z: Deshacer, Ctrl+Y / Ctrl+Shift+Z: Rehacer) con aislamiento
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const isZ = e.key === "z" || e.key === "Z";
+      const isY = e.key === "y" || e.key === "Y";
+      const isMod = e.ctrlKey || e.metaKey;
+
+      if (!isMod) return;
+
+      if (isZ && !e.shiftKey) {
+        e.preventDefault();
+        e.stopPropagation();
+        undo();
+      } else if ((isZ && e.shiftKey) || isY) {
+        e.preventDefault();
+        e.stopPropagation();
+        redo();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown, true);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, true);
+    };
+  }, [undo, redo]);
+
   const [activeSymbolPopover, setActiveSymbolPopover] = useState<string | null>(null);
 
   const handleInsertSymbol = (tag: string, inputId: string, currentValue: string, onUpdate: (val: string) => void) => {
+    endTextEditSession();
     const input = document.getElementById(inputId) as HTMLInputElement | HTMLTextAreaElement | null;
     if (input) {
       const start = input.selectionStart ?? currentValue.length;
@@ -1071,7 +1239,7 @@ export default function EditCardModal({
     setActiveSelectorTarget(null);
   };
 
-  // --- Arrastrar y Redimensionar en el Lienzo (SRS-049) ---
+  // --- Arrastrar y Redimensionar en el Lienzo (SRS-049 / SRS-090) ---
   const handleLayerCanvasMouseDown = (e: React.MouseEvent, capa: any, mode: "drag" | "resize") => {
     e.stopPropagation();
     e.preventDefault();
@@ -1082,6 +1250,7 @@ export default function EditCardModal({
     const initialYMm = capa.yMm;
     const initialAnchoMm = capa.anchoMm;
     const initialAltoMm = capa.altoMm;
+    let hasMoved = false;
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
       const deltaX = moveEvent.clientX - startX;
@@ -1090,16 +1259,30 @@ export default function EditCardModal({
       const deltaXMm = deltaX / scale;
       const deltaYMm = deltaY / scale;
 
+      const isFirstMove = !hasMoved;
+      if (isFirstMove) {
+        hasMoved = true;
+      }
+      const opts = isFirstMove ? undefined : { skipHistory: true };
+
       if (mode === "drag") {
         const nextX = Number((initialXMm + deltaXMm).toFixed(1));
         const nextY = Number((initialYMm + deltaYMm).toFixed(1));
-        handleUpdateCapaProp(capa.id, "xMm", nextX);
-        handleUpdateCapaProp(capa.id, "yMm", nextY);
+        const updater = (prev: any) => ({
+          ...prev,
+          capas: prev.capas.map((c: any) => (c.id === capa.id ? { ...c, xMm: nextX, yMm: nextY } : c))
+        });
+        if (activeTab === "frontal") setTempPlantilla(updater, opts);
+        else setTempPlantillaTrasera(updater, opts);
       } else if (mode === "resize") {
         const nextAncho = Math.max(2.0, Number((initialAnchoMm + deltaXMm).toFixed(1)));
         const nextAlto = Math.max(2.0, Number((initialAltoMm + deltaYMm).toFixed(1)));
-        handleUpdateCapaProp(capa.id, "anchoMm", nextAncho);
-        handleUpdateCapaProp(capa.id, "altoMm", nextAlto);
+        const updater = (prev: any) => ({
+          ...prev,
+          capas: prev.capas.map((c: any) => (c.id === capa.id ? { ...c, anchoMm: nextAncho, altoMm: nextAlto } : c))
+        });
+        if (activeTab === "frontal") setTempPlantilla(updater, opts);
+        else setTempPlantillaTrasera(updater, opts);
       }
     };
 
@@ -1113,7 +1296,7 @@ export default function EditCardModal({
   };
 
   // --- Modificar Propiedad de Capa ---
-  const handleUpdateCapaProp = (capaId: string, propKey: string, propVal: any) => {
+  const handleUpdateCapaProp = (capaId: string, propKey: string, propVal: any, opts?: { skipHistory?: boolean }) => {
     const originalLayer = plantillaActiva?.capas?.find((c: any) => c.id === capaId);
     const oldNombre = originalLayer ? originalLayer.nombre : "";
 
@@ -1165,7 +1348,7 @@ export default function EditCardModal({
     };
 
     if (activeTab === "frontal") {
-      setTempPlantilla(updater);
+      setTempPlantilla(updater, opts);
       if (propKey === "nombre") {
         setTempExposedProperties((prev) => prev.map((p: any) => {
           if (p.layerId === capaId) {
@@ -1185,7 +1368,7 @@ export default function EditCardModal({
         }));
       }
     } else {
-      setTempPlantillaTrasera(updater);
+      setTempPlantillaTrasera(updater, opts);
       if (propKey === "nombre") {
         setTempExposedProperties((prev) => prev.map((p: any) => {
           if (p.layerId === capaId) {
@@ -2591,18 +2774,76 @@ export default function EditCardModal({
           <main className="preview-column">
             <div className="column-title" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span>Previsualización</span>
-              <div className="editor-zoom-control" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                <label style={{ margin: 0, fontSize: "11px", fontWeight: "normal", textTransform: "none" }}>Zoom</label>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="12.0"
-                  step="0.1"
-                  value={scale}
-                  onChange={(e) => setScale(Number(e.target.value))}
-                  style={{ width: "100px", margin: 0, cursor: "pointer" }}
-                />
-                <span style={{ fontSize: "11px", fontFamily: "monospace", textTransform: "none" }}>{scale.toFixed(1)}x</span>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                {/* Botones de Deshacer y Rehacer (SRS-090) */}
+                <div style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+                  <button
+                    type="button"
+                    className="modal-history-btn"
+                    onClick={undo}
+                    disabled={!canUndo}
+                    title="Deshacer (Ctrl+Z)"
+                    aria-label="Deshacer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "26px",
+                      height: "22px",
+                      padding: 0,
+                      backgroundColor: canUndo ? "#272730" : "rgba(39, 39, 48, 0.4)",
+                      border: "1px solid #3f3f4e",
+                      borderRadius: "4px",
+                      color: canUndo ? "#e2e8f0" : "#64748b",
+                      cursor: canUndo ? "pointer" : "not-allowed",
+                      fontSize: "13px",
+                      lineHeight: 1,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    ↶
+                  </button>
+                  <button
+                    type="button"
+                    className="modal-history-btn"
+                    onClick={redo}
+                    disabled={!canRedo}
+                    title="Rehacer (Ctrl+Y o Ctrl+Shift+Z)"
+                    aria-label="Rehacer"
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      width: "26px",
+                      height: "22px",
+                      padding: 0,
+                      backgroundColor: canRedo ? "#272730" : "rgba(39, 39, 48, 0.4)",
+                      border: "1px solid #3f3f4e",
+                      borderRadius: "4px",
+                      color: canRedo ? "#e2e8f0" : "#64748b",
+                      cursor: canRedo ? "pointer" : "not-allowed",
+                      fontSize: "13px",
+                      lineHeight: 1,
+                      transition: "all 0.15s ease",
+                    }}
+                  >
+                    ↷
+                  </button>
+                </div>
+
+                <div className="editor-zoom-control" style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <label style={{ margin: 0, fontSize: "11px", fontWeight: "normal", textTransform: "none" }}>Zoom</label>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="12.0"
+                    step="0.1"
+                    value={scale}
+                    onChange={(e) => setScale(Number(e.target.value))}
+                    style={{ width: "100px", margin: 0, cursor: "pointer" }}
+                  />
+                  <span style={{ fontSize: "11px", fontFamily: "monospace", textTransform: "none" }}>{scale.toFixed(1)}x</span>
+                </div>
               </div>
             </div>
             <div className="column-content preview-canvas-wrapper">
@@ -3528,19 +3769,7 @@ export default function EditCardModal({
                                           const currentVal = tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "");
                                           const inputId = selectedCapa.multiline !== false ? ("editcard-text-textarea-" + selectedCapa.id) : ("editcard-text-input-" + selectedCapa.id);
                                           handleInsertSymbol(sym.tag, inputId, currentVal, (newVal) => {
-                                            if (activeTab === "frontal") {
-                                              setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: newVal }));
-                                            } else {
-                                              setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: newVal }));
-                                            }
-                                            handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", newVal);
-                                            setTempCapasOverridesActivos((prev) => ({
-                                              ...prev,
-                                              [selectedCapa.id]: {
-                                                ...(prev[selectedCapa.id] || {}),
-                                                contenidoRaw: newVal,
-                                              },
-                                            }));
+                                            updateTextValue(newVal, selectedCapa.id);
                                           });
                                         }}
                                       >
@@ -3579,22 +3808,9 @@ export default function EditCardModal({
                                   className="inspector-textarea"
                                   value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
                                   rows={2}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (activeTab === "frontal") {
-                                      setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                    } else {
-                                      setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                    }
-                                    handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
-                                    setTempCapasOverridesActivos((prev) => ({
-                                      ...prev,
-                                      [selectedCapa.id]: {
-                                        ...(prev[selectedCapa.id] || {}),
-                                        contenidoRaw: val,
-                                      },
-                                    }));
-                                  }}
+                                  onFocus={startTextEditSession}
+                                  onBlur={endTextEditSession}
+                                  onChange={(e) => updateTextValue(e.target.value, selectedCapa.id)}
                                 />
                               ) : (
                                 <input
@@ -3602,22 +3818,9 @@ export default function EditCardModal({
                                   type="text"
                                   className="inspector-input"
                                   value={tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "")}
-                                  onChange={(e) => {
-                                    const val = e.target.value;
-                                    if (activeTab === "frontal") {
-                                      setTempValoresCampos((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                    } else {
-                                      setTempValoresCamposTrasera((prev) => ({ ...prev, [selectedCapa.id]: val }));
-                                    }
-                                    handleUpdateCapaProp(selectedCapa.id, "contenidoRaw", val);
-                                    setTempCapasOverridesActivos((prev) => ({
-                                      ...prev,
-                                      [selectedCapa.id]: {
-                                        ...(prev[selectedCapa.id] || {}),
-                                        contenidoRaw: val,
-                                      },
-                                    }));
-                                  }}
+                                  onFocus={startTextEditSession}
+                                  onBlur={endTextEditSession}
+                                  onChange={(e) => updateTextValue(e.target.value, selectedCapa.id)}
                                 />
                               )}
                             </div>
