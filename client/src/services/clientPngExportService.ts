@@ -2,6 +2,7 @@ import * as htmlToImage from "html-to-image";
 import JSZip from "jszip";
 import type { Carta, DocumentoCDC2, PlantillaCDC2, ProyectoCDC2 } from "shared";
 import { sanitizarNombreCarpeta, renderCardFaceContentHtml } from "shared";
+import type { PngExportOptions } from "../components/ExportPngModal";
 
 export interface ExportProgressInfo {
   documentoActual: string;
@@ -15,6 +16,8 @@ export interface ExportProgressInfo {
 
 export interface ClientPngExportOptions {
   documentos: DocumentoCDC2[];
+  activeDocumentoId?: string;
+  exportOptions?: PngExportOptions;
   templatesMap?: Record<string, PlantillaCDC2>;
   projectSymbols?: any[];
   projectAssets?: any[];
@@ -179,6 +182,8 @@ export async function exportarProyectoPngEnCliente(
 ): Promise<Blob> {
   const {
     documentos,
+    activeDocumentoId,
+    exportOptions,
     templatesMap = {},
     projectSymbols = [],
     customFonts = [],
@@ -189,6 +194,50 @@ export async function exportarProyectoPngEnCliente(
 
   if (!documentos || documentos.length === 0) {
     throw new Error("No hay documentos en el proyecto para exportar.");
+  }
+
+  // Filtrar documentos según exportOptions.docScope
+  const targetDocs = (exportOptions?.docScope === "documento_activo" && activeDocumentoId)
+    ? documentos.filter((d) => d.id === activeDocumentoId)
+    : documentos;
+
+  const docsToExport = targetDocs.length > 0 ? targetDocs : documentos;
+
+  // Función auxiliar para obtener las cartas a procesar por documento según cardScope
+  const getCardsForDoc = (doc: DocumentoCDC2): Carta[] => {
+    let docCards = doc.cards || [];
+    if (exportOptions && (exportOptions.docScope === "documento_activo" || !exportOptions.docScope)) {
+      if (exportOptions.cardScope === "seleccion" && exportOptions.selectedCardIds) {
+        const selectedSet = new Set(exportOptions.selectedCardIds);
+        docCards = docCards.filter((c) => selectedSet.has(c.id));
+      } else if (exportOptions.cardScope === "personalizado" && exportOptions.selectedCardIndices) {
+        const indexSet = new Set(exportOptions.selectedCardIndices);
+        docCards = docCards.filter((_, idx) => indexSet.has(idx + 1));
+      }
+    }
+    return docCards;
+  };
+
+  const shouldRenderFront =
+    !exportOptions?.facesScope ||
+    exportOptions.facesScope === "ambas" ||
+    exportOptions.facesScope === "anversos";
+  const shouldRenderBack =
+    !exportOptions?.facesScope ||
+    exportOptions.facesScope === "ambas" ||
+    exportOptions.facesScope === "reversos";
+
+  // Calcular total de cartas físicas estimadas para el cálculo de porcentaje
+  let totalCartasFisicasTotal = 0;
+  docsToExport.forEach((doc) => {
+    const docCards = getCardsForDoc(doc);
+    docCards.forEach((c) => {
+      totalCartasFisicasTotal += Math.max(1, c.cantidad || 1);
+    });
+  });
+
+  if (totalCartasFisicasTotal === 0) {
+    throw new Error("El proyecto no contiene cartas para exportar.");
   }
 
   // Preconstruir CSS para tipografías personalizadas del proyecto (si existen)
@@ -217,28 +266,15 @@ export async function exportarProyectoPngEnCliente(
   const zip = new JSZip();
   const usedFolderNames = new Set<string>();
 
-  // Calcular total de cartas físicas estimadas para el cálculo de porcentaje
-  let totalCartasFisicasTotal = 0;
-  documentos.forEach((doc) => {
-    (doc.cards || []).forEach((c) => {
-      totalCartasFisicasTotal += Math.max(1, c.cantidad || 1);
-    });
-  });
-
-  if (totalCartasFisicasTotal === 0) {
-    document.body.removeChild(sandbox);
-    throw new Error("El proyecto no contiene cartas para exportar.");
-  }
-
   let cartasFisicasProcesadasGlobal = 0;
 
   try {
-    for (let dIndex = 0; dIndex < documentos.length; dIndex++) {
+    for (let dIndex = 0; dIndex < docsToExport.length; dIndex++) {
       if (signal?.aborted) {
         throw new Error("Exportación cancelada por el usuario.");
       }
 
-      const doc = documentos[dIndex];
+      const doc = docsToExport[dIndex];
       let folderName = sanitizarNombreCarpeta(doc.nombre, dIndex);
       let altSuffix = 1;
       const baseFolderName = folderName;
@@ -265,7 +301,7 @@ export async function exportarProyectoPngEnCliente(
       sandbox.style.width = `${cssWidthPx}px`;
       sandbox.style.height = `${cssHeightPx}px`;
 
-      const cards = doc.cards || [];
+      const cards = getCardsForDoc(doc);
       const uniqueCardsCount = cards.length;
       let totalCardsCount = 0;
       let frontImagesCount = 0;
@@ -287,9 +323,9 @@ export async function exportarProyectoPngEnCliente(
         customFonts: []
       };
 
-      // Si el modo de trasera es 'común', podemos capturar la trasera común UNA SOLA VEZ para todo el documento
+      // Si el modo de trasera es 'común' y se deben renderizar reversos, capturamos la trasera común UNA SOLA VEZ
       let commonBackBlob: Blob | null = null;
-      if (doc.modoTraseras === "comun") {
+      if (shouldRenderBack && doc.modoTraseras === "comun") {
         if (doc.imagenTraseraComun) {
           // Trasera común es una imagen pura: renderizado directo en canvas 2D
           commonBackBlob = await renderizarCaraSoloImagen(
@@ -358,90 +394,26 @@ export async function exportarProyectoPngEnCliente(
         const card = cards[cIndex];
         const count = Math.max(1, card.cantidad || 1);
 
-        // 1. Renderizar delantera única de esta carta
+        // 1. Renderizar delantera única de esta carta (si procede)
         let frontBlob: Blob | null = null;
-        const tienePlantillaFront = !!(card.plantilla || (card.plantillaId && templatesMap[card.plantillaId]));
-        const esSoloImagenFront = !tienePlantillaFront && !!card.imagenFrontal;
+        if (shouldRenderFront) {
+          const tienePlantillaFront = !!(card.plantilla || (card.plantillaId && templatesMap[card.plantillaId]));
+          const esSoloImagenFront = !tienePlantillaFront && !!card.imagenFrontal;
 
-        if (esSoloImagenFront && card.imagenFrontal) {
-          // Vía rápida: renderizado instantáneo 2D sin foreignObject ni overhead de DOM
-          frontBlob = await renderizarCaraSoloImagen(
-            card.imagenFrontal,
-            anchoPx300Dpi,
-            altoPx300Dpi,
-            cardConfig.modoAjuste || "cover"
-          );
-        } else {
-          // Vía plantilla: renderizado HTML en sandbox
-          const frontContentHtml = renderCardFaceContentHtml(card, false, doc, proyectoSintetico);
-          sandbox.innerHTML = `
-            <div id="cdc2-render-front" style="width: ${cssWidthPx}px; height: ${cssHeightPx}px; position: relative; overflow: hidden; background-color: #ffffff;">
-              ${frontContentHtml}
-            </div>
-          `;
-          await esperarImagenesCargadas(sandbox);
-          if (document.fonts) {
-            await document.fonts.ready;
-          }
-
-          try {
-            const targetNode = (sandbox.firstElementChild as HTMLElement) || sandbox;
-            frontBlob = await htmlToImage.toBlob(targetNode, {
-              width: cssWidthPx,
-              height: cssHeightPx,
-              pixelRatio: 3.125,
-              skipFonts: true,
-              fontEmbedCSS: projectFontsCss || undefined,
-              cacheBust: false,
-              backgroundColor: "#ffffff",
-              style: {
-                position: "relative",
-                left: "0px",
-                top: "0px",
-                margin: "0px",
-                transform: "none",
-                opacity: "1",
-                visibility: "visible"
-              }
-            });
-          } catch (captureErr) {
-            console.warn(`[clientPngExport] Error capturando delantera de carta ${card.id}:`, captureErr);
-          }
-        }
-
-        // Fallback para entornos de prueba donde canvas.toBlob no produce binarios
-        if (!frontBlob) {
-          frontBlob = new Blob(["dummy_png_data"], { type: "image/png" });
-        }
-
-        // 2. Renderizar trasera (si aplica y no es común)
-        let backBlob: Blob | null = commonBackBlob;
-        let hasBack = false;
-
-        if (doc.modoTraseras === "comun") {
-          hasBack = true;
-        } else if (doc.modoTraseras === "individual") {
-          let plantillaT = card.plantillaTrasera;
-          if (!plantillaT && card.plantillaTraseraId && templatesMap[card.plantillaTraseraId]) {
-            plantillaT = templatesMap[card.plantillaTraseraId];
-          }
-
-          const esSoloImagenBack = !plantillaT && !!(card.imagenTrasera || doc.imagenTraseraComun);
-
-          if (esSoloImagenBack && (card.imagenTrasera || doc.imagenTraseraComun)) {
-            hasBack = true;
-            backBlob = await renderizarCaraSoloImagen(
-              (card.imagenTrasera || doc.imagenTraseraComun)!,
+          if (esSoloImagenFront && card.imagenFrontal) {
+            // Vía rápida: renderizado instantáneo 2D sin foreignObject ni overhead de DOM
+            frontBlob = await renderizarCaraSoloImagen(
+              card.imagenFrontal,
               anchoPx300Dpi,
               altoPx300Dpi,
               cardConfig.modoAjuste || "cover"
             );
-          } else if (plantillaT || card.imagenTrasera || doc.imagenTraseraComun) {
-            hasBack = true;
-            const backContentHtml = renderCardFaceContentHtml(card, true, doc, proyectoSintetico);
+          } else {
+            // Vía plantilla: renderizado HTML en sandbox
+            const frontContentHtml = renderCardFaceContentHtml(card, false, doc, proyectoSintetico);
             sandbox.innerHTML = `
-              <div id="cdc2-render-back" style="width: ${cssWidthPx}px; height: ${cssHeightPx}px; position: relative; overflow: hidden; background-color: #ffffff;">
-                ${backContentHtml}
+              <div id="cdc2-render-front" style="width: ${cssWidthPx}px; height: ${cssHeightPx}px; position: relative; overflow: hidden; background-color: #ffffff;">
+                ${frontContentHtml}
               </div>
             `;
             await esperarImagenesCargadas(sandbox);
@@ -451,7 +423,7 @@ export async function exportarProyectoPngEnCliente(
 
             try {
               const targetNode = (sandbox.firstElementChild as HTMLElement) || sandbox;
-              backBlob = await htmlToImage.toBlob(targetNode, {
+              frontBlob = await htmlToImage.toBlob(targetNode, {
                 width: cssWidthPx,
                 height: cssHeightPx,
                 pixelRatio: 3.125,
@@ -470,11 +442,83 @@ export async function exportarProyectoPngEnCliente(
                 }
               });
             } catch (captureErr) {
-              console.warn(`[clientPngExport] Error capturando trasera individual de carta ${card.id}:`, captureErr);
+              console.warn(`[clientPngExport] Error capturando delantera de carta ${card.id}:`, captureErr);
             }
+          }
 
+          // Fallback para entornos de prueba donde canvas.toBlob no produce binarios
+          if (!frontBlob) {
+            frontBlob = new Blob(["dummy_png_data"], { type: "image/png" });
+          }
+        }
+
+        // 2. Renderizar trasera (si aplica, se solicitan reversos y no es común)
+        let backBlob: Blob | null = null;
+        let hasBack = false;
+
+        if (shouldRenderBack) {
+          if (doc.modoTraseras === "comun") {
+            hasBack = true;
+            backBlob = commonBackBlob;
             if (!backBlob) {
               backBlob = new Blob(["dummy_back_png_data"], { type: "image/png" });
+            }
+          } else if (doc.modoTraseras === "individual") {
+            let plantillaT = card.plantillaTrasera;
+            if (!plantillaT && card.plantillaTraseraId && templatesMap[card.plantillaTraseraId]) {
+              plantillaT = templatesMap[card.plantillaTraseraId];
+            }
+
+            const esSoloImagenBack = !plantillaT && !!(card.imagenTrasera || doc.imagenTraseraComun);
+
+            if (esSoloImagenBack && (card.imagenTrasera || doc.imagenTraseraComun)) {
+              hasBack = true;
+              backBlob = await renderizarCaraSoloImagen(
+                (card.imagenTrasera || doc.imagenTraseraComun)!,
+                anchoPx300Dpi,
+                altoPx300Dpi,
+                cardConfig.modoAjuste || "cover"
+              );
+            } else if (plantillaT || card.imagenTrasera || doc.imagenTraseraComun) {
+              hasBack = true;
+              const backContentHtml = renderCardFaceContentHtml(card, true, doc, proyectoSintetico);
+              sandbox.innerHTML = `
+                <div id="cdc2-render-back" style="width: ${cssWidthPx}px; height: ${cssHeightPx}px; position: relative; overflow: hidden; background-color: #ffffff;">
+                  ${backContentHtml}
+                </div>
+              `;
+              await esperarImagenesCargadas(sandbox);
+              if (document.fonts) {
+                await document.fonts.ready;
+              }
+
+              try {
+                const targetNode = (sandbox.firstElementChild as HTMLElement) || sandbox;
+                backBlob = await htmlToImage.toBlob(targetNode, {
+                  width: cssWidthPx,
+                  height: cssHeightPx,
+                  pixelRatio: 3.125,
+                  skipFonts: true,
+                  fontEmbedCSS: projectFontsCss || undefined,
+                  cacheBust: false,
+                  backgroundColor: "#ffffff",
+                  style: {
+                    position: "relative",
+                    left: "0px",
+                    top: "0px",
+                    margin: "0px",
+                    transform: "none",
+                    opacity: "1",
+                    visibility: "visible"
+                  }
+                });
+              } catch (captureErr) {
+                console.warn(`[clientPngExport] Error capturando trasera individual de carta ${card.id}:`, captureErr);
+              }
+
+              if (!backBlob) {
+                backBlob = new Blob(["dummy_back_png_data"], { type: "image/png" });
+              }
             }
           }
         }
@@ -489,10 +533,12 @@ export async function exportarProyectoPngEnCliente(
           physicalCardIndex++;
           cartasFisicasProcesadasGlobal++;
 
-          folderZip.file(`carta${cardIndexStr}-D.png`, frontBlob);
-          frontImagesCount++;
+          if (shouldRenderFront && frontBlob) {
+            folderZip.file(`carta${cardIndexStr}-D.png`, frontBlob);
+            frontImagesCount++;
+          }
 
-          if (hasBack && backBlob) {
+          if (shouldRenderBack && hasBack && backBlob) {
             folderZip.file(`carta${cardIndexStr}-T.png`, backBlob);
             backImagesCount++;
           }
@@ -502,7 +548,7 @@ export async function exportarProyectoPngEnCliente(
             onProgress({
               documentoActual: doc.nombre,
               indiceDoc: dIndex + 1,
-              totalDocs: documentos.length,
+              totalDocs: docsToExport.length,
               cartaActual: cartasFisicasProcesadasGlobal,
               totalCartas: totalCartasFisicasTotal,
               porcentaje: pct,
@@ -527,7 +573,7 @@ Fecha y Hora de Generación: ${new Date().toLocaleString()}
 Dimensiones Físicas Netas: ${anchoMm} mm x ${altoMm} mm
 Dimensiones en Píxeles (300 DPI): ${anchoPx300Dpi} px x ${altoPx300Dpi} px
 Sangrado del Documento: ${cardConfig.sangradoMm || 0} mm (Excluido de estas imágenes PNG)
-Motor de Exportación: Client-Side High-Res Renderer (SRS-089)
+Motor de Exportación: Client-Side High-Res Renderer (SRS-089 / SRS-092)
 ================================================
 `;
       folderZip.file("info.txt", infoTxt);
@@ -536,8 +582,8 @@ Motor de Exportación: Client-Side High-Res Renderer (SRS-089)
     if (onProgress) {
       onProgress({
         documentoActual: "Finalizando",
-        indiceDoc: documentos.length,
-        totalDocs: documentos.length,
+        indiceDoc: docsToExport.length,
+        totalDocs: docsToExport.length,
         cartaActual: totalCartasFisicasTotal,
         totalCartas: totalCartasFisicasTotal,
         porcentaje: 99,
@@ -551,8 +597,8 @@ Motor de Exportación: Client-Side High-Res Renderer (SRS-089)
     if (onProgress) {
       onProgress({
         documentoActual: "Completado",
-        indiceDoc: documentos.length,
-        totalDocs: documentos.length,
+        indiceDoc: docsToExport.length,
+        totalDocs: docsToExport.length,
         cartaActual: totalCartasFisicasTotal,
         totalCartas: totalCartasFisicasTotal,
         porcentaje: 100,

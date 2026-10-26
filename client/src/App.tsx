@@ -29,6 +29,7 @@ import { useHistory } from "./hooks/useHistory";
 import { exportarProyectoPngEnCliente, type ExportProgressInfo } from "./services/clientPngExportService";
 import { ExportProgressModal } from "./components/ExportProgressModal";
 import { ExportPdfModal, type PdfExportOptions } from "./components/ExportPdfModal";
+import { ExportPngModal, type PngExportOptions } from "./components/ExportPngModal";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -1734,8 +1735,9 @@ function AppContent() {
     }
   };
 
-  // --- Exportación a PNG (.zip) 100% en Cliente (SRS-089) ---
+  // --- Exportación a PNG (.zip) 100% en Cliente (SRS-089 / SRS-092) ---
   const [exportandoPng, setExportandoPng] = useState<boolean>(false);
+  const [showExportPngModal, setShowExportPngModal] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState<ExportProgressInfo | null>(null);
   const exportAbortControllerRef = useRef<AbortController | null>(null);
 
@@ -1747,8 +1749,20 @@ function AppContent() {
     setExportProgress(null);
   };
 
-  const handleExportarPng = async () => {
-    if (cartas.length === 0) return;
+  const handleOpenExportPngModal = () => {
+    const tieneCartas = documentos.some((d) => (d.cards?.length || 0) > 0);
+    if (!tieneCartas) {
+      alert("No hay cartas en el proyecto para exportar a PNG.");
+      return;
+    }
+    setShowExportPngModal(true);
+  };
+
+  const handleExportarPng = async (opciones?: PngExportOptions) => {
+    const tieneCartas = documentos.some((d) => (d.cards?.length || 0) > 0);
+    if (!tieneCartas) return;
+
+    setShowExportPngModal(false);
 
     const controller = new AbortController();
     exportAbortControllerRef.current = controller;
@@ -1758,7 +1772,7 @@ function AppContent() {
       setExportProgress({
         documentoActual: activeDocumento.nombre,
         indiceDoc: 1,
-        totalDocs: documentos.length,
+        totalDocs: opciones?.docScope === "documento_activo" ? 1 : documentos.length,
         cartaActual: 0,
         totalCartas: cartas.length,
         porcentaje: 0,
@@ -1767,6 +1781,8 @@ function AppContent() {
 
       const zipBlob = await exportarProyectoPngEnCliente({
         documentos,
+        activeDocumentoId: activeDocumento.id,
+        exportOptions: opciones,
         templatesMap,
         projectSymbols,
         projectAssets,
@@ -1777,7 +1793,12 @@ function AppContent() {
         signal: controller.signal
       });
 
-      trackEvent("export_zip", { num_cartas: cartas.length });
+      trackEvent("export_zip", {
+        num_cartas: cartas.length,
+        doc_scope: opciones?.docScope || "documento_activo",
+        card_scope: opciones?.cardScope || "todas",
+        faces_scope: opciones?.facesScope || "ambas"
+      });
       const downloadUrl = URL.createObjectURL(zipBlob);
       const link = document.createElement("a");
       link.href = downloadUrl;
@@ -3377,7 +3398,7 @@ function AppContent() {
         onImportarImagenesClick={() => fileInputImagenesRef.current?.click()}
         onExportarPdf={handleOpenExportPdfModal}
         exportandoPdf={exportandoPdf}
-        onExportarPng={handleExportarPng}
+        onExportarPng={handleOpenExportPngModal}
         exportandoPng={exportandoPng}
         cartasCount={cartas.length}
         paginasCount={paginasFrontales.length}
@@ -8297,6 +8318,18 @@ function AppContent() {
           isExporting={exportandoPdf}
           onExport={handleExportarPdf}
           onClose={() => setShowExportPdfModal(false)}
+        />
+      )}
+
+      {/* Modal de Opciones de Exportación PNG (SRS-092) */}
+      {showExportPngModal && (
+        <ExportPngModal
+          documentos={documentos}
+          activeDocumentoId={activeDocumento.id}
+          selectedCardIds={selectedCardIds}
+          isExporting={exportandoPng}
+          onExport={handleExportarPng}
+          onClose={() => setShowExportPngModal(false)}
         />
       )}
     </div>

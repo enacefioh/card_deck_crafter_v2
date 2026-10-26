@@ -127,4 +127,102 @@ describe("SRS-089: Motor de Exportación PNG en Cliente a 300 DPI", () => {
       })
     ).rejects.toThrow("Exportación cancelada por el usuario");
   });
+
+  describe("SRS-092: Filtros de Exportación PNG (Caras, Documentos, Rangos)", () => {
+    it("exporta únicamente anversos cuando facesScope es 'anversos'", async () => {
+      const zipBlob = await exportarProyectoPngEnCliente({
+        documentos: [dummyDoc],
+        activeDocumentoId: dummyDoc.id,
+        exportOptions: {
+          docScope: "documento_activo",
+          cardScope: "todas",
+          facesScope: "anversos",
+        },
+      });
+
+      const zip = await JSZip.loadAsync(zipBlob);
+      const files = Object.keys(zip.files);
+
+      expect(files).toContain("Baraja_Principal/carta001-D.png");
+      expect(files).not.toContain("Baraja_Principal/carta001-T.png");
+      expect(files).toContain("Baraja_Principal/carta002-D.png");
+      expect(files).not.toContain("Baraja_Principal/carta002-T.png");
+    });
+
+    it("exporta únicamente reversos cuando facesScope es 'reversos'", async () => {
+      const zipBlob = await exportarProyectoPngEnCliente({
+        documentos: [dummyDoc],
+        activeDocumentoId: dummyDoc.id,
+        exportOptions: {
+          docScope: "documento_activo",
+          cardScope: "todas",
+          facesScope: "reversos",
+        },
+      });
+
+      const zip = await JSZip.loadAsync(zipBlob);
+      const files = Object.keys(zip.files);
+
+      expect(files).not.toContain("Baraja_Principal/carta001-D.png");
+      expect(files).toContain("Baraja_Principal/carta001-T.png");
+    });
+
+    it("exporta únicamente las cartas del rango personalizado", async () => {
+      const zipBlob = await exportarProyectoPngEnCliente({
+        documentos: [dummyDoc],
+        activeDocumentoId: dummyDoc.id,
+        exportOptions: {
+          docScope: "documento_activo",
+          cardScope: "personalizado",
+          facesScope: "ambas",
+          selectedCardIndices: [2], // Solo la segunda carta (Mago, cantidad: 1)
+        },
+      });
+
+      const zip = await JSZip.loadAsync(zipBlob);
+      const files = Object.keys(zip.files);
+
+      expect(files).toContain("Baraja_Principal/carta001-D.png");
+      expect(files).toContain("Baraja_Principal/carta001-T.png");
+      // Como solo se seleccionó 1 carta física (Mago con cantidad: 1), no debe haber carta002
+      expect(files).not.toContain("Baraja_Principal/carta002-D.png");
+
+      const infoContent = await zip.file("Baraja_Principal/info.txt")!.async("string");
+      expect(infoContent).toContain("Cartas únicas en lista: 1");
+      expect(infoContent).toContain("Cartas totales procesadas (con copias): 1");
+    });
+
+    it("exporta únicamente el documento activo cuando docScope es 'documento_activo'", async () => {
+      const doc2: DocumentoCDC2 = {
+        ...dummyDoc,
+        id: "doc_test_2",
+        nombre: "Expansión Bestias",
+        cards: [
+          {
+            id: "card_beast",
+            nombre: "Dragón",
+            imagenFrontal: "data:image/png;base64,dragon",
+            imagenTrasera: null,
+            cantidad: 1,
+          },
+        ],
+      };
+
+      const zipBlob = await exportarProyectoPngEnCliente({
+        documentos: [dummyDoc, doc2],
+        activeDocumentoId: "doc_test_2",
+        exportOptions: {
+          docScope: "documento_activo",
+          cardScope: "todas",
+          facesScope: "anversos",
+        },
+      });
+
+      const zip = await JSZip.loadAsync(zipBlob);
+      const files = Object.keys(zip.files);
+
+      expect(files.some((f) => f.startsWith("Expansión_Bestias/"))).toBe(true);
+      expect(files.some((f) => f.startsWith("Baraja_Principal/"))).toBe(false);
+    });
+  });
 });

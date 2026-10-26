@@ -274,7 +274,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261026.4",
+      version: "v2.261026.5",
       database: "SQLite 3"
     });
   } catch (err: any) {
