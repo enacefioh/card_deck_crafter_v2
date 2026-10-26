@@ -26,6 +26,8 @@ import {
 } from "./services/storageService";
 import { generarMiniaturaPlantilla } from "./utils/thumbnailUtils";
 import { useHistory } from "./hooks/useHistory";
+import { exportarProyectoPngEnCliente, type ExportProgressInfo } from "./services/clientPngExportService";
+import { ExportProgressModal } from "./components/ExportProgressModal";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -1679,31 +1681,50 @@ function AppContent() {
     }
   };
 
-  // --- Exportación a PNG (.zip) vía Servidor Local ---
+  // --- Exportación a PNG (.zip) 100% en Cliente (SRS-089) ---
   const [exportandoPng, setExportandoPng] = useState<boolean>(false);
+  const [exportProgress, setExportProgress] = useState<ExportProgressInfo | null>(null);
+  const exportAbortControllerRef = useRef<AbortController | null>(null);
+
+  const handleCancelExport = () => {
+    if (exportAbortControllerRef.current) {
+      exportAbortControllerRef.current.abort();
+    }
+    setExportandoPng(false);
+    setExportProgress(null);
+  };
 
   const handleExportarPng = async () => {
     if (cartas.length === 0) return;
 
+    const controller = new AbortController();
+    exportAbortControllerRef.current = controller;
+
     try {
       setExportandoPng(true);
-      const zipContentBlob = await generarProyectoZip();
-
-      const formData = new FormData();
-      formData.append("archivoProyecto", zipContentBlob, "proyecto.cdc2");
-
-      const response = await fetch("/api/exportar/png", {
-        method: "POST",
-        body: formData,
+      setExportProgress({
+        documentoActual: activeDocumento.nombre,
+        indiceDoc: 1,
+        totalDocs: documentos.length,
+        cartaActual: 0,
+        totalCartas: cartas.length,
+        porcentaje: 0,
+        mensaje: "Iniciando renderizado en alta resolución a 300 DPI..."
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || "Error en el servidor al generar las imágenes PNG.");
-      }
+      const zipBlob = await exportarProyectoPngEnCliente({
+        documentos,
+        templatesMap,
+        projectSymbols,
+        projectAssets,
+        userAssets,
+        customFonts: projectFonts,
+        nombreProyecto,
+        onProgress: (p) => setExportProgress(p),
+        signal: controller.signal
+      });
 
       trackEvent("export_zip", { num_cartas: cartas.length });
-      const zipBlob = await response.blob();
       const downloadUrl = URL.createObjectURL(zipBlob);
       const link = document.createElement("a");
       link.href = downloadUrl;
@@ -1714,9 +1735,14 @@ function AppContent() {
       URL.revokeObjectURL(downloadUrl);
 
     } catch (error: any) {
+      if (error?.message?.includes("cancelada")) {
+        return;
+      }
       alert(`Error al generar las imágenes PNG: ${error.message || error}`);
     } finally {
       setExportandoPng(false);
+      setExportProgress(null);
+      exportAbortControllerRef.current = null;
     }
   };
 
@@ -8167,6 +8193,12 @@ function AppContent() {
         onUseTemplate={handleUseCloudTemplate}
         onExportTemplate={handleExportCloudTemplate}
         onStorageUpdated={refreshStorage}
+      />
+
+      <ExportProgressModal
+        isOpen={exportandoPng}
+        progress={exportProgress}
+        onCancel={handleCancelExport}
       />
     </div>
     </div>

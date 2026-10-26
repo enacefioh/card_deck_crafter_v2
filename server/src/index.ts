@@ -274,7 +274,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261025.2",
+      version: "v2.261026.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -2235,6 +2235,18 @@ app.post("/api/exportar/png", upload.single("archivoProyecto"), async (req, res)
     const htmlPath = path.join(tempDir, "export_png.html");
     await fs.writeFile(htmlPath, html, "utf8");
 
+    const requestedCardIndex = req.query.cardIndex ? parseInt(String(req.query.cardIndex), 10) : undefined;
+    const requestedCardId = req.query.cardId ? String(req.query.cardId) : undefined;
+    const requestedFace = typeof req.query.face === "string" ? req.query.face.toLowerCase() : "both";
+
+    // Si no se pide una carta específica, validar límite de seguridad para evitar caídas de memoria
+    const totalCardsEnProyecto = metadataDoc.reduce((acc, d) => acc + d.cardItems.length, 0);
+    if (!requestedCardIndex && !requestedCardId && totalCardsEnProyecto > 10) {
+      return res.status(400).json({
+        error: `La exportación masiva (${totalCardsEnProyecto} cartas) debe realizarse directamente desde la herramienta web para evitar sobrecargar el servidor. En la API del servidor, utiliza el parámetro ?cardIndex=1 para renderizar cartas individuales.`
+      });
+    }
+
     const browser = await puppeteer.launch({
       headless: true,
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
@@ -2271,6 +2283,44 @@ app.post("/api/exportar/png", upload.single("archivoProyecto"), async (req, res)
     });
 
     await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // Si se solicitó una carta individual por índice o id
+    if (requestedCardIndex !== undefined || requestedCardId !== undefined) {
+      const targetDoc = metadataDoc[0];
+      if (!targetDoc || targetDoc.cardItems.length === 0) {
+        await browser.close();
+        return res.status(404).json({ error: "El proyecto no contiene cartas." });
+      }
+
+      const item = targetDoc.cardItems.find((it, idx) => {
+        if (requestedCardIndex !== undefined) return idx + 1 === requestedCardIndex;
+        return false;
+      }) || targetDoc.cardItems[0];
+
+      if (requestedFace === "front") {
+        const frontElement = await page.$(`#card_${targetDoc.docIndex}_${item.cardIndexStr}_D`);
+        if (!frontElement) {
+          await browser.close();
+          return res.status(404).json({ error: "Elemento de cara delantera no encontrado." });
+        }
+        const frontBuffer = await frontElement.screenshot({ type: "png" });
+        await browser.close();
+        res.contentType("image/png");
+        res.setHeader("Content-Disposition", `inline; filename="carta_${item.cardIndexStr}_D.png"`);
+        return res.send(Buffer.from(frontBuffer));
+      } else if (requestedFace === "back") {
+        const backElement = await page.$(`#card_${targetDoc.docIndex}_${item.cardIndexStr}_T`);
+        if (!backElement) {
+          await browser.close();
+          return res.status(404).json({ error: "Elemento de cara trasera no encontrado o no habilitado." });
+        }
+        const backBuffer = await backElement.screenshot({ type: "png" });
+        await browser.close();
+        res.contentType("image/png");
+        res.setHeader("Content-Disposition", `inline; filename="carta_${item.cardIndexStr}_T.png"`);
+        return res.send(Buffer.from(backBuffer));
+      }
+    }
 
     const outputZip = new AdmZip();
 
