@@ -687,6 +687,28 @@ export class ProjectArchiveService {
           const assetUri = await this.processImageToAsset(zip, imgVal);
           if (assetUri) {
             valoresCampos[imgKey] = assetUri;
+
+            // Registrar en galerías de project.json (SRS-094)
+            const filename = assetUri.replace(/^user_asset:\/\//, "").replace(/^project_asset:\/\//, "");
+            project.projectAssets = project.projectAssets || [];
+            project.assetFolders = project.assetFolders || ["Por Defecto"];
+            if (!project.projectAssets.some((pa: any) => pa.src === assetUri)) {
+              project.projectAssets.push({
+                id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                nombre: cardInput.name ? `${cardInput.name}` : filename,
+                src: assetUri,
+                folder: "Por Defecto",
+              });
+            }
+            project.userAssets = project.userAssets || [];
+            if (!project.userAssets.some((ua: any) => ua.src === assetUri)) {
+              project.userAssets.push({
+                id: `u_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                nombre: cardInput.name ? `${cardInput.name}` : filename,
+                src: assetUri,
+              });
+            }
+
             let matchedLayer = design.capas?.find(c => c.id === imgKey || c.nombre === imgKey);
             const matchedExposed = design.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
             if (!matchedLayer && matchedExposed) {
@@ -748,6 +770,28 @@ export class ProjectArchiveService {
           const assetUri = await this.processImageToAsset(zip, imgVal);
           if (assetUri) {
             valoresCamposTrasera[imgKey] = assetUri;
+
+            // Registrar en galerías de project.json (SRS-094)
+            const filename = assetUri.replace(/^user_asset:\/\//, "").replace(/^project_asset:\/\//, "");
+            project.projectAssets = project.projectAssets || [];
+            project.assetFolders = project.assetFolders || ["Por Defecto"];
+            if (!project.projectAssets.some((pa: any) => pa.src === assetUri)) {
+              project.projectAssets.push({
+                id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                nombre: cardInput.name ? `${cardInput.name} (Reverso)` : filename,
+                src: assetUri,
+                folder: "Por Defecto",
+              });
+            }
+            project.userAssets = project.userAssets || [];
+            if (!project.userAssets.some((ua: any) => ua.src === assetUri)) {
+              project.userAssets.push({
+                id: `u_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                nombre: cardInput.name ? `${cardInput.name} (Reverso)` : filename,
+                src: assetUri,
+              });
+            }
+
             let matchedLayer = backDesign?.capas?.find((c: any) => c.id === imgKey || c.nombre === imgKey);
             const matchedExposed = backDesign?.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
             if (!matchedLayer && matchedExposed) {
@@ -793,6 +837,26 @@ export class ProjectArchiveService {
       let imagenTrasera: string | null = null;
       if (cardInput.backImage) {
         imagenTrasera = await this.processImageToAsset(zip, cardInput.backImage);
+        if (imagenTrasera) {
+          const filename = imagenTrasera.replace(/^user_asset:\/\//, "").replace(/^project_asset:\/\//, "");
+          project.projectAssets = project.projectAssets || [];
+          if (!project.projectAssets.some((pa: any) => pa.src === imagenTrasera)) {
+            project.projectAssets.push({
+              id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+              nombre: cardInput.name ? `${cardInput.name} (Trasera)` : filename,
+              src: imagenTrasera,
+              folder: "Por Defecto",
+            });
+          }
+          project.userAssets = project.userAssets || [];
+          if (!project.userAssets.some((ua: any) => ua.src === imagenTrasera)) {
+            project.userAssets.push({
+              id: `u_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+              nombre: cardInput.name ? `${cardInput.name} (Trasera)` : filename,
+              src: imagenTrasera,
+            });
+          }
+        }
       }
 
       // RF-2.3: Si el documento tenía modoTraseras: "ninguno" y la carta define reverso, activar "individual"

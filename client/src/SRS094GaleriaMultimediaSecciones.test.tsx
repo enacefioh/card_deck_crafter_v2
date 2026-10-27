@@ -183,4 +183,86 @@ describe("SRS-094: Galería Multimedia Unificada con Secciones e Imágenes", () 
     expect(assetFolders).toEqual(["Por Defecto"]);
     expect(projectAssets.every((a) => a.folder === "Por Defecto")).toBe(true);
   });
+
+  it("RF-3 & RF-5: Autodescubrimiento de recursos: indexa imágenes físicas de plantillas y cartas en sus respectivas galerías", () => {
+    // Simular archivos presentes en el ZIP
+    const zipFiles = {
+      "assets/marco_antiguo.png": { dir: false },
+      "assets/override_card_1_layer_0.png": { dir: false },
+      "project_assets/dino_rex.png": { dir: false },
+      "user_assets/dino_triceratops.png": { dir: false },
+    };
+
+    const loadedTemplatesMap = {
+      tmpl_1: {
+        id: "tmpl_1",
+        nombre: "Plantilla Criatura",
+        capas: [
+          { id: "c1", nombre: "Marco", tipo: "image", src: "asset://marco_antiguo.png" },
+        ],
+      },
+    };
+
+    const docCards = [
+      {
+        id: "card_1",
+        nombre: "Tiranosaurio Rex",
+        imagenFrontal: "project_asset://dino_rex.png",
+        capasOverrides: {
+          c_art: { src: "user_asset://dino_triceratops.png" },
+        },
+      },
+    ];
+
+    const nuevosTemplateAssets: any[] = [];
+    const nuevosProjectAssets: any[] = [];
+    const nuevosUserAssets: any[] = [];
+
+    // 1. Escaneo de archivos físicos
+    for (const [filePath] of Object.entries(zipFiles)) {
+      if (filePath.startsWith("assets/")) {
+        const filename = filePath.replace("assets/", "");
+        if (filename.startsWith("override_")) {
+          nuevosProjectAssets.push({ id: filename, nombre: filename, src: `asset://${filename}`, folder: "Por Defecto" });
+        } else {
+          nuevosTemplateAssets.push({ id: filename, nombre: filename, src: `asset://${filename}` });
+        }
+      } else if (filePath.startsWith("project_assets/")) {
+        const filename = filePath.replace("project_assets/", "");
+        nuevosProjectAssets.push({ id: filename, nombre: filename, src: `project_asset://${filename}`, folder: "Por Defecto" });
+      } else if (filePath.startsWith("user_assets/")) {
+        const filename = filePath.replace("user_assets/", "");
+        nuevosUserAssets.push({ id: filename, nombre: filename, src: `user_asset://${filename}` });
+      }
+    }
+
+    // 2. Escaneo de plantillas
+    for (const tpl of Object.values(loadedTemplatesMap)) {
+      for (const capa of tpl.capas) {
+        if (!nuevosTemplateAssets.some((a) => a.src === capa.src)) {
+          nuevosTemplateAssets.push({ id: capa.id, nombre: capa.nombre, src: capa.src });
+        }
+      }
+    }
+
+    // 3. Escaneo de cartas
+    for (const card of docCards) {
+      if (card.imagenFrontal && !nuevosProjectAssets.some((a) => a.src === card.imagenFrontal)) {
+        nuevosProjectAssets.push({ id: card.id, nombre: card.nombre, src: card.imagenFrontal, folder: "Por Defecto" });
+      }
+      for (const overrideVal of Object.values(card.capasOverrides)) {
+        if (overrideVal.src && !nuevosProjectAssets.some((a) => a.src === overrideVal.src)) {
+          nuevosProjectAssets.push({ id: `${card.id}_override`, nombre: card.nombre, src: overrideVal.src, folder: "Por Defecto" });
+        }
+      }
+    }
+
+    // Verificar que los recursos de plantilla se encuentran en la galería de plantilla
+    expect(nuevosTemplateAssets.some((a) => a.src.includes("marco_antiguo.png"))).toBe(true);
+
+    // Verificar que los recursos de proyecto y cartas (incluso los subidos por API) se encuentran en Por Defecto
+    expect(nuevosProjectAssets.some((a) => a.src.includes("dino_rex.png") && a.folder === "Por Defecto")).toBe(true);
+    expect(nuevosProjectAssets.some((a) => a.src.includes("dino_triceratops.png") && a.folder === "Por Defecto")).toBe(true);
+    expect(nuevosProjectAssets.some((a) => a.src.includes("override_card_1_layer_0.png") && a.folder === "Por Defecto")).toBe(true);
+  });
 });

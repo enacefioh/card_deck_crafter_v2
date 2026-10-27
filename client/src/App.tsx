@@ -1999,10 +1999,6 @@ function AppContent() {
           }
         }
       }
-      setAssetFoldersInternal(loadedFolders);
-      setTemplateAssetsInternal(nuevosTemplateAssets);
-      setProjectAssetsInternal(nuevosProjectAssets);
-
       // Cargar la galería de usuario (SRS-045)
       const nuevosUserAssets: any[] = [];
       if (proyecto.userAssets) {
@@ -2019,6 +2015,171 @@ function AppContent() {
           }
         }
       }
+
+      // --- AUTODESCUBRIMIENTO DE RECURSOS DEL PROYECTO (SRS-094) ---
+      // A) Escanear archivos físicos presentes en el ZIP que no hayan sido registrados aún
+      for (const [filePath, zipEntry] of Object.entries(zip.files)) {
+        if (zipEntry.dir) continue;
+        const lower = filePath.toLowerCase();
+        const isImage = lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".webp") || lower.endsWith(".svg") || lower.endsWith(".gif");
+        if (!isImage) continue;
+
+        if (filePath.startsWith("assets/")) {
+          const filename = filePath.replace("assets/", "");
+          const isCardSpecific = filename.startsWith("override_") || filename.startsWith("frontal_") || filename.startsWith("trasera_");
+          if (isCardSpecific) {
+            const alreadyExists = nuevosProjectAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
+            if (!alreadyExists) {
+              const url = await resolverAssetBlob(`asset://${filename}`);
+              if (url) {
+                nuevosProjectAssets.push({
+                  id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                  nombre: filename,
+                  src: url,
+                  folder: "Por Defecto",
+                });
+              }
+            }
+          } else {
+            const alreadyExists = nuevosTemplateAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
+            if (!alreadyExists) {
+              const url = await resolverAssetBlob(`asset://${filename}`);
+              if (url) {
+                nuevosTemplateAssets.push({
+                  id: `tmpl_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                  nombre: filename,
+                  src: url,
+                });
+              }
+            }
+          }
+        } else if (filePath.startsWith("project_assets/")) {
+          const filename = filePath.replace("project_assets/", "");
+          const alreadyExists = nuevosProjectAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
+          if (!alreadyExists) {
+            const url = await resolverAssetBlob(`project_asset://${filename}`);
+            if (url) {
+              nuevosProjectAssets.push({
+                id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                nombre: filename,
+                src: url,
+                folder: "Por Defecto",
+              });
+            }
+          }
+        } else if (filePath.startsWith("user_assets/")) {
+          const filename = filePath.replace("user_assets/", "");
+          const inUser = nuevosUserAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
+          const inProject = nuevosProjectAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
+          if (!inUser && !inProject) {
+            const url = await resolverAssetBlob(`user_asset://${filename}`);
+            if (url) {
+              nuevosUserAssets.push({
+                id: `u_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                nombre: filename,
+                src: url,
+              });
+            }
+          }
+        }
+      }
+
+      // B) Extraer recursos estructurales de las plantillas cargadas
+      for (const tpl of Object.values(loadedTemplatesMap)) {
+        if (!tpl.capas) continue;
+        for (const capa of tpl.capas) {
+          if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src) {
+            const alreadyInTemplate = nuevosTemplateAssets.some((a) => a.src === capa.src);
+            if (!alreadyInTemplate) {
+              nuevosTemplateAssets.push({
+                id: `tmpl_asset_${capa.id || Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+                nombre: capa.nombre || tpl.nombre || "Recurso Plantilla",
+                src: capa.src,
+              });
+            }
+          }
+          if (capa.tipo === "image-switch" && capa.options) {
+            for (const opt of capa.options) {
+              if (opt.src && !nuevosTemplateAssets.some((a) => a.src === opt.src)) {
+                nuevosTemplateAssets.push({
+                  id: `tmpl_asset_${capa.id}_opt_${Math.random().toString(36).substring(2, 6)}`,
+                  nombre: opt.label || capa.nombre || "Variante Plantilla",
+                  src: opt.src,
+                });
+              }
+            }
+          }
+        }
+      }
+
+      // C) Extraer imágenes de las cartas (frontal, trasera, overrides) a la Galería por Defecto del Proyecto
+      for (const doc of proyecto.documentos) {
+        if (!doc.cards) continue;
+        for (const card of doc.cards) {
+          if (card.imagenFrontal) {
+            const alreadyKnown = nuevosProjectAssets.some((a) => a.src === card.imagenFrontal) ||
+                                 nuevosTemplateAssets.some((a) => a.src === card.imagenFrontal);
+            if (!alreadyKnown) {
+              nuevosProjectAssets.push({
+                id: `p_asset_card_${card.id}`,
+                nombre: card.nombre ? `${card.nombre}` : "Ilustración Carta",
+                src: card.imagenFrontal,
+                folder: "Por Defecto",
+              });
+            }
+          }
+          if (card.imagenTrasera) {
+            const alreadyKnown = nuevosProjectAssets.some((a) => a.src === card.imagenTrasera) ||
+                                 nuevosTemplateAssets.some((a) => a.src === card.imagenTrasera);
+            if (!alreadyKnown) {
+              nuevosProjectAssets.push({
+                id: `p_asset_trasera_${card.id}`,
+                nombre: `${card.nombre ? card.nombre : "Carta"} (Trasera)`,
+                src: card.imagenTrasera,
+                folder: "Por Defecto",
+              });
+            }
+          }
+          if (card.capasOverrides) {
+            for (const [capaId, val] of Object.entries(card.capasOverrides)) {
+              const overrideObj = val as any;
+              if (overrideObj && typeof overrideObj === "object" && overrideObj.src) {
+                const alreadyKnown = nuevosProjectAssets.some((a) => a.src === overrideObj.src) ||
+                                     nuevosTemplateAssets.some((a) => a.src === overrideObj.src);
+                if (!alreadyKnown) {
+                  nuevosProjectAssets.push({
+                    id: `p_asset_override_${card.id}_${capaId}`,
+                    nombre: card.nombre ? `${card.nombre}` : `Capa ${capaId}`,
+                    src: overrideObj.src,
+                    folder: "Por Defecto",
+                  });
+                }
+              }
+            }
+          }
+          if (card.capasOverridesTrasera) {
+            for (const [capaId, val] of Object.entries(card.capasOverridesTrasera)) {
+              const overrideObj = val as any;
+              if (overrideObj && typeof overrideObj === "object" && overrideObj.src) {
+                const alreadyKnown = nuevosProjectAssets.some((a) => a.src === overrideObj.src) ||
+                                     nuevosTemplateAssets.some((a) => a.src === overrideObj.src);
+                if (!alreadyKnown) {
+                  nuevosProjectAssets.push({
+                    id: `p_asset_override_trasera_${card.id}_${capaId}`,
+                    nombre: `${card.nombre ? card.nombre : "Carta"} (Reverso)`,
+                    src: overrideObj.src,
+                    folder: "Por Defecto",
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
+
+      setAssetFoldersInternal(loadedFolders);
+      setTemplateAssetsInternal(nuevosTemplateAssets);
+      setProjectAssetsInternal(nuevosProjectAssets);
       setUserAssetsInternal(nuevosUserAssets);
 
       // Cargar galería de símbolos (SRS-011)
@@ -2440,6 +2601,23 @@ function AppContent() {
         ...prev,
         [templateData.id]: templateData,
       }));
+
+      // Añadir imágenes de la plantilla importada a la Galería de la Plantilla (SRS-094)
+      const newTmplAssets: any[] = [];
+      if (templateData.capas) {
+        for (const capa of templateData.capas) {
+          if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src) {
+            newTmplAssets.push({
+              id: `tmpl_asset_${capa.id || Date.now()}`,
+              nombre: capa.nombre || "Imagen Plantilla",
+              src: capa.src,
+            });
+          }
+        }
+      }
+      if (newTmplAssets.length > 0) {
+        setTemplateAssets((prev) => [...prev, ...newTmplAssets]);
+      }
 
       setImportedTemplates((prev) => {
         const index = prev.findIndex((t) => t.id === templateData.id);
