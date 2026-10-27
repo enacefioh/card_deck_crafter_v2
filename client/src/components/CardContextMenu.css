@@ -1,0 +1,79 @@
+.card-context-menu {
+  position: fixed;
+  background-color: #121424;
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 8px;
+  padding: 6px;
+  min-width: 210px;
+  box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.6), 0 8px 16px -6px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  animation: contextMenuFadeIn 0.1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 10050;
+  user-select: none;
+}
+
+@keyframes contextMenuFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.card-context-menu .menu-item {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  padding: 7px 12px;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  text-align: left;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  font-family: var(--font-sans);
+}
+
+.card-context-menu .menu-item:hover:not(:disabled) {
+  color: var(--text-primary);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.card-context-menu .menu-item:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.card-context-menu .menu-item-danger:hover:not(:disabled) {
+  color: #fca5a5 !important;
+  background-color: rgba(239, 68, 68, 0.15) !important;
+}
+
+.card-context-menu .menu-item-icon {
+  margin-right: 8px;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+}
+
+.card-context-menu .menu-item-shortcut {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-tertiary);
+  font-family: monospace;
+}
+
+.card-context-menu .menu-separator {
+  height: 1px;
+  background-color: rgba(255, 255, 255, 0.06);
+  margin: 4px 6px;
+}

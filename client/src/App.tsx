@@ -30,6 +30,7 @@ import { generarProyectoZip as generarProyectoZipService, type GenerarProyectoZi
 import { ExportProgressModal } from "./components/ExportProgressModal";
 import { ExportPdfModal, type PdfExportOptions } from "./components/ExportPdfModal";
 import { ExportPngModal, type PngExportOptions } from "./components/ExportPngModal";
+import CardContextMenu from "./components/CardContextMenu";
 import "./App.css";
 
 // Formato de preajustes de cartas
@@ -382,6 +383,11 @@ function AppContent() {
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [activeCanvasEditLayerId, setActiveCanvasEditLayerId] = useState<string | null>(null);
   const [inspectingCardId, setInspectingCardId] = useState<string | null>(null);
+  const [cardContextMenu, setCardContextMenu] = useState<{
+    x: number;
+    y: number;
+    cardId: string;
+  } | null>(null);
   const fileInputReversoLoteRef = useRef<HTMLInputElement>(null);
   const [zoomFactor, setZoomFactor] = useState<number>(2.5); // px por mm
   const [showDocConfig, setShowDocConfig] = useState<boolean>(false);
@@ -2760,6 +2766,7 @@ function AppContent() {
 
   const handleDeselectAll = () => {
     setSelectedCardIds([]);
+    setCardContextMenu(null);
   };
 
   const handleInvertSelection = () => {
@@ -2780,6 +2787,21 @@ function AppContent() {
       } else {
         return [id];
       }
+    });
+  };
+
+  const handleCardContextMenu = (e: React.MouseEvent, cardId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!selectedCardIds.includes(cardId)) {
+      setSelectedCardIds([cardId]);
+    }
+
+    setCardContextMenu({
+      x: e.clientX,
+      y: e.clientY,
+      cardId,
     });
   };
 
@@ -3562,6 +3584,7 @@ function AppContent() {
                             handleToggleSelectCard(slot.cartaId, isMulti);
                             setInspectorTab("front");
                           }}
+                          onContextMenu={(e) => handleCardContextMenu(e, slot.cartaId)}
                           onDoubleClick={(e) => {
                             e.stopPropagation();
                             setEditingCardId(slot.cartaId);
@@ -4054,6 +4077,7 @@ function AppContent() {
                               handleToggleSelectCard(slot.cartaId, isMulti);
                               setInspectorTab("back");
                             }}
+                            onContextMenu={(e) => handleCardContextMenu(e, slot.cartaId)}
                             onDoubleClick={(e) => {
                               e.stopPropagation();
                               setEditingCardId(slot.cartaId);
@@ -6230,6 +6254,24 @@ function AppContent() {
         onChange={handleCargarPlantillaFileChange}
         style={{ display: "none" }}
       />
+      {cardContextMenu && (
+        <CardContextMenu
+          x={cardContextMenu.x}
+          y={cardContextMenu.y}
+          selectedCount={selectedCardIds.length}
+          puedeMoverArriba={puedeMoverArriba}
+          puedeMoverAbajo={puedeMoverAbajo}
+          onVerDetalles={() => {
+            const targetId = selectedCardIds.length === 1 ? selectedCardIds[0] : cardContextMenu.cardId;
+            if (targetId) setInspectingCardId(targetId);
+          }}
+          onDuplicar={handleDuplicarSeleccion}
+          onMoverArriba={() => handleMoverSeleccion("arriba")}
+          onMoverAbajo={() => handleMoverSeleccion("abajo")}
+          onEliminar={handleEliminarSeleccion}
+          onClose={() => setCardContextMenu(null)}
+        />
+      )}
       {inspectingCardId && cartas.find((c) => c.id === inspectingCardId) && (
         <DetailModal
           carta={cartas.find((c) => c.id === inspectingCardId)!}
