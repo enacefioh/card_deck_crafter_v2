@@ -145,6 +145,7 @@ export interface ProjectAsset {
   id: string;
   nombre: string;
   src: string;
+  folder?: string;
 }
 
 export interface DocumentoCDC2 {
@@ -183,6 +184,8 @@ export interface ProyectoCDC2 {
 
   templates?: Record<string, any>;
   assets?: ProjectAsset[];
+  projectAssets?: ProjectAsset[];
+  assetFolders?: string[];
   customFonts?: CustomFont[];
   projectSymbols?: any[];
 }

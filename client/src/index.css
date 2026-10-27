@@ -121,3 +121,18 @@ label {
   margin-bottom: 6px;
 }
 
+/* Select Optgroups and Options (dark theme contrast fix) */
+optgroup {
+  background-color: var(--bg-card);
+  color: var(--accent-primary);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  padding: 4px;
+}
+
+option {
+  background-color: var(--bg-main);
+  color: var(--text-primary);
+  padding: 4px 8px;
+}

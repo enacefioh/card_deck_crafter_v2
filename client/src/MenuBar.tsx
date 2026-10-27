@@ -505,7 +505,7 @@ export default function MenuBar({
                 className="menu-item"
                 onClick={() => handleAction(onShowProjectGallery || (() => {}))}
               >
-                <span className="menu-item-icon">🖼️</span> Galería del Proyecto...
+                <span className="menu-item-icon">🖼️</span> Galería Multimedia...
               </button>
               <button
                 className="menu-item"

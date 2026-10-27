@@ -1293,5 +1293,85 @@
   border: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+/* SRS-094: Galería Multimedia Unificada con Galerías y Secciones */
+.gallery-popup-container.multimedia-gallery-wide {
+  width: 680px;
+  max-width: 95%;
+}
+
+.gallery-tabs-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 6px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+}
+
+.gallery-tab-btn {
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.gallery-tab-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 4px 4px 0 0;
+}
+
+.gallery-tab-btn.active {
+  border-bottom-color: var(--accent-primary);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.gallery-tab-btn-add {
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px dashed var(--accent-primary);
+  background: rgba(139, 92, 246, 0.08);
+  color: var(--accent-primary);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.gallery-tab-btn-add:hover {
+  background: rgba(139, 92, 246, 0.2);
+}
+
+.gallery-count-badge {
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.gallery-action-select {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: border-color 0.2s;
+}
+
+.gallery-action-select:hover {
+  border-color: var(--accent-primary);
+}
+
 
 

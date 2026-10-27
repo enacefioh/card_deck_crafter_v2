@@ -660,8 +660,11 @@ function AppContent() {
   const [templateModalMode, setTemplateModalMode] = useState<"addCard" | "assignBack">("addCard");
   const [previewingTemplate, setPreviewingTemplate] = useState<any | null>(null);
 
-  // --- Estados de la Galería Multimedia del Proyecto (SRS-014) ---
+  // --- Estados de la Galería Multimedia del Proyecto (SRS-014 / SRS-094) ---
+  const [templateAssets, setTemplateAssetsInternal] = useState<any[]>([]);
   const [projectAssets, setProjectAssetsInternal] = useState<any[]>([]);
+  const [assetFolders, setAssetFoldersInternal] = useState<string[]>(["Por Defecto"]);
+  const [activeGalleryTab, setActiveGalleryTab] = useState<string>("template");
   const [showProjectGallery, setShowProjectGallery] = useState<boolean>(false);
 
   // --- Estados de la Galería de Símbolos (SRS-011) ---
@@ -681,10 +684,10 @@ function AppContent() {
     setIsDirty(true);
   };
 
-  // --- Estados del Selector de Galería de la Sidebar (SRS-037) ---
+  // --- Estados del Selector de Galería de la Sidebar (SRS-037 / SRS-094) ---
   const [showSidebarGallerySelector, setShowSidebarGallerySelector] = useState<boolean>(false);
   const [sidebarGalleryTargetField, setSidebarGalleryTargetField] = useState<any | null>(null);
-  const [sidebarGallerySelectorTab, setSidebarGallerySelectorTab] = useState<"project" | "user">("project");
+  const [sidebarGallerySelectorTab, setSidebarGallerySelectorTab] = useState<string>("Por Defecto");
 
   // --- Estados del Setup y Configuración del Proyecto (SRS-022) ---
   const [nombreProyecto, setNombreProyectoInternal] = useState<string>("Mi Baraja");
@@ -725,6 +728,14 @@ function AppContent() {
   };
   const setDescripcionProyecto = (value: React.SetStateAction<string>) => {
     setDescripcionProyectoInternal(value);
+    setIsDirty(true);
+  };
+  const setTemplateAssets = (value: React.SetStateAction<any[]>) => {
+    setTemplateAssetsInternal(value);
+    setIsDirty(true);
+  };
+  const setAssetFolders = (value: React.SetStateAction<string[]>) => {
+    setAssetFoldersInternal(value);
     setIsDirty(true);
   };
   const setProjectAssets = (value: React.SetStateAction<any[]>) => {
@@ -1040,39 +1051,201 @@ function AppContent() {
     loadDefaultTemplates();
   }, []);
 
-  // --- Funciones para la Galería del Proyecto (SRS-014) ---
-  const handleUploadProjectAssets = (files: FileList) => {
+  // --- Funciones para la Galería Multimedia (SRS-014 / SRS-094) ---
+  const handleUploadGalleryAssets = (files: FileList) => {
     const nuevos: any[] = [];
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
       if (file.type.startsWith("image/")) {
-        const id = `proj_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-        nuevos.push({
-          id,
-          nombre: file.name,
-          src: URL.createObjectURL(file),
-        });
+        const url = URL.createObjectURL(file);
+        if (activeGalleryTab === "template") {
+          nuevos.push({
+            id: `tmpl_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            nombre: file.name,
+            src: url,
+          });
+        } else if (activeGalleryTab === "user") {
+          nuevos.push({
+            id: `user_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            nombre: file.name,
+            src: url,
+          });
+        } else {
+          nuevos.push({
+            id: `proj_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+            nombre: file.name,
+            src: url,
+            folder: activeGalleryTab,
+          });
+        }
       }
     }
     if (nuevos.length > 0) {
-      setProjectAssets((prev) => [...prev, ...nuevos]);
+      if (activeGalleryTab === "template") {
+        setTemplateAssets((prev) => [...prev, ...nuevos]);
+      } else if (activeGalleryTab === "user") {
+        setUserAssets((prev) => [...prev, ...nuevos]);
+      } else {
+        setProjectAssets((prev) => [...prev, ...nuevos]);
+      }
     }
   };
 
-  const handleDeleteProjectAsset = (id: string) => {
-    if (window.confirm("¿Seguro que deseas eliminar esta imagen de la galería del proyecto? Las cartas que la usen podrían dejar de mostrarla.")) {
-      setProjectAssets((prev) => prev.filter((asset) => asset.id !== id));
+  const handleDeleteGalleryAsset = (assetId: string, currentTab: string) => {
+    if (window.confirm("¿Seguro que deseas eliminar esta imagen de la galería? Las cartas que la usen podrían dejar de mostrarla.")) {
+      if (currentTab === "template") {
+        setTemplateAssets((prev) => prev.filter((asset) => asset.id !== assetId));
+      } else if (currentTab === "user") {
+        setUserAssets((prev) => prev.filter((asset) => asset.id !== assetId));
+      } else {
+        setProjectAssets((prev) => prev.filter((asset) => asset.id !== assetId));
+      }
     }
   };
 
-  const handleRenameProjectAsset = (id: string) => {
-    const asset = projectAssets.find((a) => a.id === id);
-    if (!asset) return;
-    const nuevoNombre = window.prompt("Introduce el nuevo nombre para la imagen:", asset.nombre);
+  const handleRenameGalleryAsset = (assetId: string, currentTab: string) => {
+    let currentAsset: any = null;
+    if (currentTab === "template") {
+      currentAsset = templateAssets.find((a) => a.id === assetId);
+    } else if (currentTab === "user") {
+      currentAsset = userAssets.find((a) => a.id === assetId);
+    } else {
+      currentAsset = projectAssets.find((a) => a.id === assetId);
+    }
+    if (!currentAsset) return;
+
+    const nuevoNombre = window.prompt("Introduce el nuevo nombre para la imagen:", currentAsset.nombre);
     if (nuevoNombre && nuevoNombre.trim() !== "") {
+      const nombreTrimmed = nuevoNombre.trim();
+      if (currentTab === "template") {
+        setTemplateAssets((prev) =>
+          prev.map((a) => (a.id === assetId ? { ...a, nombre: nombreTrimmed } : a))
+        );
+      } else if (currentTab === "user") {
+        setUserAssets((prev) =>
+          prev.map((a) => (a.id === assetId ? { ...a, nombre: nombreTrimmed } : a))
+        );
+      } else {
+        setProjectAssets((prev) =>
+          prev.map((a) => (a.id === assetId ? { ...a, nombre: nombreTrimmed } : a))
+        );
+      }
+    }
+  };
+
+  const handleCreateNewGallery = () => {
+    const name = window.prompt("Introduce el nombre de la nueva galería:");
+    if (!name || name.trim() === "") return;
+    const trimmed = name.trim();
+    const reserved = ["Plantilla", "Por Defecto", "Usuario", "template", "user"];
+    if (reserved.map((r) => r.toLowerCase()).includes(trimmed.toLowerCase())) {
+      window.alert("Ese nombre está reservado para las galerías del sistema.");
+      return;
+    }
+    if (assetFolders.includes(trimmed)) {
+      window.alert("Ya existe una galería con ese nombre.");
+      return;
+    }
+    setAssetFolders((prev) => [...prev, trimmed]);
+    setActiveGalleryTab(trimmed);
+  };
+
+  const handleRenameGallery = (oldName: string) => {
+    const name = window.prompt(`Nuevo nombre para la galería "${oldName}":`, oldName);
+    if (!name || name.trim() === "" || name.trim() === oldName) return;
+    const trimmed = name.trim();
+    const reserved = ["Plantilla", "Por Defecto", "Usuario", "template", "user"];
+    if (reserved.map((r) => r.toLowerCase()).includes(trimmed.toLowerCase())) {
+      window.alert("Ese nombre está reservado para las galerías del sistema.");
+      return;
+    }
+    if (assetFolders.includes(trimmed)) {
+      window.alert("Ya existe una galería con ese nombre.");
+      return;
+    }
+    setAssetFolders((prev) => prev.map((f) => (f === oldName ? trimmed : f)));
+    setProjectAssets((prev) =>
+      prev.map((a) => (a.folder === oldName ? { ...a, folder: trimmed } : a))
+    );
+    if (activeGalleryTab === oldName) {
+      setActiveGalleryTab(trimmed);
+    }
+  };
+
+  const handleDeleteGallery = (folderToDelete: string) => {
+    if (window.confirm(`¿Seguro que deseas eliminar la galería "${folderToDelete}"? Sus imágenes se reubicarán en la galería "Por Defecto".`)) {
       setProjectAssets((prev) =>
-        prev.map((a) => (a.id === id ? { ...a, nombre: nuevoNombre.trim() } : a))
+        prev.map((a) => (a.folder === folderToDelete ? { ...a, folder: "Por Defecto" } : a))
       );
+      setAssetFolders((prev) => prev.filter((f) => f !== folderToDelete));
+      if (activeGalleryTab === folderToDelete) {
+        setActiveGalleryTab("Por Defecto");
+      }
+    }
+  };
+
+  const handleMoveGalleryAsset = (asset: any, sourceGallery: string, targetGallery: string) => {
+    if (!targetGallery || sourceGallery === targetGallery) return;
+
+    // Quitar del origen
+    if (sourceGallery === "template") {
+      setTemplateAssets((prev) => prev.filter((a) => a.id !== asset.id));
+    } else if (sourceGallery === "user") {
+      setUserAssets((prev) => prev.filter((a) => a.id !== asset.id));
+    } else {
+      setProjectAssets((prev) => prev.filter((a) => a.id !== asset.id));
+    }
+
+    // Agregar al destino
+    if (targetGallery === "template") {
+      const moved = {
+        ...asset,
+        id: `tmpl_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        folder: undefined,
+      };
+      setTemplateAssets((prev) => [...prev, moved]);
+    } else if (targetGallery === "user") {
+      const moved = {
+        ...asset,
+        id: `user_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        folder: undefined,
+      };
+      setUserAssets((prev) => [...prev, moved]);
+    } else {
+      const moved = {
+        ...asset,
+        id: `proj_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        folder: targetGallery,
+      };
+      setProjectAssets((prev) => [...prev, moved]);
+    }
+  };
+
+  const handleCopyGalleryAsset = (asset: any, targetGallery: string) => {
+    if (!targetGallery) return;
+
+    if (targetGallery === "template") {
+      const copy = {
+        id: `tmpl_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        nombre: asset.nombre,
+        src: asset.src,
+      };
+      setTemplateAssets((prev) => [...prev, copy]);
+    } else if (targetGallery === "user") {
+      const copy = {
+        id: `user_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        nombre: asset.nombre,
+        src: asset.src,
+      };
+      setUserAssets((prev) => [...prev, copy]);
+    } else {
+      const copy = {
+        id: `proj_asset_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        nombre: asset.nombre,
+        src: asset.src,
+        folder: targetGallery,
+      };
+      setProjectAssets((prev) => [...prev, copy]);
     }
   };
 
@@ -1296,7 +1469,9 @@ function AppContent() {
       templatesMap,
       importedTemplates,
       projectSymbols,
+      templateAssets,
       projectAssets,
+      assetFolders,
       userAssets,
       projectFonts,
       projectColors,
@@ -1528,6 +1703,11 @@ function AppContent() {
         if (s.src) URL.revokeObjectURL(s.src);
       });
       setProjectSymbolsInternal([]);
+      templateAssets.forEach((a) => {
+        if (a.src && a.src.startsWith("blob:")) URL.revokeObjectURL(a.src);
+      });
+      setTemplateAssetsInternal([]);
+      setAssetFoldersInternal(["Por Defecto"]);
 
       const cacheBlobUrls = new Map<string, string>();
       const matchesAssetScheme = (src: string | null | undefined): boolean => {
@@ -1758,22 +1938,69 @@ function AppContent() {
         }
       }
 
-      // Cargar los recursos globales de la galería del proyecto (SRS-014)
+      // Cargar carpetas de activos (SRS-094)
+      const loadedFolders: string[] = Array.isArray(proyecto.assetFolders) && proyecto.assetFolders.length > 0
+        ? [...proyecto.assetFolders]
+        : ["Por Defecto"];
+      if (!loadedFolders.includes("Por Defecto")) {
+        loadedFolders.unshift("Por Defecto");
+      }
+
+      // Cargar los recursos globales de la plantilla y del proyecto (SRS-014 / SRS-094)
+      const nuevosTemplateAssets: any[] = [];
       const nuevosProjectAssets: any[] = [];
-      if (proyecto.assets) {
-        for (const asset of proyecto.assets) {
+
+      // Si existe proyecto.projectAssets (formato nuevo)
+      if (Array.isArray(proyecto.projectAssets)) {
+        for (const asset of proyecto.projectAssets) {
           if (asset.src) {
             const url = await resolverAssetBlob(asset.src);
             if (url) {
+              const folder = asset.folder || "Por Defecto";
+              if (!loadedFolders.includes(folder)) {
+                loadedFolders.push(folder);
+              }
               nuevosProjectAssets.push({
                 id: asset.id,
                 nombre: asset.nombre,
-                src: url
+                src: url,
+                folder,
               });
             }
           }
         }
       }
+
+      // Procesar proyecto.assets (pueden ser template assets o legacy project assets)
+      if (Array.isArray(proyecto.assets)) {
+        for (const asset of proyecto.assets) {
+          if (asset.src) {
+            const url = await resolverAssetBlob(asset.src);
+            if (url) {
+              if (asset.src.startsWith("project_asset://")) {
+                const folder = asset.folder || "Por Defecto";
+                if (!loadedFolders.includes(folder)) {
+                  loadedFolders.push(folder);
+                }
+                nuevosProjectAssets.push({
+                  id: asset.id,
+                  nombre: asset.nombre,
+                  src: url,
+                  folder,
+                });
+              } else {
+                nuevosTemplateAssets.push({
+                  id: asset.id,
+                  nombre: asset.nombre,
+                  src: url,
+                });
+              }
+            }
+          }
+        }
+      }
+      setAssetFoldersInternal(loadedFolders);
+      setTemplateAssetsInternal(nuevosTemplateAssets);
       setProjectAssetsInternal(nuevosProjectAssets);
 
       // Cargar la galería de usuario (SRS-045)
@@ -6495,9 +6722,9 @@ function AppContent() {
       )}
       {showProjectGallery && (
         <div className="gallery-popup-backdrop" {...createSafeBackdropProps(backdropMouseDownRef, () => setShowProjectGallery(false))}>
-          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+          <div className="gallery-popup-container multimedia-gallery-wide" onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
-              <h4 className="gallery-popup-title">Galería del Proyecto</h4>
+              <h4 className="gallery-popup-title">🖼️ Galería Multimedia</h4>
               <button
                 type="button"
                 className="btn-close-modal"
@@ -6514,16 +6741,107 @@ function AppContent() {
               </button>
             </div>
             <p className="gallery-popup-subtitle">
-              Recursos de imagen compartidos en todo el proyecto
+              {activeGalleryTab === "template"
+                ? "Imágenes estructurales de la plantilla (se exportan e incluyen al guardar como .cdc2t)"
+                : activeGalleryTab === "user"
+                ? "Biblioteca de imágenes personales y globales del usuario"
+                : activeGalleryTab === "Por Defecto"
+                ? "Imágenes generales del proyecto actual (se guardan en .cdc2)"
+                : `Galería personalizada "${activeGalleryTab}" del proyecto`}
             </p>
 
+            {/* Barra de pestañas horizontal al mismo nivel (SRS-094) */}
+            <div className="gallery-tabs-row">
+              {/* 📄 Plantilla */}
+              <button
+                type="button"
+                className={`gallery-tab-btn ${activeGalleryTab === "template" ? "active" : ""}`}
+                onClick={() => setActiveGalleryTab("template")}
+              >
+                📄 Galería de la Plantilla <span className="gallery-count-badge">({templateAssets.length})</span>
+              </button>
+
+              {/* 📦 Por Defecto */}
+              <button
+                type="button"
+                className={`gallery-tab-btn ${activeGalleryTab === "Por Defecto" ? "active" : ""}`}
+                onClick={() => setActiveGalleryTab("Por Defecto")}
+              >
+                📦 Por Defecto <span className="gallery-count-badge">({projectAssets.filter((a: any) => (a.folder || "Por Defecto") === "Por Defecto").length})</span>
+              </button>
+
+              {/* 📁 Galerías Personalizadas */}
+              {assetFolders.filter((f) => f !== "Por Defecto").map((folder) => {
+                const count = projectAssets.filter((a: any) => a.folder === folder).length;
+                return (
+                  <button
+                    key={folder}
+                    type="button"
+                    className={`gallery-tab-btn ${activeGalleryTab === folder ? "active" : ""}`}
+                    onClick={() => setActiveGalleryTab(folder)}
+                  >
+                    📁 {folder} <span className="gallery-count-badge">({count})</span>
+                  </button>
+                );
+              })}
+
+              {/* 👤 Usuario */}
+              <button
+                type="button"
+                className={`gallery-tab-btn ${activeGalleryTab === "user" ? "active" : ""}`}
+                onClick={() => setActiveGalleryTab("user")}
+              >
+                👤 Galería de Usuario <span className="gallery-count-badge">({userAssets.length})</span>
+              </button>
+
+              {/* ➕ Nueva Galería */}
+              <button
+                type="button"
+                className="gallery-tab-btn-add"
+                onClick={handleCreateNewGallery}
+                title="Crear nueva galería en el proyecto"
+              >
+                ➕ Nueva Galería
+              </button>
+            </div>
+
+            {/* Barra de acciones para galería personalizada activa (Renombrar / Eliminar) */}
+            {activeGalleryTab !== "template" && activeGalleryTab !== "Por Defecto" && activeGalleryTab !== "user" && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.03)", padding: "6px 12px", borderRadius: "6px" }}>
+                <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Galería: <strong style={{ color: "var(--text-primary)" }}>{activeGalleryTab}</strong>
+                </span>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ padding: "4px 8px", fontSize: "11px" }}
+                    onClick={() => handleRenameGallery(activeGalleryTab)}
+                    title="Renombrar esta galería"
+                  >
+                    ✏️ Renombrar galería
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ padding: "4px 8px", fontSize: "11px", color: "var(--text-danger)" }}
+                    onClick={() => handleDeleteGallery(activeGalleryTab)}
+                    title="Eliminar esta galería (los recursos se moverán a Por Defecto)"
+                  >
+                    🗑️ Eliminar galería
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Dropzone contextual */}
             <div
               className="gallery-manager-dropzone"
               onDragOver={(e) => e.preventDefault()}
               onDrop={(e) => {
                 e.preventDefault();
                 if (e.dataTransfer.files) {
-                  handleUploadProjectAssets(e.dataTransfer.files);
+                  handleUploadGalleryAssets(e.dataTransfer.files);
                 }
               }}
             >
@@ -6531,61 +6849,118 @@ function AppContent() {
                 type="file"
                 multiple
                 accept="image/*"
-                id="project-gallery-file-upload"
+                id="multimedia-gallery-file-upload"
                 style={{ display: "none" }}
                 onChange={(e) => {
                   if (e.target.files) {
-                    handleUploadProjectAssets(e.target.files);
+                    handleUploadGalleryAssets(e.target.files);
                   }
                 }}
               />
-              <label htmlFor="project-gallery-file-upload" className="gallery-dropzone-label">
+              <label htmlFor="multimedia-gallery-file-upload" className="gallery-dropzone-label">
                 <span style={{ fontSize: "20px", marginBottom: "4px" }}>📤</span>
-                <span>Arrastra imágenes aquí o haz clic para subir</span>
+                <span>Arrastra imágenes aquí o haz clic para subir a <strong>{activeGalleryTab === "template" ? "Galería de Plantilla" : activeGalleryTab === "user" ? "Galería de Usuario" : activeGalleryTab}</strong></span>
                 <span className="gallery-dropzone-subtext">Formatos permitidos: PNG, JPG, JPEG, WEBP, SVG</span>
               </label>
             </div>
 
-            <div className="gallery-assets-grid">
-              {projectAssets && projectAssets.length > 0 ? (
-                projectAssets.map((asset: any) => (
-                  <div key={asset.id} className="gallery-asset-item" title={asset.nombre}>
-                    <button
-                      type="button"
-                      className="gallery-asset-delete-btn"
-                      onClick={() => handleDeleteProjectAsset(asset.id)}
-                      title="Eliminar recurso de la galería"
-                    >
-                      ✕
-                    </button>
-                    <div className="gallery-asset-thumb-container">
-                      <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+            {/* Grid de recursos con Mover y Copiar */}
+            {(() => {
+              const currentList = activeGalleryTab === "template"
+                ? templateAssets
+                : activeGalleryTab === "user"
+                ? userAssets
+                : projectAssets.filter((a: any) => (a.folder || "Por Defecto") === activeGalleryTab);
+
+              const destinationOptions = [
+                { key: "template", label: "📄 Galería de la Plantilla" },
+                { key: "Por Defecto", label: "📦 Por Defecto" },
+                ...assetFolders.filter((f) => f !== "Por Defecto").map((f) => ({ key: f, label: `📁 ${f}` })),
+                { key: "user", label: "👤 Galería de Usuario" },
+              ];
+
+              return (
+                <div className="gallery-assets-grid">
+                  {currentList && currentList.length > 0 ? (
+                    currentList.map((asset: any) => (
+                      <div key={asset.id} className="gallery-asset-item" title={asset.nombre}>
+                        <button
+                          type="button"
+                          className="gallery-asset-delete-btn"
+                          onClick={() => handleDeleteGalleryAsset(asset.id, activeGalleryTab)}
+                          title="Eliminar recurso de la galería"
+                        >
+                          ✕
+                        </button>
+                        <div className="gallery-asset-thumb-container">
+                          <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                        </div>
+                        <div className="gallery-asset-name" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "4px", padding: "4px 8px" }}>
+                          <span className="truncate" style={{ flex: 1, textAlign: "left" }} title={asset.nombre}>{asset.nombre}</span>
+                          <button
+                            type="button"
+                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", padding: 0 }}
+                            onClick={() => handleRenameGalleryAsset(asset.id, activeGalleryTab)}
+                            title="Renombrar"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+
+                        {/* Acciones Mover a... y Copiar a... (SRS-094) */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "3px", width: "100%", padding: "4px 6px", borderTop: "1px solid var(--border-color)", marginTop: "4px" }}>
+                          <select
+                            className="gallery-action-select"
+                            title="Mover a otra galería..."
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleMoveGalleryAsset(asset, activeGalleryTab, e.target.value);
+                              }
+                            }}
+                            style={{ width: "100%", padding: "2px 4px", fontSize: "10px", height: "22px" }}
+                          >
+                            <option value="" disabled>📁 Mover a...</option>
+                            {destinationOptions
+                              .filter((d) => d.key !== activeGalleryTab)
+                              .map((d) => (
+                                <option key={d.key} value={d.key}>{d.label}</option>
+                              ))}
+                          </select>
+
+                          <select
+                            className="gallery-action-select"
+                            title="Copiar a galería..."
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleCopyGalleryAsset(asset, e.target.value);
+                              }
+                            }}
+                            style={{ width: "100%", padding: "2px 4px", fontSize: "10px", height: "22px" }}
+                          >
+                            <option value="" disabled>📋 Copiar a...</option>
+                            {destinationOptions.map((d) => (
+                              <option key={d.key} value={d.key}>{d.label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{
+                      gridColumn: "1 / -1",
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: "var(--text-secondary)",
+                      fontSize: "12px"
+                    }}>
+                      No hay imágenes en esta galería. Arrastra archivos arriba para empezar o copia/mueve recursos desde otra galería.
                     </div>
-                    <div className="gallery-asset-name" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "4px", padding: "4px 8px" }}>
-                      <span className="truncate" style={{ flex: 1, textAlign: "left" }} title={asset.nombre}>{asset.nombre}</span>
-                      <button
-                        type="button"
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", padding: 0 }}
-                        onClick={() => handleRenameProjectAsset(asset.id)}
-                        title="Renombrar"
-                      >
-                        ✏️
-                      </button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{
-                  gridColumn: "1 / -1",
-                  padding: "40px 20px",
-                  textAlign: "center",
-                  color: "var(--text-secondary)",
-                  fontSize: "12px"
-                }}>
-                  No hay imágenes en la galería del proyecto. Arrastra archivos arriba para empezar.
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
               <button
@@ -6969,9 +7344,9 @@ function AppContent() {
 
       {showSidebarGallerySelector && sidebarGalleryTargetField && (
         <div className="gallery-popup-backdrop" style={{ zIndex: 5000 }} {...createSafeBackdropProps(backdropMouseDownRef, () => { setShowSidebarGallerySelector(false); setSidebarGalleryTargetField(null); })}>
-          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+          <div className="gallery-popup-container multimedia-gallery-wide" onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
-              <h4 className="gallery-popup-title">Seleccionar de la Galería</h4>
+              <h4 className="gallery-popup-title">Seleccionar de la Galería Multimedia</h4>
               <button
                 type="button"
                 className="btn-close-modal"
@@ -6988,133 +7363,107 @@ function AppContent() {
               </button>
             </div>
 
-            {/* Pestañas (Tabs) para Galería de Proyecto vs Usuario (SRS-045) */}
-            <div style={{ display: "flex", borderBottom: "1px solid var(--border-color)", marginBottom: "12px", gap: "16px" }}>
+            {/* Barra de pestañas horizontal al mismo nivel (SRS-094) */}
+            <div className="gallery-tabs-row">
+              {/* 📄 Plantilla */}
               <button
                 type="button"
-                style={{
-                  padding: "8px 4px",
-                  background: "none",
-                  border: "none",
-                  borderBottom: sidebarGallerySelectorTab === "project" ? "2px solid var(--accent-primary)" : "2px solid transparent",
-                  color: sidebarGallerySelectorTab === "project" ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: sidebarGallerySelectorTab === "project" ? "bold" : "normal",
-                  cursor: "pointer",
-                  fontSize: "13px"
-                }}
-                onClick={() => setSidebarGallerySelectorTab("project")}
+                className={`gallery-tab-btn ${sidebarGallerySelectorTab === "template" ? "active" : ""}`}
+                onClick={() => setSidebarGallerySelectorTab("template")}
               >
-                Imágenes del Proyecto
+                📄 Galería de la Plantilla <span className="gallery-count-badge">({templateAssets.length})</span>
               </button>
+
+              {/* 📦 Por Defecto */}
               <button
                 type="button"
-                style={{
-                  padding: "8px 4px",
-                  background: "none",
-                  border: "none",
-                  borderBottom: sidebarGallerySelectorTab === "user" ? "2px solid var(--accent-primary)" : "2px solid transparent",
-                  color: sidebarGallerySelectorTab === "user" ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: sidebarGallerySelectorTab === "user" ? "bold" : "normal",
-                  cursor: "pointer",
-                  fontSize: "13px"
-                }}
+                className={`gallery-tab-btn ${sidebarGallerySelectorTab === "Por Defecto" ? "active" : ""}`}
+                onClick={() => setSidebarGallerySelectorTab("Por Defecto")}
+              >
+                📦 Por Defecto <span className="gallery-count-badge">({projectAssets.filter((a: any) => (a.folder || "Por Defecto") === "Por Defecto").length})</span>
+              </button>
+
+              {/* 📁 Galerías Personalizadas */}
+              {assetFolders.filter((f) => f !== "Por Defecto").map((folder) => {
+                const count = projectAssets.filter((a: any) => a.folder === folder).length;
+                return (
+                  <button
+                    key={folder}
+                    type="button"
+                    className={`gallery-tab-btn ${sidebarGallerySelectorTab === folder ? "active" : ""}`}
+                    onClick={() => setSidebarGallerySelectorTab(folder)}
+                  >
+                    📁 {folder} <span className="gallery-count-badge">({count})</span>
+                  </button>
+                );
+              })}
+
+              {/* 👤 Usuario */}
+              <button
+                type="button"
+                className={`gallery-tab-btn ${sidebarGallerySelectorTab === "user" ? "active" : ""}`}
                 onClick={() => setSidebarGallerySelectorTab("user")}
               >
-                Imágenes de Usuario
+                👤 Galería de Usuario <span className="gallery-count-badge">({userAssets.length})</span>
               </button>
             </div>
 
-            <div className="gallery-assets-grid" style={{ maxHeight: "350px", overflowY: "auto" }}>
-              {sidebarGallerySelectorTab === "project" ?
-                projectAssets && projectAssets.length > 0 ? (
-                  projectAssets.map((asset: any) => (
-                    <div
-                      key={asset.id}
-                      className="gallery-asset-item"
-                      onClick={() => {
-                        const nuevasCartas = cartas.map((c) => {
-                          if (!selectedCardIds.includes(c.id)) return c;
-                          const capaId = sidebarGalleryTargetField.mapaCartaCapaId[c.id];
-                          if (inspectorTab === "back" && generarReversos) {
-                            const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
-                            nextOverridesTrasera[capaId] = {
-                              ...(nextOverridesTrasera[capaId] || {}),
-                              [sidebarGalleryTargetField.property]: asset.src
-                            };
-                            return { ...c, capasOverridesTrasera: nextOverridesTrasera };
-                          } else {
-                            const nextOverrides = { ...(c.capasOverrides || {}) } as any;
-                            nextOverrides[capaId] = {
-                              ...(nextOverrides[capaId] || {}),
-                              [sidebarGalleryTargetField.property]: asset.src
-                            };
-                            return { ...c, capasOverrides: nextOverrides };
-                          }
-                        });
-                        setCartas(nuevasCartas);
-                        setIsDirty(true);
-                        setShowSidebarGallerySelector(false);
-                        setSidebarGalleryTargetField(null);
-                      }}
-                      title={`Seleccionar ${asset.nombre}`}
-                    >
-                      <div className="gallery-asset-thumb-container">
-                        <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+            {/* Grid de recursos para asignación */}
+            {(() => {
+              const currentList = sidebarGallerySelectorTab === "template"
+                ? templateAssets
+                : sidebarGallerySelectorTab === "user"
+                ? userAssets
+                : projectAssets.filter((a: any) => (a.folder || "Por Defecto") === sidebarGallerySelectorTab);
+
+              return (
+                <div className="gallery-assets-grid" style={{ maxHeight: "350px", overflowY: "auto" }}>
+                  {currentList && currentList.length > 0 ? (
+                    currentList.map((asset: any) => (
+                      <div
+                        key={asset.id}
+                        className="gallery-asset-item"
+                        onClick={() => {
+                          const nuevasCartas = cartas.map((c) => {
+                            if (!selectedCardIds.includes(c.id)) return c;
+                            const capaId = sidebarGalleryTargetField.mapaCartaCapaId[c.id];
+                            if (inspectorTab === "back" && generarReversos) {
+                              const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
+                              nextOverridesTrasera[capaId] = {
+                                ...(nextOverridesTrasera[capaId] || {}),
+                                [sidebarGalleryTargetField.property]: asset.src
+                              };
+                              return { ...c, capasOverridesTrasera: nextOverridesTrasera };
+                            } else {
+                              const nextOverrides = { ...(c.capasOverrides || {}) } as any;
+                              nextOverrides[capaId] = {
+                                ...(nextOverrides[capaId] || {}),
+                                [sidebarGalleryTargetField.property]: asset.src
+                              };
+                              return { ...c, capasOverrides: nextOverrides };
+                            }
+                          });
+                          setCartas(nuevasCartas);
+                          setIsDirty(true);
+                          setShowSidebarGallerySelector(false);
+                          setSidebarGalleryTargetField(null);
+                        }}
+                        title={`Seleccionar ${asset.nombre}`}
+                      >
+                        <div className="gallery-asset-thumb-container">
+                          <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                        </div>
+                        <div className="gallery-asset-name">{asset.nombre}</div>
                       </div>
-                      <div className="gallery-asset-name">{asset.nombre}</div>
+                    ))
+                  ) : (
+                    <div style={{ gridColumn: "1 / -1", padding: "40px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "12px" }}>
+                      Esta galería está vacía. Añade imágenes desde el menú superior "Recursos &gt; Galería Multimedia".
                     </div>
-                  ))
-                ) : (
-                  <div style={{ gridColumn: "1 / -1", padding: "40px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "12px" }}>
-                    La galería del proyecto está vacía. Añade imágenes desde el menú superior "Recursos".
-                  </div>
-                )
-              :
-                userAssets && userAssets.length > 0 ? (
-                  userAssets.map((asset: any) => (
-                    <div
-                      key={asset.id}
-                      className="gallery-asset-item"
-                      onClick={() => {
-                        const nuevasCartas = cartas.map((c) => {
-                          if (!selectedCardIds.includes(c.id)) return c;
-                          const capaId = sidebarGalleryTargetField.mapaCartaCapaId[c.id];
-                          if (inspectorTab === "back" && generarReversos) {
-                            const nextOverridesTrasera = { ...(c.capasOverridesTrasera || {}) } as any;
-                            nextOverridesTrasera[capaId] = {
-                              ...(nextOverridesTrasera[capaId] || {}),
-                              [sidebarGalleryTargetField.property]: asset.src
-                            };
-                            return { ...c, capasOverridesTrasera: nextOverridesTrasera };
-                          } else {
-                            const nextOverrides = { ...(c.capasOverrides || {}) } as any;
-                            nextOverrides[capaId] = {
-                              ...(nextOverrides[capaId] || {}),
-                              [sidebarGalleryTargetField.property]: asset.src
-                            };
-                            return { ...c, capasOverrides: nextOverrides };
-                          }
-                        });
-                        setCartas(nuevasCartas);
-                        setIsDirty(true);
-                        setShowSidebarGallerySelector(false);
-                        setSidebarGalleryTargetField(null);
-                      }}
-                      title={`Seleccionar ${asset.nombre}`}
-                    >
-                      <div className="gallery-asset-thumb-container">
-                        <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
-                      </div>
-                      <div className="gallery-asset-name">{asset.nombre}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{ gridColumn: "1 / -1", padding: "40px 20px", textAlign: "center", color: "var(--text-secondary)", fontSize: "12px" }}>
-                    No has subido ninguna imagen todavía. Sube una imagen desde el inspector para que aparezca aquí.
-                  </div>
-                )
-              }
-            </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         </div>
       )}

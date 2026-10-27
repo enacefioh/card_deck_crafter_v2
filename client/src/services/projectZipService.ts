@@ -18,7 +18,9 @@ export interface GenerarProyectoZipParams extends GenerarProyectoZipOptions {
   templatesMap?: Record<string, PlantillaCDC2>;
   importedTemplates?: PlantillaCDC2[];
   projectSymbols?: any[];
+  templateAssets?: any[];
   projectAssets?: any[];
+  assetFolders?: string[];
   userAssets?: any[];
   projectFonts?: any[];
   projectColors?: any[];
@@ -42,7 +44,9 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     templatesMap = {},
     importedTemplates = [],
     projectSymbols = [],
+    templateAssets = [],
     projectAssets = [],
+    assetFolders = ["Por Defecto"],
     userAssets = [],
     projectFonts = [],
     projectColors = [],
@@ -51,13 +55,14 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
   const isTemplate = asTemplate === true;
   const zip = new JSZip();
   const assetsFolder = zip.folder("assets")!;
-  const projectAssetsFolder = zip.folder("project_assets")!;
-  const userAssetsFolder = zip.folder("user_assets")!;
+  const projectAssetsFolder = isTemplate ? null : zip.folder("project_assets");
+  const userAssetsFolder = isTemplate ? null : zip.folder("user_assets");
   const symbolsFolder = zip.folder("symbols")!;
   const imagenMap = new Map<string, string>(); // blobUrl -> assetPath
   const projectAssetMap = new Map<string, string>(); // blobUrl -> projectAssetPath
   const userAssetMap = new Map<string, string>(); // blobUrl -> userAssetPath
   const symbolAssetMap = new Map<string, string>(); // blobUrl -> symbolAssetPath
+  const processedTemplateAssets: any[] = [];
   const processedProjectAssets: any[] = [];
   const processedUserAssets: any[] = [];
   const processedProjectSymbols: any[] = [];
@@ -108,7 +113,7 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
           else if (blob.type === "image/gif") extension = "gif";
 
           const filename = `${asset.id}.${extension}`;
-          userAssetsFolder.file(filename, blob);
+          userAssetsFolder!.file(filename, blob);
 
           const assetPath = `user_asset://${filename}`;
           userAssetMap.set(asset.src, assetPath);
@@ -127,7 +132,40 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     }
   }
 
-  // Procesar recursos de la galería del proyecto
+  // Procesar recursos de la galería de plantilla (SRS-094)
+  for (const asset of templateAssets) {
+    if (asset.src && !asset.src.startsWith("asset://")) {
+      try {
+        const res = await fetch(asset.src);
+        const blob = await res.blob();
+
+        let extension = "png";
+        if (blob.type === "image/jpeg") extension = "jpg";
+        else if (blob.type === "image/webp") extension = "webp";
+        else if (blob.type === "image/gif") extension = "gif";
+        else if (blob.type === "image/svg+xml") extension = "svg";
+
+        const filename = `${asset.id}.${extension}`;
+        assetsFolder.file(filename, blob);
+
+        const assetPath = `asset://${filename}`;
+        imagenMap.set(asset.src, assetPath);
+        processedTemplateAssets.push({
+          id: asset.id,
+          nombre: asset.nombre,
+          src: assetPath,
+        });
+      } catch (err) {
+        console.error("Error al procesar recurso de la galería de plantilla:", asset, err);
+      }
+    } else if (asset.src && asset.src.startsWith("asset://")) {
+      imagenMap.set(asset.src, asset.src);
+      processedTemplateAssets.push(asset);
+    }
+  }
+
+  // Procesar recursos de la galería del proyecto (SRS-014 / SRS-094) - Se omiten si se exporta como plantilla
+  if (!isTemplate) {
   for (const asset of projectAssets) {
     if (asset.src && !asset.src.startsWith("project_asset://")) {
       try {
@@ -140,7 +178,7 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
         else if (blob.type === "image/gif") extension = "gif";
 
         const filename = `${asset.id}.${extension}`;
-        projectAssetsFolder.file(filename, blob);
+        projectAssetsFolder!.file(filename, blob);
 
         const assetPath = `project_asset://${filename}`;
         projectAssetMap.set(asset.src, assetPath);
@@ -148,14 +186,19 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
           id: asset.id,
           nombre: asset.nombre,
           src: assetPath,
+          folder: asset.folder || "Por Defecto",
         });
       } catch (err) {
         console.error("Error al procesar recurso de la galería del proyecto:", asset, err);
       }
     } else if (asset.src && asset.src.startsWith("project_asset://")) {
       projectAssetMap.set(asset.src, asset.src);
-      processedProjectAssets.push(asset);
+      processedProjectAssets.push({
+        ...asset,
+        folder: asset.folder || "Por Defecto",
+      });
     }
+  }
   }
 
   const addBlobToZip = async (blobUrl: string, baseName: string): Promise<string> => {
@@ -413,8 +456,10 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     documentos: processedDocumentos,
     activeDocumentoId,
     templates: processedTemplatesMap,
-    assets: processedProjectAssets,
-    userAssets: processedUserAssets,
+    assets: processedTemplateAssets,
+    projectAssets: isTemplate ? [] : processedProjectAssets,
+    assetFolders: isTemplate ? ["Por Defecto"] : (assetFolders && assetFolders.length > 0 ? assetFolders : ["Por Defecto"]),
+    userAssets: isTemplate ? [] : processedUserAssets,
     projectSymbols: processedProjectSymbols,
     customFonts: projectFonts.map((f: any) => ({
       id: f.id,

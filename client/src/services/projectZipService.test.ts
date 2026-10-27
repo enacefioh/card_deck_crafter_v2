@@ -123,7 +123,7 @@ describe("SRS-056: Servicio de Serialización de Proyectos ZIP (projectZipServic
 
     const projectJson = JSON.parse(await zip.file("project.json")!.async("string"));
     expect(projectJson.userAssets[0].src).toBe("user_asset://u_asset_1.png");
-    expect(projectJson.assets[0].src).toBe("project_asset://p_asset_1.png");
+    expect(projectJson.projectAssets[0].src).toBe("project_asset://p_asset_1.png");
   });
 
   it("empaqueta como plantilla (asTemplate: true) omitiendo userAssets y asignando meta tipo template", async () => {
