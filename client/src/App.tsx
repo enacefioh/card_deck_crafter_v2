@@ -743,13 +743,19 @@ function AppContent() {
     setIsDirty(true);
   };
 
-  // --- Estados de Tipografías del Proyecto (SRS-026) ---
+  // --- Estados de Tipografías del Proyecto (SRS-026 / SRS-095) ---
   const [projectFonts, setProjectFontsInternal] = useState<any[]>([]);
+  const [fontFolders, setFontFoldersInternal] = useState<string[]>(["Por Defecto"]);
+  const [activeFontTab, setActiveFontTab] = useState<string>("Por Defecto");
   const [showProjectFonts, setShowProjectFonts] = useState<boolean>(false);
   const [showTemplatesManager, setShowTemplatesManager] = useState<boolean>(false);
 
   const setProjectFonts = (value: React.SetStateAction<any[]>) => {
     setProjectFontsInternal(value);
+    setIsDirty(true);
+  };
+  const setFontFolders = (value: React.SetStateAction<string[]>) => {
+    setFontFoldersInternal(value);
     setIsDirty(true);
   };
 
@@ -1276,6 +1282,7 @@ function AppContent() {
           nombre: familyName,
           filename: file.name,
           type: file.type || `font/${ext.replace(".", "")}`,
+          folder: activeFontTab || "Por Defecto",
           data: base64Data,
           src: fontSrc
         };
@@ -1306,6 +1313,74 @@ function AppContent() {
       if (!sanitized) return;
       setProjectFonts((prev) => prev.map((f) => f.id === id ? { ...f, nombre: sanitized } : f));
     }
+  };
+
+  const handleCreateNewFontFolder = () => {
+    const name = window.prompt("Introduce el nombre de la nueva galería de tipografías:");
+    if (!name || name.trim() === "") return;
+    const trimmed = name.trim();
+    const reserved = ["Por Defecto", "default"];
+    if (reserved.map((r) => r.toLowerCase()).includes(trimmed.toLowerCase())) {
+      window.alert("Ese nombre está reservado para la galería por defecto.");
+      return;
+    }
+    if (fontFolders.includes(trimmed)) {
+      window.alert("Ya existe una galería de tipografías con ese nombre.");
+      return;
+    }
+    setFontFolders((prev) => [...prev, trimmed]);
+    setActiveFontTab(trimmed);
+  };
+
+  const handleRenameFontFolder = (oldName: string) => {
+    const name = window.prompt(`Nuevo nombre para la galería "${oldName}":`, oldName);
+    if (!name || name.trim() === "" || name.trim() === oldName) return;
+    const trimmed = name.trim();
+    const reserved = ["Por Defecto", "default"];
+    if (reserved.map((r) => r.toLowerCase()).includes(trimmed.toLowerCase())) {
+      window.alert("Ese nombre está reservado para la galería por defecto.");
+      return;
+    }
+    if (fontFolders.includes(trimmed)) {
+      window.alert("Ya existe una galería de tipografías con ese nombre.");
+      return;
+    }
+    setFontFolders((prev) => prev.map((f) => (f === oldName ? trimmed : f)));
+    setProjectFonts((prev) =>
+      prev.map((f) => ((f.folder || "Por Defecto") === oldName ? { ...f, folder: trimmed } : f))
+    );
+    if (activeFontTab === oldName) {
+      setActiveFontTab(trimmed);
+    }
+  };
+
+  const handleDeleteFontFolder = (folderToDelete: string) => {
+    if (window.confirm(`¿Seguro que deseas eliminar la galería de tipografías "${folderToDelete}"? Sus fuentes se reubicarán en "Por Defecto".`)) {
+      setProjectFonts((prev) =>
+        prev.map((f) => ((f.folder || "Por Defecto") === folderToDelete ? { ...f, folder: "Por Defecto" } : f))
+      );
+      setFontFolders((prev) => prev.filter((f) => f !== folderToDelete));
+      if (activeFontTab === folderToDelete) {
+        setActiveFontTab("Por Defecto");
+      }
+    }
+  };
+
+  const handleMoveFont = (fontId: string, targetFolder: string) => {
+    if (!targetFolder) return;
+    setProjectFonts((prev) =>
+      prev.map((f) => (f.id === fontId ? { ...f, folder: targetFolder } : f))
+    );
+  };
+
+  const handleCopyFont = (font: any, targetFolder: string) => {
+    if (!targetFolder) return;
+    const copy = {
+      ...font,
+      id: `proj_font_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+      folder: targetFolder,
+    };
+    setProjectFonts((prev) => [...prev, copy]);
   };
 
   // --- Importación de Imágenes (Mapeado a URLs locales) ---
@@ -1474,6 +1549,7 @@ function AppContent() {
       assetFolders,
       userAssets,
       projectFonts,
+      fontFolders,
       projectColors,
     });
   };
@@ -1699,6 +1775,8 @@ function AppContent() {
         if (f.src) URL.revokeObjectURL(f.src);
       });
       setProjectFontsInternal([]);
+      setFontFoldersInternal(["Por Defecto"]);
+      setActiveFontTab("Por Defecto");
       projectSymbols.forEach((s) => {
         if (s.src) URL.revokeObjectURL(s.src);
       });
@@ -2200,7 +2278,15 @@ function AppContent() {
       }
       setProjectSymbolsInternal(nuevosProjectSymbols);
 
-      // Cargar tipografías del proyecto (SRS-026)
+      // Cargar carpetas de tipografías (SRS-095)
+      const loadedFontFolders: string[] = Array.isArray(proyecto.fontFolders) && proyecto.fontFolders.length > 0
+        ? [...proyecto.fontFolders]
+        : ["Por Defecto"];
+      if (!loadedFontFolders.includes("Por Defecto")) {
+        loadedFontFolders.unshift("Por Defecto");
+      }
+
+      // Cargar tipografías del proyecto (SRS-026 / SRS-095)
       const nuevosProjectFonts: any[] = [];
       if (proyecto.customFonts) {
         for (const font of proyecto.customFonts) {
@@ -2215,11 +2301,17 @@ function AppContent() {
               const blob = new Blob([byteArray], { type: font.type });
               const fontSrc = URL.createObjectURL(blob);
               
+              const folder = font.folder || "Por Defecto";
+              if (!loadedFontFolders.includes(folder)) {
+                loadedFontFolders.push(folder);
+              }
+
               nuevosProjectFonts.push({
                 id: font.id,
                 nombre: font.nombre,
                 filename: font.filename,
                 type: font.type,
+                folder,
                 data: font.data,
                 src: fontSrc
               });
@@ -2229,6 +2321,7 @@ function AppContent() {
           }
         }
       }
+      setFontFoldersInternal(loadedFontFolders);
       setProjectFontsInternal(nuevosProjectFonts);
 
       // Cargar los colores del proyecto (SRS-040)
@@ -6074,18 +6167,24 @@ function AppContent() {
                         style={{ height: "22px", fontSize: "11px", width: "100%", padding: "0 4px" }}
                       >
                         {!todosIguales && <option value="" disabled>&lt;Múltiples&gt;</option>}
-                        <option value="sans-serif">Inter (Sans Serif)</option>
-                        <option value="Outfit">Outfit</option>
-                        <option value="Arial">Arial</option>
-                        <option value="Times New Roman">Times New Roman</option>
-                        <option value="Courier New">Courier New (Monospace)</option>
-                        {projectFonts && projectFonts.length > 0 && (
-                          <optgroup label="Fuentes del Proyecto">
-                            {projectFonts.map((f: any) => (
-                              <option key={f.id} value={f.nombre}>{f.nombre}</option>
-                            ))}
-                          </optgroup>
-                        )}
+                        <optgroup label="Tipografías del Sistema">
+                          <option value="sans-serif">Inter (Sans Serif)</option>
+                          <option value="Outfit">Outfit</option>
+                          <option value="Arial">Arial</option>
+                          <option value="Times New Roman">Times New Roman</option>
+                          <option value="Courier New">Courier New (Monospace)</option>
+                        </optgroup>
+                        {fontFolders.map((folder) => {
+                          const fontsInFolder = projectFonts.filter((f: any) => (f.folder || "Por Defecto") === folder);
+                          if (fontsInFolder.length === 0) return null;
+                          return (
+                            <optgroup key={folder} label={`Tipografías del Proyecto: ${folder}`}>
+                              {fontsInFolder.map((f: any) => (
+                                <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                              ))}
+                            </optgroup>
+                          );
+                        })}
                       </select>
                     )}
 
@@ -6718,6 +6817,7 @@ function AppContent() {
           }}
           projectAssets={projectAssets}
           projectFonts={projectFonts}
+          fontFolders={fontFolders}
           projectColors={projectColors}
           userAssets={userAssets}
           onAddUserAsset={(nombre, src) => {
@@ -7311,9 +7411,9 @@ function AppContent() {
 
       {showProjectFonts && (
         <div className="gallery-popup-backdrop" {...createSafeBackdropProps(backdropMouseDownRef, () => setShowProjectFonts(false))}>
-          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+          <div className="gallery-popup-container multimedia-gallery-wide" onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
-              <h4 className="gallery-popup-title">Tipografías del Proyecto</h4>
+              <h4 className="gallery-popup-title">🔤 Galería de Tipografías</h4>
               <button
                 type="button"
                 className="btn-close-modal"
@@ -7330,9 +7430,78 @@ function AppContent() {
               </button>
             </div>
             <p className="gallery-popup-subtitle">
-              Tipografías personalizadas compartidas en todo el proyecto
+              {activeFontTab === "Por Defecto"
+                ? "Tipografías por defecto del proyecto actual"
+                : `Galería personalizada "${activeFontTab}" de tipografías`}
             </p>
 
+            {/* Barra de pestañas horizontal al mismo nivel (SRS-095) */}
+            <div className="gallery-tabs-row">
+              {/* 📦 Por Defecto */}
+              <button
+                type="button"
+                className={`gallery-tab-btn ${activeFontTab === "Por Defecto" ? "active" : ""}`}
+                onClick={() => setActiveFontTab("Por Defecto")}
+              >
+                📦 Por Defecto <span className="gallery-count-badge">({projectFonts.filter((f: any) => (f.folder || "Por Defecto") === "Por Defecto").length})</span>
+              </button>
+
+              {/* 📁 Galerías Personalizadas */}
+              {fontFolders.filter((f) => f !== "Por Defecto").map((folder) => {
+                const count = projectFonts.filter((f: any) => (f.folder || "Por Defecto") === folder).length;
+                return (
+                  <button
+                    key={folder}
+                    type="button"
+                    className={`gallery-tab-btn ${activeFontTab === folder ? "active" : ""}`}
+                    onClick={() => setActiveFontTab(folder)}
+                  >
+                    📁 {folder} <span className="gallery-count-badge">({count})</span>
+                  </button>
+                );
+              })}
+
+              {/* ➕ Nueva Galería */}
+              <button
+                type="button"
+                className="gallery-tab-btn-add"
+                onClick={handleCreateNewFontFolder}
+                title="Crear nueva galería de tipografías"
+              >
+                ➕ Nueva Galería
+              </button>
+            </div>
+
+            {/* Barra de acciones para galería personalizada activa (Renombrar / Eliminar) */}
+            {activeFontTab !== "Por Defecto" && (
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", background: "rgba(255,255,255,0.03)", padding: "6px 12px", borderRadius: "6px" }}>
+                <span style={{ fontSize: "12px", color: "var(--text-secondary)" }}>
+                  Galería: <strong style={{ color: "var(--text-primary)" }}>{activeFontTab}</strong>
+                </span>
+                <div style={{ display: "flex", gap: "8px" }}>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ padding: "4px 8px", fontSize: "11px" }}
+                    onClick={() => handleRenameFontFolder(activeFontTab)}
+                    title="Renombrar esta galería"
+                  >
+                    ✏️ Renombrar galería
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ padding: "4px 8px", fontSize: "11px", color: "var(--text-danger)" }}
+                    onClick={() => handleDeleteFontFolder(activeFontTab)}
+                    title="Eliminar esta galería (las fuentes se moverán a Por Defecto)"
+                  >
+                    🗑️ Eliminar galería
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Dropzone contextual */}
             <div
               className="gallery-manager-dropzone"
               onDragOver={(e) => e.preventDefault()}
@@ -7357,51 +7526,99 @@ function AppContent() {
               />
               <label htmlFor="project-fonts-file-upload" className="gallery-dropzone-label">
                 <span style={{ fontSize: "20px", marginBottom: "4px" }}>📤</span>
-                <span>Arrastra tipografías aquí o haz clic para subir</span>
+                <span>Arrastra tipografías aquí o haz clic para subir a <strong>{activeFontTab}</strong></span>
                 <span className="gallery-dropzone-subtext">Formatos permitidos: TTF, OTF, WOFF, WOFF2</span>
               </label>
             </div>
 
-            <div className="gallery-assets-grid">
-              {projectFonts && projectFonts.length > 0 ? (
-                projectFonts.map((font: any) => (
-                  <div key={font.id} className="gallery-asset-item" title={font.filename}>
-                    <button
-                      type="button"
-                      className="gallery-asset-delete-btn"
-                      onClick={() => handleDeleteProjectFont(font.id)}
-                      title="Eliminar tipografía del proyecto"
-                    >
-                      ✕
-                    </button>
-                    <div className="gallery-asset-thumb-container" style={{ display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-secondary)", height: "80px", fontSize: "28px", color: "var(--text-primary)" }}>
-                      <span style={{ fontFamily: `'${font.nombre}'` }}>Aa</span>
+            {/* Grid de tipografías con vista previa Aa, Mover y Copiar */}
+            {(() => {
+              const currentFonts = projectFonts.filter(
+                (f: any) => (f.folder || "Por Defecto") === activeFontTab
+              );
+
+              return (
+                <div className="gallery-assets-grid">
+                  {currentFonts && currentFonts.length > 0 ? (
+                    currentFonts.map((font: any) => (
+                      <div key={font.id} className="gallery-asset-item" title={font.filename}>
+                        <button
+                          type="button"
+                          className="gallery-asset-delete-btn"
+                          onClick={() => handleDeleteProjectFont(font.id)}
+                          title="Eliminar tipografía del proyecto"
+                        >
+                          ✕
+                        </button>
+                        <div className="gallery-asset-thumb-container" style={{ display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "var(--bg-secondary)", height: "80px", fontSize: "28px", color: "var(--text-primary)" }}>
+                          <span style={{ fontFamily: `'${font.nombre}'` }}>Aa</span>
+                        </div>
+                        <div className="gallery-asset-name" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "4px", padding: "4px 8px" }}>
+                          <span className="truncate" style={{ flex: 1, textAlign: "left" }} title={font.nombre}>{font.nombre}</span>
+                          <button
+                            type="button"
+                            style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", padding: 0 }}
+                            onClick={() => handleRenameProjectFont(font.id)}
+                            title="Renombrar Familia"
+                          >
+                            ✏️
+                          </button>
+                        </div>
+
+                        {/* Acciones Mover a... y Copiar a... (SRS-095) */}
+                        <div style={{ display: "flex", flexDirection: "column", gap: "3px", width: "100%", padding: "4px 6px", borderTop: "1px solid var(--border-color)", marginTop: "4px" }}>
+                          <select
+                            className="gallery-action-select"
+                            title="Mover a otra galería..."
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleMoveFont(font.id, e.target.value);
+                              }
+                            }}
+                            style={{ width: "100%", padding: "2px 4px", fontSize: "10px", height: "22px" }}
+                          >
+                            <option value="" disabled>📁 Mover a...</option>
+                            {fontFolders
+                              .filter((folder) => folder !== activeFontTab)
+                              .map((folder) => (
+                                <option key={folder} value={folder}>📁 {folder}</option>
+                              ))}
+                          </select>
+
+                          <select
+                            className="gallery-action-select"
+                            title="Copiar a galería..."
+                            value=""
+                            onChange={(e) => {
+                              if (e.target.value) {
+                                handleCopyFont(font, e.target.value);
+                              }
+                            }}
+                            style={{ width: "100%", padding: "2px 4px", fontSize: "10px", height: "22px" }}
+                          >
+                            <option value="" disabled>📋 Copiar a...</option>
+                            {fontFolders.map((folder) => (
+                              <option key={folder} value={folder}>📁 {folder}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{
+                      gridColumn: "1 / -1",
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: "var(--text-secondary)",
+                      fontSize: "12px"
+                    }}>
+                      No hay tipografías en esta galería. Arrastra archivos arriba para empezar o copia/mueve fuentes desde otra galería.
                     </div>
-                    <div className="gallery-asset-name" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "4px", padding: "4px 8px" }}>
-                      <span className="truncate" style={{ flex: 1, textAlign: "left" }} title={font.nombre}>{font.nombre}</span>
-                      <button
-                        type="button"
-                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "10px", padding: 0 }}
-                        onClick={() => handleRenameProjectFont(font.id)}
-                        title="Renombrar Familia"
-                      >
-                        ✏️
-                      </button>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{
-                  gridColumn: "1 / -1",
-                  padding: "40px 20px",
-                  textAlign: "center",
-                  color: "var(--text-secondary)",
-                  fontSize: "12px"
-                }}>
-                  No hay tipografías en la galería del proyecto. Arrastra archivos arriba para empezar.
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
               <button

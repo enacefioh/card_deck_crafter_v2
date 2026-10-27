@@ -511,7 +511,7 @@ export default function MenuBar({
                 className="menu-item"
                 onClick={() => handleAction(onShowProjectFonts || (() => {}))}
               >
-                <span className="menu-item-icon">🔤</span> Tipografías del Proyecto...
+                <span className="menu-item-icon">🔤</span> Galería de Tipografías...
               </button>
               <button
                 className="menu-item"

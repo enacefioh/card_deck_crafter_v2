@@ -126,6 +126,7 @@ export interface PlantillaCDC2 {
     nombre: string;
     src: string;
   }>;
+  fontFolders?: string[];
   customFonts?: CustomFont[];
   exposedProperties?: ExposedProperty[];
   miniatura?: string; // Data URL en base64 de la miniatura JPG (max 100x100px)
@@ -139,6 +140,7 @@ export interface CustomFont {
   type: string;
   data?: string; // base64
   src?: string;  // Object URL runtime
+  folder?: string;
 }
 
 export interface ProjectAsset {
@@ -186,6 +188,7 @@ export interface ProyectoCDC2 {
   assets?: ProjectAsset[];
   projectAssets?: ProjectAsset[];
   assetFolders?: string[];
+  fontFolders?: string[];
   customFonts?: CustomFont[];
   projectSymbols?: any[];
 }

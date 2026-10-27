@@ -23,6 +23,7 @@ export interface GenerarProyectoZipParams extends GenerarProyectoZipOptions {
   assetFolders?: string[];
   userAssets?: any[];
   projectFonts?: any[];
+  fontFolders?: string[];
   projectColors?: any[];
 }
 
@@ -49,6 +50,7 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     assetFolders = ["Por Defecto"],
     userAssets = [],
     projectFonts = [],
+    fontFolders = ["Por Defecto"],
     projectColors = [],
   } = params;
 
@@ -461,11 +463,13 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     assetFolders: isTemplate ? ["Por Defecto"] : (assetFolders && assetFolders.length > 0 ? assetFolders : ["Por Defecto"]),
     userAssets: isTemplate ? [] : processedUserAssets,
     projectSymbols: processedProjectSymbols,
+    fontFolders: fontFolders && fontFolders.length > 0 ? fontFolders : ["Por Defecto"],
     customFonts: projectFonts.map((f: any) => ({
       id: f.id,
       nombre: f.nombre,
       filename: f.filename,
       type: f.type,
+      folder: f.folder || "Por Defecto",
       data: f.data
     })),
     projectColors: projectColors

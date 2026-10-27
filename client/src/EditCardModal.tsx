@@ -48,6 +48,7 @@ interface EditCardModalProps {
   onAssignBackTemplate?: () => void;
   projectAssets?: any[];
   projectFonts?: any[];
+  fontFolders?: string[];
   projectColors?: any[];
   userAssets?: any[];
   onAddUserAsset?: (nombre: string, src: string) => void;
@@ -89,6 +90,7 @@ export default function EditCardModal({
   onAssignBackTemplate,
   projectAssets = [],
   projectFonts = [],
+  fontFolders = ["Por Defecto"],
   projectColors = [],
   userAssets = [],
   onAddUserAsset,
@@ -3849,18 +3851,24 @@ export default function EditCardModal({
                                     }));
                                   }}
                                 >
-                                  <option value="sans-serif">Inter (Sans Serif)</option>
-                                  <option value="Outfit">Outfit</option>
-                                  <option value="Arial">Arial</option>
-                                  <option value="Times New Roman">Times New Roman</option>
-                                  <option value="Courier New">Courier New (Monospace)</option>
-                                  {projectFonts && projectFonts.length > 0 && (
-                                    <optgroup label="Fuentes del Proyecto">
-                                      {projectFonts.map((f: any) => (
-                                        <option key={f.id} value={f.nombre}>{f.nombre}</option>
-                                      ))}
-                                    </optgroup>
-                                  )}
+                                  <optgroup label="Tipografías del Sistema">
+                                    <option value="sans-serif">Inter (Sans Serif)</option>
+                                    <option value="Outfit">Outfit</option>
+                                    <option value="Arial">Arial</option>
+                                    <option value="Times New Roman">Times New Roman</option>
+                                    <option value="Courier New">Courier New (Monospace)</option>
+                                  </optgroup>
+                                  {fontFolders.map((folder) => {
+                                    const fontsInFolder = (projectFonts || []).filter((f: any) => (f.folder || "Por Defecto") === folder);
+                                    if (fontsInFolder.length === 0) return null;
+                                    return (
+                                      <optgroup key={folder} label={`Tipografías del Proyecto: ${folder}`}>
+                                        {fontsInFolder.map((f: any) => (
+                                          <option key={f.id} value={f.nombre}>{f.nombre}</option>
+                                        ))}
+                                      </optgroup>
+                                    );
+                                  })}
                                 </select>
                               </div>
                             </div>
