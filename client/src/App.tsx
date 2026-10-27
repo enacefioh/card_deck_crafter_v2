@@ -4671,7 +4671,7 @@ function AppContent() {
               </button>
             </div>
           )}
-          <div className="sidebar-content" style={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+          <div className="sidebar-content" style={{ display: "flex", flexDirection: "column", gap: "2px", minHeight: 0 }}>
           {(() => {
             const selectedCartas = cartas.filter((c) => selectedCardIds.includes(c.id));
             if (selectedCartas.length === 0) {
