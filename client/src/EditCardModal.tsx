@@ -53,6 +53,7 @@ interface EditCardModalProps {
   userAssets?: any[];
   onAddUserAsset?: (nombre: string, src: string) => void;
   projectSymbols?: any[];
+  symbolFolders?: string[];
 }
 
 function renderizarTextoCapa(capa: any, valoresCampos?: Record<string, string>, capasDePlantilla?: any[]): string {
@@ -95,6 +96,7 @@ export default function EditCardModal({
   userAssets = [],
   onAddUserAsset,
   projectSymbols = [],
+  symbolFolders = ["Por Defecto"],
 }: EditCardModalProps) {
   // --- Estados de Edición de Carta con Historial Deshacer/Rehacer (SRS-090) ---
   const initialEditorHistoryState: CardEditorHistoryState = useMemo(() => {
@@ -3762,23 +3764,34 @@ export default function EditCardModal({
                                   {projectSymbols.length === 0 ? (
                                     <div className="symbols-helper-empty">No hay símbolos en el proyecto</div>
                                   ) : (
-                                    projectSymbols.map((sym: any) => (
-                                      <button
-                                        key={sym.id}
-                                        type="button"
-                                        className="symbols-helper-item"
-                                        onClick={() => {
-                                          const currentVal = tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "");
-                                          const inputId = selectedCapa.multiline !== false ? ("editcard-text-textarea-" + selectedCapa.id) : ("editcard-text-input-" + selectedCapa.id);
-                                          handleInsertSymbol(sym.tag, inputId, currentVal, (newVal) => {
-                                            updateTextValue(newVal, selectedCapa.id);
-                                          });
-                                        }}
-                                      >
-                                        <img src={sym.src} alt={sym.tag} />
-                                        <span className="symbols-helper-tag">{`{${sym.tag}}`}</span>
-                                      </button>
-                                    ))
+                                    symbolFolders.map((folder) => {
+                                      const symbolsInFolder = projectSymbols.filter((s: any) => (s.folder || "Por Defecto") === folder);
+                                      if (symbolsInFolder.length === 0) return null;
+                                      return (
+                                        <div key={folder} style={{ display: "flex", flexDirection: "column", gap: "4px", width: "100%" }}>
+                                          <div className="symbols-helper-section-header">
+                                            {folder === "Por Defecto" ? "📦 Por Defecto" : `📁 ${folder}`}
+                                          </div>
+                                          {symbolsInFolder.map((sym: any) => (
+                                            <button
+                                              key={sym.id}
+                                              type="button"
+                                              className="symbols-helper-item"
+                                              onClick={() => {
+                                                const currentVal = tempValoresActivos[selectedCapa.id] !== undefined ? tempValoresActivos[selectedCapa.id] : (selectedCapa.contenidoRaw || "");
+                                                const inputId = selectedCapa.multiline !== false ? ("editcard-text-textarea-" + selectedCapa.id) : ("editcard-text-input-" + selectedCapa.id);
+                                                handleInsertSymbol(sym.tag, inputId, currentVal, (newVal) => {
+                                                  updateTextValue(newVal, selectedCapa.id);
+                                                });
+                                              }}
+                                            >
+                                              <img src={sym.src} alt={sym.tag} />
+                                              <span className="symbols-helper-tag">{`{${sym.tag}}`}</span>
+                                            </button>
+                                          ))}
+                                        </div>
+                                      );
+                                    })
                                   )}
                                 </div>
                               )}

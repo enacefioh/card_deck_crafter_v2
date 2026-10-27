@@ -667,11 +667,16 @@ function AppContent() {
   const [activeGalleryTab, setActiveGalleryTab] = useState<string>("template");
   const [showProjectGallery, setShowProjectGallery] = useState<boolean>(false);
 
-  // --- Estados de la Galería de Símbolos (SRS-011) ---
+  // --- Estados de la Galería de Símbolos (SRS-011 / SRS-096) ---
   const [projectSymbols, setProjectSymbolsInternal] = useState<any[]>([]);
+  const [symbolFolders, setSymbolFoldersInternal] = useState<string[]>(["Por Defecto"]);
   const [showSymbolsGallery, setShowSymbolsGallery] = useState<boolean>(false);
   const setProjectSymbols = (value: React.SetStateAction<any[]>) => {
     setProjectSymbolsInternal(value);
+    setIsDirty(true);
+  };
+  const setSymbolFolders = (value: React.SetStateAction<string[]>) => {
+    setSymbolFoldersInternal(value);
     setIsDirty(true);
   };
 
@@ -1544,6 +1549,7 @@ function AppContent() {
       templatesMap,
       importedTemplates,
       projectSymbols,
+      symbolFolders,
       templateAssets,
       projectAssets,
       assetFolders,
@@ -1781,6 +1787,7 @@ function AppContent() {
         if (s.src) URL.revokeObjectURL(s.src);
       });
       setProjectSymbolsInternal([]);
+      setSymbolFoldersInternal(["Por Defecto"]);
       templateAssets.forEach((a) => {
         if (a.src && a.src.startsWith("blob:")) URL.revokeObjectURL(a.src);
       });
@@ -2260,7 +2267,7 @@ function AppContent() {
       setProjectAssetsInternal(nuevosProjectAssets);
       setUserAssetsInternal(nuevosUserAssets);
 
-      // Cargar galería de símbolos (SRS-011)
+      // Cargar galería de símbolos (SRS-011 / SRS-096)
       const nuevosProjectSymbols: any[] = [];
       if (proyecto.projectSymbols) {
         for (const sym of proyecto.projectSymbols) {
@@ -2270,13 +2277,23 @@ function AppContent() {
               nuevosProjectSymbols.push({
                 id: sym.id,
                 tag: sym.tag,
-                src: url
+                src: url,
+                folder: sym.folder || "Por Defecto"
               });
             }
           }
         }
       }
       setProjectSymbolsInternal(nuevosProjectSymbols);
+
+      // Cargar carpetas de símbolos (SRS-096)
+      const loadedSymbolFolders: string[] = Array.isArray(proyecto.symbolFolders) && proyecto.symbolFolders.length > 0
+        ? [...proyecto.symbolFolders]
+        : ["Por Defecto"];
+      if (!loadedSymbolFolders.includes("Por Defecto")) {
+        loadedSymbolFolders.unshift("Por Defecto");
+      }
+      setSymbolFoldersInternal(loadedSymbolFolders);
 
       // Cargar carpetas de tipografías (SRS-095)
       const loadedFontFolders: string[] = Array.isArray(proyecto.fontFolders) && proyecto.fontFolders.length > 0
@@ -5769,28 +5786,41 @@ function AppContent() {
                             🖼️
                           </span>
                           {activeSymbolPopover === `inspector_${rowKey}` && (
-                            <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "4px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                            <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "6px", display: "flex", flexDirection: "column", gap: "6px", width: "190px", maxHeight: "180px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.25)" }}>
                               {projectSymbols.length === 0 ? (
                                 <div className="symbols-helper-empty" style={{ fontSize: "11px", padding: "4px", color: "var(--text-secondary)" }}>No hay símbolos</div>
                               ) : (
-                                projectSymbols.map((sym: any) => (
-                                   <button
-                                     key={sym.id}
-                                     type="button"
-                                     className="symbols-helper-item"
-                                     style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
-                                     onClick={(e) => {
-                                       e.stopPropagation();
-                                       const inputId = `inspector-textarea-${rowKey}`;
-                                       handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
-                                         handleUpdateValorLote(newVal);
-                                       });
-                                     }}
-                                   >
-                                     <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
-                                     <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
-                                   </button>
-                                ))
+                                symbolFolders.map((folder) => {
+                                  const symbolsInFolder = projectSymbols.filter((s: any) => (s.folder || "Por Defecto") === folder);
+                                  if (symbolsInFolder.length === 0) return null;
+                                  return (
+                                    <div key={folder} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                      <div className="symbols-helper-section-header">
+                                        {folder === "Por Defecto" ? "📦 Por Defecto" : `📁 ${folder}`}
+                                      </div>
+                                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px" }}>
+                                        {symbolsInFolder.map((sym: any) => (
+                                          <button
+                                            key={sym.id}
+                                            type="button"
+                                            className="symbols-helper-item"
+                                            style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const inputId = `inspector-textarea-${rowKey}`;
+                                              handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
+                                                handleUpdateValorLote(newVal);
+                                              });
+                                            }}
+                                          >
+                                            <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
+                                            <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })
                               )}
                             </div>
                           )}
@@ -5880,28 +5910,41 @@ function AppContent() {
                             🖼️
                           </span>
                           {activeSymbolPopover === `inspector_${rowKey}` && (
-                            <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "4px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px", maxHeight: "150px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}>
+                            <div className="symbols-helper-popover align-right" style={{ position: "absolute", right: 0, top: "20px", zIndex: 1000, background: "var(--bg-card)", border: "1px solid var(--border-color)", borderRadius: "4px", padding: "6px", display: "flex", flexDirection: "column", gap: "6px", width: "190px", maxHeight: "180px", overflowY: "auto", boxShadow: "0 4px 12px rgba(0,0,0,0.25)" }}>
                               {projectSymbols.length === 0 ? (
                                 <div className="symbols-helper-empty" style={{ fontSize: "11px", padding: "4px", color: "var(--text-secondary)" }}>No hay símbolos</div>
                               ) : (
-                                projectSymbols.map((sym: any) => (
-                                  <button
-                                    key={sym.id}
-                                    type="button"
-                                    className="symbols-helper-item"
-                                    style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      const inputId = `inspector-input-${rowKey}`;
-                                      handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
-                                        handleUpdateValorLote(newVal);
-                                      });
-                                    }}
-                                  >
-                                    <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
-                                    <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
-                                  </button>
-                                ))
+                                symbolFolders.map((folder) => {
+                                  const symbolsInFolder = projectSymbols.filter((s: any) => (s.folder || "Por Defecto") === folder);
+                                  if (symbolsInFolder.length === 0) return null;
+                                  return (
+                                    <div key={folder} style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                      <div className="symbols-helper-section-header">
+                                        {folder === "Por Defecto" ? "📦 Por Defecto" : `📁 ${folder}`}
+                                      </div>
+                                      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "4px" }}>
+                                        {symbolsInFolder.map((sym: any) => (
+                                          <button
+                                            key={sym.id}
+                                            type="button"
+                                            className="symbols-helper-item"
+                                            style={{ background: "none", border: "1px solid transparent", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", padding: "2px" }}
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              const inputId = `inspector-input-${rowKey}`;
+                                              handleInsertSymbol(sym.tag, inputId, valorMostrar, (newVal) => {
+                                                handleUpdateValorLote(newVal);
+                                              });
+                                            }}
+                                          >
+                                            <img src={sym.src} alt={sym.tag} style={{ width: "16px", height: "16px", objectFit: "contain" }} />
+                                            <span className="symbols-helper-tag" style={{ fontSize: "8px", color: "var(--text-secondary)" }}>{`{${sym.tag}}`}</span>
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  );
+                                })
                               )}
                             </div>
                           )}
@@ -6828,6 +6871,7 @@ function AppContent() {
             });
           }}
           projectSymbols={projectSymbols}
+          symbolFolders={symbolFolders}
         />
       )}
       {showTemplateModal && (
@@ -6994,7 +7038,9 @@ function AppContent() {
       {showSymbolsGallery && (
         <SymbolsGalleryModal
           symbols={projectSymbols}
+          symbolFolders={symbolFolders}
           onSaveSymbols={(updated) => setProjectSymbols(updated)}
+          onSaveFolders={(folders) => setSymbolFolders(folders)}
           onClose={() => setShowSymbolsGallery(false)}
         />
       )}

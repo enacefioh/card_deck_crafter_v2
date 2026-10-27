@@ -18,6 +18,7 @@ export interface GenerarProyectoZipParams extends GenerarProyectoZipOptions {
   templatesMap?: Record<string, PlantillaCDC2>;
   importedTemplates?: PlantillaCDC2[];
   projectSymbols?: any[];
+  symbolFolders?: string[];
   templateAssets?: any[];
   projectAssets?: any[];
   assetFolders?: string[];
@@ -45,6 +46,7 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     templatesMap = {},
     importedTemplates = [],
     projectSymbols = [],
+    symbolFolders = ["Por Defecto"],
     templateAssets = [],
     projectAssets = [],
     assetFolders = ["Por Defecto"],
@@ -91,13 +93,17 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
           id: sym.id,
           tag: sym.tag,
           src: assetPath,
+          folder: sym.folder || "Por Defecto",
         });
       } catch (err) {
         console.error("Error al procesar símbolo en generarProyectoZip:", sym, err);
       }
     } else if (sym.src && sym.src.startsWith("symbol_asset://")) {
       symbolAssetMap.set(sym.src, sym.src);
-      processedProjectSymbols.push(sym);
+      processedProjectSymbols.push({
+        ...sym,
+        folder: sym.folder || "Por Defecto",
+      });
     }
   }
 
@@ -462,6 +468,7 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     projectAssets: isTemplate ? [] : processedProjectAssets,
     assetFolders: isTemplate ? ["Por Defecto"] : (assetFolders && assetFolders.length > 0 ? assetFolders : ["Por Defecto"]),
     userAssets: isTemplate ? [] : processedUserAssets,
+    symbolFolders: symbolFolders && symbolFolders.length > 0 ? symbolFolders : ["Por Defecto"],
     projectSymbols: processedProjectSymbols,
     fontFolders: fontFolders && fontFolders.length > 0 ? fontFolders : ["Por Defecto"],
     customFonts: projectFonts.map((f: any) => ({
