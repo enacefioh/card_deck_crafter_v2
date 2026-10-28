@@ -6859,6 +6859,8 @@ function AppContent() {
             setIsDirty(true);
           }}
           projectAssets={projectAssets}
+          assetFolders={assetFolders}
+          templateAssets={templateAssets}
           projectFonts={projectFonts}
           fontFolders={fontFolders}
           projectColors={projectColors}

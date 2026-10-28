@@ -47,6 +47,8 @@ interface EditCardModalProps {
   initialZoom?: number;
   onAssignBackTemplate?: () => void;
   projectAssets?: any[];
+  assetFolders?: string[];
+  templateAssets?: any[];
   projectFonts?: any[];
   fontFolders?: string[];
   projectColors?: any[];
@@ -90,6 +92,8 @@ export default function EditCardModal({
   initialZoom,
   onAssignBackTemplate,
   projectAssets = [],
+  assetFolders = ["Por Defecto"],
+  templateAssets = [],
   projectFonts = [],
   fontFolders = ["Por Defecto"],
   projectColors = [],
@@ -446,9 +450,9 @@ export default function EditCardModal({
   const [showGallerySelector, setShowGallerySelector] = useState<boolean>(false);
   const [activeSelectorTarget, setActiveSelectorTarget] = useState<{ type: "override" | "default"; capaId: string } | null>(null);
 
-  // Estados para las pestañas de selección de recursos (SRS-014)
-  const [selectorTab, setSelectorTab] = useState<"project" | "user">("project");
-  const [switchSelectorTab, setSwitchSelectorTab] = useState<"project" | "user">("project");
+  // Estados para las pestañas de selección de recursos (SRS-014 / SRS-094 / TKT-065)
+  const [selectorTab, setSelectorTab] = useState<string>("Por Defecto");
+  const [switchSelectorTab, setSwitchSelectorTab] = useState<string>("Por Defecto");
 
   useEffect(() => {
     setCanvasEditMode(false);
@@ -5836,9 +5840,9 @@ export default function EditCardModal({
       {/* Modal: Selector de Imagen desde Galería */}
       {showGallerySelector && plantillaActiva && (
         <div className="gallery-popup-backdrop" onClick={() => { setShowGallerySelector(false); setActiveSelectorTarget(null); }}>
-          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+          <div className="gallery-popup-container multimedia-gallery-wide" onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
-              <h4 className="gallery-popup-title">Seleccionar de la Galería</h4>
+              <h4 className="gallery-popup-title">Seleccionar de la Galería Multimedia</h4>
               <button
                 type="button"
                 className="btn-close-modal"
@@ -5855,101 +5859,102 @@ export default function EditCardModal({
               </button>
             </div>
 
-            {/* Pestañas (Tabs) para Galería de Proyecto vs Usuario */}
-            <div style={{ display: "flex", borderBottom: "1px solid var(--border-color)", marginBottom: "12px", gap: "16px" }}>
+            {/* Barra de pestañas horizontal al mismo nivel (SRS-094 / TKT-065) */}
+            <div className="gallery-tabs-row">
+              {/* 📄 Plantilla */}
               <button
                 type="button"
-                style={{
-                  padding: "8px 4px",
-                  background: "none",
-                  border: "none",
-                  borderBottom: selectorTab === "project" ? "2px solid var(--accent-primary)" : "2px solid transparent",
-                  color: selectorTab === "project" ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: selectorTab === "project" ? "bold" : "normal",
-                  cursor: "pointer",
-                  fontSize: "13px"
-                }}
-                onClick={() => setSelectorTab("project")}
+                className={`gallery-tab-btn ${selectorTab === "template" ? "active" : ""}`}
+                onClick={() => setSelectorTab("template")}
               >
-                Imágenes del Proyecto
+                📄 Galería de la Plantilla <span className="gallery-count-badge">({templateAssets.length})</span>
               </button>
+
+              {/* 📦 Por Defecto */}
               <button
                 type="button"
-                style={{
-                  padding: "8px 4px",
-                  background: "none",
-                  border: "none",
-                  borderBottom: selectorTab === "user" ? "2px solid var(--accent-primary)" : "2px solid transparent",
-                  color: selectorTab === "user" ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: selectorTab === "user" ? "bold" : "normal",
-                  cursor: "pointer",
-                  fontSize: "13px"
-                }}
+                className={`gallery-tab-btn ${selectorTab === "Por Defecto" ? "active" : ""}`}
+                onClick={() => setSelectorTab("Por Defecto")}
+              >
+                📦 Por Defecto <span className="gallery-count-badge">({projectAssets.filter((a: any) => (a.folder || "Por Defecto") === "Por Defecto").length})</span>
+              </button>
+
+              {/* 📁 Galerías Personalizadas */}
+              {assetFolders.filter((f) => f !== "Por Defecto").map((folder) => {
+                const count = projectAssets.filter((a: any) => a.folder === folder).length;
+                return (
+                  <button
+                    key={folder}
+                    type="button"
+                    className={`gallery-tab-btn ${selectorTab === folder ? "active" : ""}`}
+                    onClick={() => setSelectorTab(folder)}
+                  >
+                    📁 {folder} <span className="gallery-count-badge">({count})</span>
+                  </button>
+                );
+              })}
+
+              {/* 👤 Usuario */}
+              <button
+                type="button"
+                className={`gallery-tab-btn ${selectorTab === "user" ? "active" : ""}`}
                 onClick={() => setSelectorTab("user")}
               >
-                Galería de Usuario (Subidas PC)
+                👤 Galería de Usuario <span className="gallery-count-badge">({userAssets.length})</span>
               </button>
             </div>
 
             <p className="gallery-popup-subtitle">
-              Elige una imagen para asignar a la capa ({selectorTab === "project" ? "Galería del Proyecto" : "Galería de Usuario"})
+              {selectorTab === "template"
+                ? "Elige una imagen estructural de la plantilla"
+                : selectorTab === "user"
+                ? "Elige una imagen de tu galería personal de usuario"
+                : selectorTab === "Por Defecto"
+                ? "Elige una imagen general del proyecto"
+                : `Elige una imagen de la galería "${selectorTab}" del proyecto`}
             </p>
 
-            <div className="gallery-assets-grid" style={{ maxHeight: "350px" }}>
-              {selectorTab === "project" ? (
-                projectAssets && projectAssets.length > 0 ? (
-                  projectAssets.map((asset: any) => (
-                    <div
-                      key={asset.id}
-                      className="gallery-asset-item"
-                      onClick={() => handleSelectGalleryAsset(asset.src)}
-                      title={`Seleccionar ${asset.nombre}`}
-                    >
-                      <div className="gallery-asset-thumb-container">
-                        <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+            {(() => {
+              const currentList = selectorTab === "template"
+                ? templateAssets
+                : selectorTab === "user"
+                ? userAssets
+                : projectAssets.filter((a: any) => (a.folder || "Por Defecto") === selectorTab);
+
+              return (
+                <div className="gallery-assets-grid" style={{ maxHeight: "350px" }}>
+                  {currentList && currentList.length > 0 ? (
+                    currentList.map((asset: any) => (
+                      <div
+                        key={asset.id}
+                        className="gallery-asset-item"
+                        onClick={() => handleSelectGalleryAsset(asset.src)}
+                        title={`Seleccionar ${asset.nombre}`}
+                      >
+                        <div className="gallery-asset-thumb-container">
+                          <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                        </div>
+                        <div className="gallery-asset-name">{asset.nombre}</div>
                       </div>
-                      <div className="gallery-asset-name">{asset.nombre}</div>
+                    ))
+                  ) : (
+                    <div style={{
+                      gridColumn: "1 / -1",
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: "var(--text-secondary)",
+                      fontSize: "12px"
+                    }}>
+                      {selectorTab === "template"
+                        ? "No hay imágenes en la galería de la plantilla."
+                        : selectorTab === "user"
+                        ? "No has subido imágenes locales aún en tu galería de usuario."
+                        : `No hay imágenes en la galería "${selectorTab}".`}
                     </div>
-                  ))
-                ) : (
-                  <div style={{
-                    gridColumn: "1 / -1",
-                    padding: "40px 20px",
-                    textAlign: "center",
-                    color: "var(--text-secondary)",
-                    fontSize: "12px"
-                  }}>
-                    La galería del proyecto está vacía. Añade imágenes desde el menú superior "Galería del Proyecto".
-                  </div>
-                )
-              ) : (
-                userAssets && userAssets.length > 0 ? (
-                  userAssets.map((asset: any) => (
-                    <div
-                      key={asset.id}
-                      className="gallery-asset-item"
-                      onClick={() => handleSelectGalleryAsset(asset.src)}
-                      title={`Seleccionar ${asset.nombre}`}
-                    >
-                      <div className="gallery-asset-thumb-container">
-                        <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
-                      </div>
-                      <div className="gallery-asset-name">{asset.nombre}</div>
-                    </div>
-                  ))
-                ) : (
-                  <div style={{
-                    gridColumn: "1 / -1",
-                    padding: "40px 20px",
-                    textAlign: "center",
-                    color: "var(--text-secondary)",
-                    fontSize: "12px"
-                  }}>
-                    No has subido imágenes locales aún. Se guardarán aquí automáticamente al subirlas desde tu PC.
-                  </div>
-                )
-              )}
-            </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "8px" }}>
               <button
@@ -5968,7 +5973,7 @@ export default function EditCardModal({
       {/* Modal: Seleccionar Recursos para Capa Switch */}
       {showSwitchResourcesPopup && plantillaActiva && tempSwitchCapaId && (
         <div className="gallery-popup-backdrop" onClick={() => { setShowSwitchResourcesPopup(false); setTempSwitchCapaId(null); }}>
-          <div className="gallery-popup-container" onClick={(e) => e.stopPropagation()}>
+          <div className="gallery-popup-container multimedia-gallery-wide" onClick={(e) => e.stopPropagation()}>
             <div className="gallery-popup-title-bar">
               <h4 className="gallery-popup-title">Seleccionar recursos para el Switch</h4>
               <button
@@ -5987,153 +5992,128 @@ export default function EditCardModal({
               </button>
             </div>
 
-            {/* Pestañas (Tabs) para Switch Selector */}
-            <div style={{ display: "flex", borderBottom: "1px solid var(--border-color)", marginBottom: "12px", gap: "16px" }}>
+            {/* Barra de pestañas horizontal al mismo nivel (SRS-094 / TKT-065) */}
+            <div className="gallery-tabs-row">
+              {/* 📄 Plantilla */}
               <button
                 type="button"
-                style={{
-                  padding: "8px 4px",
-                  background: "none",
-                  border: "none",
-                  borderBottom: switchSelectorTab === "project" ? "2px solid var(--accent-primary)" : "2px solid transparent",
-                  color: switchSelectorTab === "project" ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: switchSelectorTab === "project" ? "bold" : "normal",
-                  cursor: "pointer",
-                  fontSize: "13px"
-                }}
-                onClick={() => setSwitchSelectorTab("project")}
+                className={`gallery-tab-btn ${switchSelectorTab === "template" ? "active" : ""}`}
+                onClick={() => setSwitchSelectorTab("template")}
               >
-                Imágenes del Proyecto
+                📄 Galería de la Plantilla <span className="gallery-count-badge">({templateAssets.length})</span>
               </button>
+
+              {/* 📦 Por Defecto */}
               <button
                 type="button"
-                style={{
-                  padding: "8px 4px",
-                  background: "none",
-                  border: "none",
-                  borderBottom: switchSelectorTab === "user" ? "2px solid var(--accent-primary)" : "2px solid transparent",
-                  color: switchSelectorTab === "user" ? "var(--text-primary)" : "var(--text-secondary)",
-                  fontWeight: switchSelectorTab === "user" ? "bold" : "normal",
-                  cursor: "pointer",
-                  fontSize: "13px"
-                }}
+                className={`gallery-tab-btn ${switchSelectorTab === "Por Defecto" ? "active" : ""}`}
+                onClick={() => setSwitchSelectorTab("Por Defecto")}
+              >
+                📦 Por Defecto <span className="gallery-count-badge">({projectAssets.filter((a: any) => (a.folder || "Por Defecto") === "Por Defecto").length})</span>
+              </button>
+
+              {/* 📁 Galerías Personalizadas */}
+              {assetFolders.filter((f) => f !== "Por Defecto").map((folder) => {
+                const count = projectAssets.filter((a: any) => a.folder === folder).length;
+                return (
+                  <button
+                    key={folder}
+                    type="button"
+                    className={`gallery-tab-btn ${switchSelectorTab === folder ? "active" : ""}`}
+                    onClick={() => setSwitchSelectorTab(folder)}
+                  >
+                    📁 {folder} <span className="gallery-count-badge">({count})</span>
+                  </button>
+                );
+              })}
+
+              {/* 👤 Usuario */}
+              <button
+                type="button"
+                className={`gallery-tab-btn ${switchSelectorTab === "user" ? "active" : ""}`}
                 onClick={() => setSwitchSelectorTab("user")}
               >
-                Galería de Usuario (Subidas PC)
+                👤 Galería de Usuario <span className="gallery-count-badge">({userAssets.length})</span>
               </button>
             </div>
 
             <p className="gallery-popup-subtitle">
-              Selecciona las imágenes de la galería que estarán disponibles en esta capa.
+              {switchSelectorTab === "template"
+                ? "Selecciona imágenes estructurales de la plantilla disponibles para esta capa switch"
+                : switchSelectorTab === "user"
+                ? "Selecciona imágenes de tu galería personal de usuario para esta capa switch"
+                : switchSelectorTab === "Por Defecto"
+                ? "Selecciona imágenes generales del proyecto para esta capa switch"
+                : `Selecciona imágenes de la galería "${switchSelectorTab}" para esta capa switch`}
             </p>
 
-            <div className="gallery-assets-grid" style={{ maxHeight: "300px" }}>
-              {switchSelectorTab === "project" ? (
-                projectAssets && projectAssets.length > 0 ? (
-                  projectAssets.map((asset: any) => {
-                    const isChecked = tempSelectedOptionIds.includes(asset.id);
-                    return (
-                      <div
-                        key={asset.id}
-                        className={`gallery-asset-item ${isChecked ? "selected" : ""}`}
-                        onClick={() => {
-                          setTempSelectedOptionIds((prev) => {
-                            if (prev.includes(asset.id)) {
-                              return prev.filter((id) => id !== asset.id);
-                            } else {
-                              return [...prev, asset.id];
-                            }
-                          });
-                        }}
-                        title={asset.nombre}
-                        style={{ cursor: "pointer", position: "relative" }}
-                      >
-                        <div className="gallery-asset-thumb-container" style={{ position: "relative" }}>
-                          <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}}
-                            style={{
-                              position: "absolute",
-                              top: "6px",
-                              right: "6px",
-                              width: "16px",
-                              height: "16px",
-                              cursor: "pointer",
-                              accentColor: "var(--accent-primary)"
-                            }}
-                          />
+            {(() => {
+              const currentList = switchSelectorTab === "template"
+                ? templateAssets
+                : switchSelectorTab === "user"
+                ? userAssets
+                : projectAssets.filter((a: any) => (a.folder || "Por Defecto") === switchSelectorTab);
+
+              return (
+                <div className="gallery-assets-grid" style={{ maxHeight: "300px" }}>
+                  {currentList && currentList.length > 0 ? (
+                    currentList.map((asset: any) => {
+                      const isChecked = tempSelectedOptionIds.includes(asset.id);
+                      return (
+                        <div
+                          key={asset.id}
+                          className={`gallery-asset-item ${isChecked ? "selected" : ""}`}
+                          onClick={() => {
+                            setTempSelectedOptionIds((prev) => {
+                              if (prev.includes(asset.id)) {
+                                return prev.filter((id) => id !== asset.id);
+                              } else {
+                                return [...prev, asset.id];
+                              }
+                            });
+                          }}
+                          title={asset.nombre}
+                          style={{ cursor: "pointer", position: "relative" }}
+                        >
+                          <div className="gallery-asset-thumb-container" style={{ position: "relative" }}>
+                            <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {}}
+                              style={{
+                                position: "absolute",
+                                top: "6px",
+                                right: "6px",
+                                width: "16px",
+                                height: "16px",
+                                cursor: "pointer",
+                                accentColor: "var(--accent-primary)"
+                              }}
+                            />
+                          </div>
+                          <div className="gallery-asset-name">{asset.nombre}</div>
                         </div>
-                        <div className="gallery-asset-name">{asset.nombre}</div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div style={{
-                    gridColumn: "1 / -1",
-                    padding: "40px 20px",
-                    textAlign: "center",
-                    color: "var(--text-secondary)",
-                    fontSize: "12px"
-                  }}>
-                    La galería del proyecto está vacía. Añade imágenes desde el menú superior "Galería del Proyecto".
-                  </div>
-                )
-              ) : (
-                userAssets && userAssets.length > 0 ? (
-                  userAssets.map((asset: any) => {
-                    const isChecked = tempSelectedOptionIds.includes(asset.id);
-                    return (
-                      <div
-                        key={asset.id}
-                        className={`gallery-asset-item ${isChecked ? "selected" : ""}`}
-                        onClick={() => {
-                          setTempSelectedOptionIds((prev) => {
-                            if (prev.includes(asset.id)) {
-                              return prev.filter((id) => id !== asset.id);
-                            } else {
-                              return [...prev, asset.id];
-                            }
-                          });
-                        }}
-                        title={asset.nombre}
-                        style={{ cursor: "pointer", position: "relative" }}
-                      >
-                        <div className="gallery-asset-thumb-container" style={{ position: "relative" }}>
-                          <img src={asset.src} alt={asset.nombre} className="gallery-asset-thumb" />
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {}}
-                            style={{
-                              position: "absolute",
-                              top: "6px",
-                              right: "6px",
-                              width: "16px",
-                              height: "16px",
-                              cursor: "pointer",
-                              accentColor: "var(--accent-primary)"
-                            }}
-                          />
-                        </div>
-                        <div className="gallery-asset-name">{asset.nombre}</div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div style={{
-                    gridColumn: "1 / -1",
-                    padding: "40px 20px",
-                    textAlign: "center",
-                    color: "var(--text-secondary)",
-                    fontSize: "12px"
-                  }}>
-                    No has subido imágenes locales aún. Se guardarán aquí automáticamente al subirlas desde tu PC.
-                  </div>
-                )
-              )}
-            </div>
+                      );
+                    })
+                  ) : (
+                    <div style={{
+                      gridColumn: "1 / -1",
+                      padding: "40px 20px",
+                      textAlign: "center",
+                      color: "var(--text-secondary)",
+                      fontSize: "12px"
+                    }}>
+                      {switchSelectorTab === "template"
+                        ? "No hay imágenes en la galería de la plantilla."
+                        : switchSelectorTab === "user"
+                        ? "No has subido imágenes locales aún en tu galería de usuario."
+                        : `No hay imágenes en la galería "${switchSelectorTab}".`}
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             <div style={{ display: "flex", justifyContent: "flex-end", marginTop: "12px", gap: "8px" }}>
               <button
@@ -6151,7 +6131,11 @@ export default function EditCardModal({
                 onClick={() => {
                   // Guardar las opciones seleccionadas en la propiedad options de la capa
                   const targetCapa = plantillaActiva.capas.find((c: any) => c.id === tempSwitchCapaId);
-                  const allAssets = [...(projectAssets || []), ...(userAssets || [])];
+                  const allAssets = [
+                    ...(templateAssets || []),
+                    ...(projectAssets || []),
+                    ...(userAssets || [])
+                  ];
                   const nextOptions = allAssets
                     .filter((asset: any) => tempSelectedOptionIds.includes(asset.id))
                     .map((asset: any) => ({
