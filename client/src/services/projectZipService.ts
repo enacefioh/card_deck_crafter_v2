@@ -38,7 +38,7 @@ export function limpiarIdRecurso(rawId: string): string {
     .replace(/^(?:user_asset|project_asset|asset|symbol_asset):\/\/?/i, "")
     .replace(/\.[^/.]+$/, "");
 
-  const embMatch = clean.match(/asset:\/\/?([^/\\:]+)$/i);
+  const embMatch = clean.match(/(?:^|_)asset:\/\/?([^/\\:]+)$/i);
   if (embMatch) {
     clean = embMatch[1].replace(/\.[^/.]+$/, "");
   }
@@ -61,8 +61,14 @@ export function esRecursoPlantillaCorruptoEnGaleria(asset: any): boolean {
   if (!asset) return false;
   const idStr = String(asset.id || "");
   const srcStr = String(asset.src || "");
-  if (idStr.includes("asset:") || idStr.includes("tmpl_asset_")) return true;
-  if (srcStr.includes("u_asset_asset:") || srcStr.includes("p_asset_asset:") || srcStr.startsWith("asset://")) return true;
+  if (/(?:^|_)asset:/i.test(idStr) || idStr.includes("tmpl_asset_")) return true;
+  if (
+    /(?:u_asset_|p_asset_)+asset:/i.test(srcStr) ||
+    srcStr.startsWith("asset://") ||
+    srcStr.includes("tmpl_asset_")
+  ) {
+    return true;
+  }
   return false;
 }
 
@@ -73,8 +79,10 @@ export function esRecursoPlantillaCorruptoEnGaleria(asset: any): boolean {
 export function normalizarEsquemaRecurso(rawSrc: string): string {
   if (!rawSrc || typeof rawSrc !== "string") return "";
 
-  const embeddedAssetMatch = rawSrc.match(/asset:\/\/?([^/\\:]+)$/);
-  if (embeddedAssetMatch && !rawSrc.startsWith("asset://")) {
+  const embeddedAssetMatch = rawSrc.match(
+    /^(?:user_asset|project_asset):\/\/(?:u_asset_|p_asset_)*asset:\/\/?([^/\\:]+)$/
+  );
+  if (embeddedAssetMatch) {
     const cleanFile = embeddedAssetMatch[1].replace(/^(tmpl_asset_)+/, "tmpl_asset_");
     return `asset://${cleanFile}`;
   }

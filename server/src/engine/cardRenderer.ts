@@ -43,8 +43,10 @@ export function resolverRutaAssetFisica(rawSrc: string | null, tempDir: string):
   let src = rawSrc;
 
   // Recuperar si un recurso de plantilla fue prefijado con user_asset:// o project_asset://
-  const embeddedAssetMatch = src.match(/asset:\/\/?([^/\\:]+)$/);
-  if (embeddedAssetMatch && !src.startsWith("asset://")) {
+  const embeddedAssetMatch = src.match(
+    /^(?:user_asset|project_asset):\/\/(?:u_asset_|p_asset_)*asset:\/\/?([^/\\:]+)$/
+  );
+  if (embeddedAssetMatch) {
     src = `asset://${embeddedAssetMatch[1]}`;
   }
 

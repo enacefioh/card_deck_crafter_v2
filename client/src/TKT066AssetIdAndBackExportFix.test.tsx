@@ -38,12 +38,30 @@ describe("TKT-066: Prevención de corrupción de IDs de recursos, saneamiento ZI
       normalizarEsquemaRecurso("user_asset://u_asset_asset://tmpl_asset_1794158268902_pkrlw.png")
     ).toBe("asset://tmpl_asset_1794158268902_pkrlw.png");
 
+    // No debe alterar esquemas legítimos user_asset://, project_asset:// ni symbol_asset://
+    expect(
+      normalizarEsquemaRecurso("user_asset://user_asset_1794180728636_65smf.png")
+    ).toBe("user_asset://user_asset_1794180728636_65smf.png");
+    expect(
+      normalizarEsquemaRecurso("project_asset://p_asset_override_card_123.png")
+    ).toBe("project_asset://p_asset_override_card_123.png");
+    expect(
+      normalizarEsquemaRecurso("symbol_asset://symbol_1794178914994_k7xkg.png")
+    ).toBe("symbol_asset://symbol_1794178914994_k7xkg.png");
+
     expect(
       esRecursoPlantillaCorruptoEnGaleria({
         id: "u_asset_asset://tmpl_asset_1794158268902_pkrlw",
         src: "user_asset://u_asset_asset://tmpl_asset_1794158268902_pkrlw.png",
       })
     ).toBe(true);
+
+    expect(
+      esRecursoPlantillaCorruptoEnGaleria({
+        id: "user_asset_1794180728636_65smf",
+        src: "user_asset://user_asset_1794180728636_65smf.png",
+      })
+    ).toBe(false);
   });
 
   it("generarProyectoZip prioriza recursos de plantilla frente a galerías y limpia entradas corruptas", async () => {

@@ -612,8 +612,10 @@ export class ProjectArchiveService {
     }
 
     // Si contiene un asset:// embebido por corrupción previa, reconducir a asset://
-    const embeddedAssetMatch = imageInput.match(/asset:\/\/?([^/\\:]+)$/);
-    if (embeddedAssetMatch && !imageInput.startsWith("asset://")) {
+    const embeddedAssetMatch = imageInput.match(
+      /^(?:user_asset|project_asset):\/\/(?:u_asset_|p_asset_)*asset:\/\/?([^/\\:]+)$/
+    );
+    if (embeddedAssetMatch) {
       return `asset://${embeddedAssetMatch[1]}`;
     }
 
@@ -635,8 +637,8 @@ export class ProjectArchiveService {
     if (
       assetUri.startsWith("asset://") ||
       assetUri.startsWith("symbol_asset://") ||
-      assetUri.includes("asset://") ||
-      assetUri.includes("asset:/")
+      /(?:u_asset_|p_asset_)+asset:/i.test(assetUri) ||
+      assetUri.includes("tmpl_asset_")
     ) {
       return;
     }
