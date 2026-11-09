@@ -323,66 +323,19 @@ export async function exportarProyectoPngEnCliente(
         customFonts: []
       };
 
-      // Si el modo de trasera es 'común' y se deben renderizar reversos, capturamos la trasera común UNA SOLA VEZ
+      // Si existe una imagen trasera común a nivel de documento, la pre-renderizamos UNA SOLA VEZ
       let commonBackBlob: Blob | null = null;
-      if (shouldRenderBack && doc.modoTraseras === "comun") {
-        if (doc.imagenTraseraComun) {
-          // Trasera común es una imagen pura: renderizado directo en canvas 2D
-          commonBackBlob = await renderizarCaraSoloImagen(
-            doc.imagenTraseraComun,
-            anchoPx300Dpi,
-            altoPx300Dpi,
-            cardConfig.modoAjuste || "cover"
-          );
-        } else {
-          // Trasera común con plantilla o fondo generado
-          const dummyCardForBack: Carta = {
-            id: "__common_back__",
-            nombre: "Trasera Común",
-            valoresCampos: {},
-            capasOverrides: {},
-            imagenTrasera: null,
-            cantidad: 1
-          };
-
-          const commonBackHtml = renderCardFaceContentHtml(dummyCardForBack, true, doc, proyectoSintetico);
-          if (commonBackHtml) {
-            sandbox.innerHTML = `
-              <div id="cdc2-render-back-common" style="width: ${cssWidthPx}px; height: ${cssHeightPx}px; position: relative; overflow: hidden; background-color: #ffffff;">
-                ${commonBackHtml}
-              </div>
-            `;
-            await esperarImagenesCargadas(sandbox);
-            if (document.fonts) {
-              await document.fonts.ready;
-            }
-
-            try {
-              const targetNode = (sandbox.firstElementChild as HTMLElement) || sandbox;
-              commonBackBlob = await htmlToImage.toBlob(targetNode, {
-                width: cssWidthPx,
-                height: cssHeightPx,
-                pixelRatio: 3.125,
-                skipFonts: true,
-                fontEmbedCSS: projectFontsCss || undefined,
-                cacheBust: false,
-                backgroundColor: "#ffffff",
-                style: {
-                  position: "relative",
-                  left: "0px",
-                  top: "0px",
-                  margin: "0px",
-                  transform: "none",
-                  opacity: "1",
-                  visibility: "visible"
-                }
-              });
-            } catch (captureErr) {
-              console.warn("[clientPngExport] Error capturando trasera común con html-to-image:", captureErr);
-            }
-          }
-        }
+      if (shouldRenderBack && doc.modoTraseras !== "ninguno" && doc.imagenTraseraComun) {
+        commonBackBlob = await renderizarCaraSoloImagen(
+          doc.imagenTraseraComun,
+          anchoPx300Dpi,
+          altoPx300Dpi,
+          cardConfig.modoAjuste || "cover"
+        );
       }
+
+      // Caché por plantilla trasera compartida (cuando la carta no tiene overrides ni valores propios en reverso)
+      const sharedBackTemplateBlobs = new Map<string, Blob>();
 
       let physicalCardIndex = 1;
 
@@ -452,35 +405,28 @@ export async function exportarProyectoPngEnCliente(
           }
         }
 
-        // 2. Renderizar trasera (si aplica, se solicitan reversos y no es común)
+        // 2. Renderizar trasera (si aplica y el documento tiene traseras habilitadas)
         let backBlob: Blob | null = null;
         let hasBack = false;
 
-        if (shouldRenderBack) {
-          if (doc.modoTraseras === "comun") {
+        if (shouldRenderBack && doc.modoTraseras !== "ninguno") {
+          let plantillaT = card.plantillaTrasera;
+          if (!plantillaT && card.plantillaTraseraId && templatesMap[card.plantillaTraseraId]) {
+            plantillaT = templatesMap[card.plantillaTraseraId];
+          }
+
+          const hasCustomBackData =
+            !!card.plantillaTrasera ||
+            (card.capasOverridesTrasera && Object.keys(card.capasOverridesTrasera).length > 0) ||
+            (card.valoresCamposTrasera && Object.keys(card.valoresCamposTrasera).length > 0);
+
+          if (plantillaT) {
             hasBack = true;
-            backBlob = commonBackBlob;
-            if (!backBlob) {
-              backBlob = new Blob(["dummy_back_png_data"], { type: "image/png" });
-            }
-          } else if (doc.modoTraseras === "individual") {
-            let plantillaT = card.plantillaTrasera;
-            if (!plantillaT && card.plantillaTraseraId && templatesMap[card.plantillaTraseraId]) {
-              plantillaT = templatesMap[card.plantillaTraseraId];
-            }
+            const cacheKey = !hasCustomBackData && card.plantillaTraseraId ? card.plantillaTraseraId : null;
 
-            const esSoloImagenBack = !plantillaT && !!(card.imagenTrasera || doc.imagenTraseraComun);
-
-            if (esSoloImagenBack && (card.imagenTrasera || doc.imagenTraseraComun)) {
-              hasBack = true;
-              backBlob = await renderizarCaraSoloImagen(
-                (card.imagenTrasera || doc.imagenTraseraComun)!,
-                anchoPx300Dpi,
-                altoPx300Dpi,
-                cardConfig.modoAjuste || "cover"
-              );
-            } else if (plantillaT || card.imagenTrasera || doc.imagenTraseraComun) {
-              hasBack = true;
+            if (cacheKey && sharedBackTemplateBlobs.has(cacheKey)) {
+              backBlob = sharedBackTemplateBlobs.get(cacheKey)!;
+            } else {
               const backContentHtml = renderCardFaceContentHtml(card, true, doc, proyectoSintetico);
               sandbox.innerHTML = `
                 <div id="cdc2-render-back" style="width: ${cssWidthPx}px; height: ${cssHeightPx}px; position: relative; overflow: hidden; background-color: #ffffff;">
@@ -513,13 +459,28 @@ export async function exportarProyectoPngEnCliente(
                   }
                 });
               } catch (captureErr) {
-                console.warn(`[clientPngExport] Error capturando trasera individual de carta ${card.id}:`, captureErr);
+                console.warn(`[clientPngExport] Error capturando trasera de carta ${card.id}:`, captureErr);
               }
 
-              if (!backBlob) {
-                backBlob = new Blob(["dummy_back_png_data"], { type: "image/png" });
+              if (backBlob && cacheKey) {
+                sharedBackTemplateBlobs.set(cacheKey, backBlob);
               }
             }
+          } else if (card.imagenTrasera) {
+            hasBack = true;
+            backBlob = await renderizarCaraSoloImagen(
+              card.imagenTrasera,
+              anchoPx300Dpi,
+              altoPx300Dpi,
+              cardConfig.modoAjuste || "cover"
+            );
+          } else if (doc.imagenTraseraComun) {
+            hasBack = true;
+            backBlob = commonBackBlob;
+          }
+
+          if (hasBack && !backBlob) {
+            backBlob = new Blob(["dummy_back_png_data"], { type: "image/png" });
           }
         }
 

@@ -18,7 +18,7 @@ import { UserStorageService } from "./storage/userStorageService.js";
 import { PublicTemplateService } from "./storage/publicTemplateService.js";
 import { getPublicTemplateSchema, renderCardToPng } from "./engine/cardEngineService.js";
 import { ProjectArchiveService } from "./engine/projectArchiveService.js";
-import { generarHtmlExportacionPng } from "./engine/cardRenderer.js";
+import { generarHtmlExportacionPng, extractZipSafely, resolverRutaAssetFisica } from "./engine/cardRenderer.js";
 import { AGENT_SKILL_MARKDOWN } from "./engine/agentSkillContent.js";
 import { McpSseHandler } from "./mcp/transport/sse.js";
 import { McpStreamableHttpHandler } from "./mcp/transport/streamableHttp.js";
@@ -274,7 +274,7 @@ app.get("/api/admin/dashboard", requireAdmin, async (_req, res) => {
     const metrics = await authService.getRepository().getDashboardMetrics();
     res.json({
       ...metrics,
-      version: "v2.261028.1",
+      version: "v2.261109.1",
       database: "SQLite 3"
     });
   } catch (err: any) {
@@ -1412,30 +1412,7 @@ function generarHtmlImpresion(
   const wPx = wMm * MM_TO_PX;
   const hPx = hMm * MM_TO_PX;
 
-  const resolverAssetPath = (src: string | null) => {
-    if (!src) return "";
-    if (src.startsWith("symbol_asset://")) {
-      const filename = src.replace("symbol_asset://", "");
-      const absPath = path.join(tempDir, "symbols", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    if (src.startsWith("user_asset://")) {
-      const filename = src.replace("user_asset://", "");
-      const absPath = path.join(tempDir, "user_assets", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    if (src.startsWith("project_asset://")) {
-      const filename = src.replace("project_asset://", "");
-      const absPath = path.join(tempDir, "project_assets", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    if (src.startsWith("asset://")) {
-      const filename = src.replace("asset://", "");
-      const absPath = path.join(tempDir, "assets", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    return src;
-  };
+  const resolverAssetPath = (src: string | null) => resolverRutaAssetFisica(src, tempDir);
 
   const paginasHtml: string[] = [];
 
@@ -2014,9 +1991,9 @@ app.post("/api/exportar/pdf", upload.single("archivoProyecto"), async (req, res)
     // 1. Crear carpeta temporal para la extracción
     await fs.ensureDir(tempDir);
 
-    // 2. Extraer el zip usando adm-zip
+    // 2. Extraer el zip de forma segura previniendo errores ENOENT en rutas con ':' (TKT-066)
     const zip = new AdmZip(zipPath);
-    zip.extractAllTo(tempDir, true);
+    extractZipSafely(zip, tempDir);
 
     // 3. Cargar y parsear project.json
     const projectJsonPath = path.join(tempDir, "project.json");
@@ -2227,7 +2204,7 @@ app.post("/api/exportar/png", upload.single("archivoProyecto"), async (req, res)
     await fs.ensureDir(tempDir);
 
     const inputZip = new AdmZip(zipPath);
-    inputZip.extractAllTo(tempDir, true);
+    extractZipSafely(inputZip, tempDir);
 
     const projectJsonPath = path.join(tempDir, "project.json");
     if (!(await fs.pathExists(projectJsonPath))) {

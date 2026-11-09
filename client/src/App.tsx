@@ -26,7 +26,13 @@ import {
 } from "./services/storageService";
 import { useHistory } from "./hooks/useHistory";
 import { exportarProyectoPngEnCliente, type ExportProgressInfo } from "./services/clientPngExportService";
-import { generarProyectoZip as generarProyectoZipService, type GenerarProyectoZipOptions } from "./services/projectZipService";
+import {
+  generarProyectoZip as generarProyectoZipService,
+  limpiarIdRecurso,
+  esRecursoPlantillaCorruptoEnGaleria,
+  normalizarEsquemaRecurso,
+  type GenerarProyectoZipOptions
+} from "./services/projectZipService";
 import { ExportProgressModal } from "./components/ExportProgressModal";
 import { ExportPdfModal, type PdfExportOptions } from "./components/ExportPdfModal";
 import { ExportPngModal, type PngExportOptions } from "./components/ExportPngModal";
@@ -1800,15 +1806,37 @@ function AppContent() {
         return src.startsWith("asset://") || src.startsWith("project_asset://") || src.startsWith("user_asset://") || src.startsWith("symbol_asset://");
       };
 
-      const resolverAssetBlob = async (assetPath: string | null): Promise<string | null> => {
-        if (!assetPath) return null;
-        if (cacheBlobUrls.has(assetPath)) {
-          return cacheBlobUrls.get(assetPath)!;
+      const resolverAssetBlob = async (rawAssetPath: string | null): Promise<string | null> => {
+        if (!rawAssetPath) return null;
+        if (cacheBlobUrls.has(rawAssetPath)) {
+          return cacheBlobUrls.get(rawAssetPath)!;
         }
+        const assetPath = normalizarEsquemaRecurso(rawAssetPath);
+        if (cacheBlobUrls.has(assetPath)) {
+          const cached = cacheBlobUrls.get(assetPath)!;
+          cacheBlobUrls.set(rawAssetPath, cached);
+          return cached;
+        }
+
+        const buscarZipFile = (folder: string, filename: string) => {
+          let file = zip.file(`${folder}/${filename}`);
+          if (file) return file;
+          const base = filename.replace(/\.[^/.]+$/, "");
+          const extMatch = filename.match(/\.[^/.]+$/);
+          const ext = extMatch ? extMatch[0] : ".png";
+          const cleanBase = limpiarIdRecurso(base);
+          if (cleanBase && cleanBase !== base) {
+            file = zip.file(`${folder}/${cleanBase}${ext}`);
+            if (file) return file;
+          }
+          // También probar en assets/ por si era un asset de plantilla mal referenciado
+          file = zip.file(`assets/${filename}`) || (cleanBase ? zip.file(`assets/${cleanBase}${ext}`) : null);
+          return file;
+        };
 
         if (assetPath.startsWith("project_asset://")) {
           const filename = assetPath.replace("project_asset://", "");
-          const zipImgFile = zip.file(`project_assets/${filename}`);
+          const zipImgFile = buscarZipFile("project_assets", filename);
           if (!zipImgFile) {
             console.error(`No se encontró el project asset ${filename} en el ZIP`);
             return null;
@@ -1816,12 +1844,13 @@ function AppContent() {
           const blob = await zipImgFile.async("blob");
           const objectUrl = URL.createObjectURL(blob);
           cacheBlobUrls.set(assetPath, objectUrl);
+          cacheBlobUrls.set(rawAssetPath, objectUrl);
           return objectUrl;
         }
 
         if (assetPath.startsWith("user_asset://")) {
           const filename = assetPath.replace("user_asset://", "");
-          const zipImgFile = zip.file(`user_assets/${filename}`);
+          const zipImgFile = buscarZipFile("user_assets", filename);
           if (!zipImgFile) {
             console.error(`No se encontró el user asset ${filename} en el ZIP`);
             return null;
@@ -1829,12 +1858,13 @@ function AppContent() {
           const blob = await zipImgFile.async("blob");
           const objectUrl = URL.createObjectURL(blob);
           cacheBlobUrls.set(assetPath, objectUrl);
+          cacheBlobUrls.set(rawAssetPath, objectUrl);
           return objectUrl;
         }
 
         if (assetPath.startsWith("symbol_asset://")) {
           const filename = assetPath.replace("symbol_asset://", "");
-          const zipImgFile = zip.file(`symbols/${filename}`);
+          const zipImgFile = buscarZipFile("symbols", filename);
           if (!zipImgFile) {
             console.error(`No se encontró el símbolo ${filename} en el ZIP`);
             return null;
@@ -1842,11 +1872,12 @@ function AppContent() {
           const blob = await zipImgFile.async("blob");
           const objectUrl = URL.createObjectURL(blob);
           cacheBlobUrls.set(assetPath, objectUrl);
+          cacheBlobUrls.set(rawAssetPath, objectUrl);
           return objectUrl;
         }
 
         const filename = assetPath.replace("asset://", "");
-        const zipImgFile = zip.file(`assets/${filename}`);
+        const zipImgFile = buscarZipFile("assets", filename);
         if (!zipImgFile) {
           console.error(`No se encontró el asset ${filename} en el ZIP`);
           return null;
@@ -1855,6 +1886,7 @@ function AppContent() {
         const blob = await zipImgFile.async("blob");
         const objectUrl = URL.createObjectURL(blob);
         cacheBlobUrls.set(assetPath, objectUrl);
+        cacheBlobUrls.set(rawAssetPath, objectUrl);
         return objectUrl;
       };
 
@@ -2038,19 +2070,23 @@ function AppContent() {
       // Si existe proyecto.projectAssets (formato nuevo)
       if (Array.isArray(proyecto.projectAssets)) {
         for (const asset of proyecto.projectAssets) {
+          if (esRecursoPlantillaCorruptoEnGaleria(asset)) continue;
           if (asset.src) {
             const url = await resolverAssetBlob(asset.src);
             if (url) {
+              const cleanId = limpiarIdRecurso(asset.id);
               const folder = asset.folder || "Por Defecto";
               if (!loadedFolders.includes(folder)) {
                 loadedFolders.push(folder);
               }
-              nuevosProjectAssets.push({
-                id: asset.id,
-                nombre: asset.nombre,
-                src: url,
-                folder,
-              });
+              if (!nuevosProjectAssets.some((a) => a.id === cleanId || a.src === url)) {
+                nuevosProjectAssets.push({
+                  id: cleanId || asset.id,
+                  nombre: asset.nombre,
+                  src: url,
+                  folder,
+                });
+              }
             }
           }
         }
@@ -2062,23 +2098,28 @@ function AppContent() {
           if (asset.src) {
             const url = await resolverAssetBlob(asset.src);
             if (url) {
-              if (asset.src.startsWith("project_asset://")) {
+              const cleanId = limpiarIdRecurso(asset.id);
+              if (asset.src.startsWith("project_asset://") && !esRecursoPlantillaCorruptoEnGaleria(asset)) {
                 const folder = asset.folder || "Por Defecto";
                 if (!loadedFolders.includes(folder)) {
                   loadedFolders.push(folder);
                 }
-                nuevosProjectAssets.push({
-                  id: asset.id,
-                  nombre: asset.nombre,
-                  src: url,
-                  folder,
-                });
+                if (!nuevosProjectAssets.some((a) => a.id === cleanId || a.src === url)) {
+                  nuevosProjectAssets.push({
+                    id: cleanId || asset.id,
+                    nombre: asset.nombre,
+                    src: url,
+                    folder,
+                  });
+                }
               } else {
-                nuevosTemplateAssets.push({
-                  id: asset.id,
-                  nombre: asset.nombre,
-                  src: url,
-                });
+                if (!nuevosTemplateAssets.some((a) => a.id === cleanId || a.src === url)) {
+                  nuevosTemplateAssets.push({
+                    id: cleanId || asset.id,
+                    nombre: asset.nombre,
+                    src: url,
+                  });
+                }
               }
             }
           }
@@ -2088,14 +2129,18 @@ function AppContent() {
       const nuevosUserAssets: any[] = [];
       if (proyecto.userAssets) {
         for (const asset of proyecto.userAssets) {
+          if (esRecursoPlantillaCorruptoEnGaleria(asset)) continue;
           if (asset.src) {
             const url = await resolverAssetBlob(asset.src);
             if (url) {
-              nuevosUserAssets.push({
-                id: asset.id,
-                nombre: asset.nombre,
-                src: url
-              });
+              const cleanId = limpiarIdRecurso(asset.id);
+              if (!nuevosUserAssets.some((a) => a.id === cleanId || a.src === url)) {
+                nuevosUserAssets.push({
+                  id: cleanId || asset.id,
+                  nombre: asset.nombre,
+                  src: url
+                });
+              }
             }
           }
         }
@@ -2105,20 +2150,24 @@ function AppContent() {
       // A) Escanear archivos físicos presentes en el ZIP que no hayan sido registrados aún
       for (const [filePath, zipEntry] of Object.entries(zip.files)) {
         if (zipEntry.dir) continue;
+        if (filePath.includes(":")) continue;
         const lower = filePath.toLowerCase();
         const isImage = lower.endsWith(".png") || lower.endsWith(".jpg") || lower.endsWith(".jpeg") || lower.endsWith(".webp") || lower.endsWith(".svg") || lower.endsWith(".gif");
         if (!isImage) continue;
 
         if (filePath.startsWith("assets/")) {
           const filename = filePath.replace("assets/", "");
+          const baseName = filename.replace(/\.[^/.]+$/, "");
+          const cleanBase = limpiarIdRecurso(baseName);
           const isCardSpecific = filename.startsWith("override_") || filename.startsWith("frontal_") || filename.startsWith("trasera_");
           if (isCardSpecific) {
-            const alreadyExists = nuevosProjectAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
+            const targetId = cleanBase.startsWith("p_asset_") ? cleanBase : `p_asset_${cleanBase}`;
+            const alreadyExists = nuevosProjectAssets.some((a) => a.id === cleanBase || a.id === targetId || a.nombre === filename);
             if (!alreadyExists) {
               const url = await resolverAssetBlob(`asset://${filename}`);
-              if (url) {
+              if (url && !nuevosProjectAssets.some((a) => a.src === url)) {
                 nuevosProjectAssets.push({
-                  id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                  id: targetId,
                   nombre: filename,
                   src: url,
                   folder: "Por Defecto",
@@ -2126,12 +2175,13 @@ function AppContent() {
               }
             }
           } else {
-            const alreadyExists = nuevosTemplateAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
+            const targetId = cleanBase.startsWith("tmpl_asset_") ? cleanBase : `tmpl_asset_${cleanBase}`;
+            const alreadyExists = nuevosTemplateAssets.some((a) => a.id === cleanBase || a.id === targetId || a.nombre === filename);
             if (!alreadyExists) {
               const url = await resolverAssetBlob(`asset://${filename}`);
-              if (url) {
+              if (url && !nuevosTemplateAssets.some((a) => a.src === url)) {
                 nuevosTemplateAssets.push({
-                  id: `tmpl_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                  id: targetId,
                   nombre: filename,
                   src: url,
                 });
@@ -2140,12 +2190,16 @@ function AppContent() {
           }
         } else if (filePath.startsWith("project_assets/")) {
           const filename = filePath.replace("project_assets/", "");
-          const alreadyExists = nuevosProjectAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
+          const baseName = filename.replace(/\.[^/.]+$/, "");
+          const cleanBase = limpiarIdRecurso(baseName);
+          if (cleanBase.startsWith("tmpl_asset_")) continue;
+          const targetId = cleanBase.startsWith("p_asset_") ? cleanBase : `p_asset_${cleanBase}`;
+          const alreadyExists = nuevosProjectAssets.some((a) => a.id === cleanBase || a.id === targetId || a.nombre === filename);
           if (!alreadyExists) {
             const url = await resolverAssetBlob(`project_asset://${filename}`);
-            if (url) {
+            if (url && !nuevosProjectAssets.some((a) => a.src === url)) {
               nuevosProjectAssets.push({
-                id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                id: targetId,
                 nombre: filename,
                 src: url,
                 folder: "Por Defecto",
@@ -2154,13 +2208,17 @@ function AppContent() {
           }
         } else if (filePath.startsWith("user_assets/")) {
           const filename = filePath.replace("user_assets/", "");
-          const inUser = nuevosUserAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
-          const inProject = nuevosProjectAssets.some((a) => a.id.includes(filename) || a.nombre === filename);
+          const baseName = filename.replace(/\.[^/.]+$/, "");
+          const cleanBase = limpiarIdRecurso(baseName);
+          if (cleanBase.startsWith("tmpl_asset_")) continue;
+          const targetId = (cleanBase.startsWith("u_asset_") || cleanBase.startsWith("user_asset_")) ? cleanBase : `u_asset_${cleanBase}`;
+          const inUser = nuevosUserAssets.some((a) => a.id === cleanBase || a.id === targetId || a.nombre === filename);
+          const inProject = nuevosProjectAssets.some((a) => a.id === cleanBase || a.id === targetId || a.nombre === filename);
           if (!inUser && !inProject) {
             const url = await resolverAssetBlob(`user_asset://${filename}`);
-            if (url) {
+            if (url && !nuevosUserAssets.some((a) => a.src === url)) {
               nuevosUserAssets.push({
-                id: `u_asset_${filename.replace(/\.[^/.]+$/, "")}`,
+                id: targetId,
                 nombre: filename,
                 src: url,
               });

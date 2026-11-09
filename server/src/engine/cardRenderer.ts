@@ -1,3 +1,4 @@
+import fs from "fs-extra";
 import path from "path";
 import {
   isVerticalLayout,
@@ -9,6 +10,81 @@ import {
 import type { ProyectoCDC2, Carta, PlantillaCDC2 } from "shared";
 
 const MM_TO_PX = 3.779527559;
+
+/**
+ * Extrae las entradas de un AdmZip en un directorio destino de forma segura,
+ * previniendo fallos ENOENT en chmod cuando existen nombres corruptos con ':' (ej. u_asset_asset:/...).
+ */
+export function extractZipSafely(zip: any, targetDir: string): void {
+  for (const entry of zip.getEntries()) {
+    if (entry.isDirectory) continue;
+    if (entry.entryName.includes(":")) {
+      const embeddedMatch = entry.entryName.match(/asset:\/\/?([^/\\:]+)$/);
+      if (embeddedMatch) {
+        const fallbackDest = path.join(targetDir, "assets", embeddedMatch[1]);
+        if (!fs.existsSync(fallbackDest)) {
+          fs.outputFileSync(fallbackDest, entry.getData());
+        }
+      }
+      continue;
+    }
+    const safeRelPath = entry.entryName.replace(/^[/\\]+/, "");
+    const fullPath = path.join(targetDir, safeRelPath);
+    fs.outputFileSync(fullPath, entry.getData());
+  }
+}
+
+/**
+ * Resuelve un esquema de recurso (asset://, project_asset://, user_asset://, symbol_asset://)
+ * a una ruta file:/// dentro de tempDir, recuperando referencias con prefijos repetidos o esquemas embebidos.
+ */
+export function resolverRutaAssetFisica(rawSrc: string | null, tempDir: string): string {
+  if (!rawSrc) return "";
+  let src = rawSrc;
+
+  // Recuperar si un recurso de plantilla fue prefijado con user_asset:// o project_asset://
+  const embeddedAssetMatch = src.match(/asset:\/\/?([^/\\:]+)$/);
+  if (embeddedAssetMatch && !src.startsWith("asset://")) {
+    src = `asset://${embeddedAssetMatch[1]}`;
+  }
+
+  const resolveInFolder = (folder: string, filename: string): string => {
+    const cleanFilename = filename.replace(/^[/\\]+/, "");
+    let absPath = path.join(tempDir, folder, cleanFilename);
+    if (!fs.existsSync(absPath)) {
+      const deduped = cleanFilename
+        .replace(/^(tmpl_asset_)+/, "tmpl_asset_")
+        .replace(/^(p_asset_)+/, "p_asset_")
+        .replace(/^(u_asset_)+/, "u_asset_")
+        .replace(/^u_asset_(user_asset_)/, "$1");
+      const altPath = path.join(tempDir, folder, deduped);
+      if (fs.existsSync(altPath)) {
+        absPath = altPath;
+      } else {
+        const bare = cleanFilename.replace(/^(?:p_asset_|u_asset_|tmpl_asset_)+/, "");
+        const barePath = path.join(tempDir, folder, bare);
+        if (fs.existsSync(barePath)) {
+          absPath = barePath;
+        }
+      }
+    }
+    return `file:///${absPath.replace(/\\/g, "/")}`;
+  };
+
+  if (src.startsWith("symbol_asset://")) {
+    return resolveInFolder("symbols", src.replace("symbol_asset://", ""));
+  }
+  if (src.startsWith("user_asset://")) {
+    return resolveInFolder("user_assets", src.replace("user_asset://", ""));
+  }
+  if (src.startsWith("project_asset://")) {
+    return resolveInFolder("project_assets", src.replace("project_asset://", ""));
+  }
+  if (src.startsWith("asset://")) {
+    return resolveInFolder("assets", src.replace("asset://", ""));
+  }
+  return src;
+}
 
 export function sanitizarNombreCarpeta(nombre: string, index: number): string {
   if (!nombre) return `Documento_${index + 1}`;
@@ -117,30 +193,7 @@ export function renderCardFaceContentHtml(
     staticImgSrc = cardData.imagenFrontal || null;
   }
 
-  const resolverAssetPath = (src: string | null) => {
-    if (!src) return "";
-    if (src.startsWith("symbol_asset://")) {
-      const filename = src.replace("symbol_asset://", "");
-      const absPath = path.join(tempDir, "symbols", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    if (src.startsWith("user_asset://")) {
-      const filename = src.replace("user_asset://", "");
-      const absPath = path.join(tempDir, "user_assets", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    if (src.startsWith("project_asset://")) {
-      const filename = src.replace("project_asset://", "");
-      const absPath = path.join(tempDir, "project_assets", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    if (src.startsWith("asset://")) {
-      const filename = src.replace("asset://", "");
-      const absPath = path.join(tempDir, "assets", filename);
-      return `file:///${absPath.replace(/\\/g, "/")}`;
-    }
-    return src;
-  };
+  const resolverAssetPath = (src: string | null) => resolverRutaAssetFisica(src, tempDir);
 
   if (plantilla) {
     const capas = plantilla.capas || [];

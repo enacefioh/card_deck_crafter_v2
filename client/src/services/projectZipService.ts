@@ -29,6 +29,72 @@ export interface GenerarProyectoZipParams extends GenerarProyectoZipOptions {
 }
 
 /**
+ * Limpia y normaliza un ID de recurso eliminando esquemas, extensiones, caracteres ilegales (:, /)
+ * y colapsando prefijos repetidos en cadena (ej. u_asset_u_asset_ -> u_asset_).
+ */
+export function limpiarIdRecurso(rawId: string): string {
+  if (!rawId) return "";
+  let clean = String(rawId)
+    .replace(/^(?:user_asset|project_asset|asset|symbol_asset):\/\/?/i, "")
+    .replace(/\.[^/.]+$/, "");
+
+  const embMatch = clean.match(/asset:\/\/?([^/\\:]+)$/i);
+  if (embMatch) {
+    clean = embMatch[1].replace(/\.[^/.]+$/, "");
+  }
+
+  clean = clean
+    .replace(/^(tmpl_asset_)+/, "tmpl_asset_")
+    .replace(/^(p_asset_)+/, "p_asset_")
+    .replace(/^(u_asset_)+/, "u_asset_")
+    .replace(/^u_asset_(user_asset_)/, "$1")
+    .replace(/[:/\\]+/g, "_");
+
+  return clean;
+}
+
+/**
+ * Detecta si un elemento de userAssets o projectAssets es en realidad un activo de plantilla (asset://)
+ * que fue inyectado erróneamente con un ID corrupto (ej. u_asset_asset://tmpl_asset_...).
+ */
+export function esRecursoPlantillaCorruptoEnGaleria(asset: any): boolean {
+  if (!asset) return false;
+  const idStr = String(asset.id || "");
+  const srcStr = String(asset.src || "");
+  if (idStr.includes("asset:") || idStr.includes("tmpl_asset_")) return true;
+  if (srcStr.includes("u_asset_asset:") || srcStr.includes("p_asset_asset:") || srcStr.startsWith("asset://")) return true;
+  return false;
+}
+
+/**
+ * Normaliza un URI con esquema interno (asset://, user_asset://, project_asset://, symbol_asset://),
+ * corrigiendo esquemas embebidos y colapsando prefijos repetidos.
+ */
+export function normalizarEsquemaRecurso(rawSrc: string): string {
+  if (!rawSrc || typeof rawSrc !== "string") return "";
+
+  const embeddedAssetMatch = rawSrc.match(/asset:\/\/?([^/\\:]+)$/);
+  if (embeddedAssetMatch && !rawSrc.startsWith("asset://")) {
+    const cleanFile = embeddedAssetMatch[1].replace(/^(tmpl_asset_)+/, "tmpl_asset_");
+    return `asset://${cleanFile}`;
+  }
+
+  const schemeMatch = rawSrc.match(/^(asset|user_asset|project_asset|symbol_asset):\/\/(.+)$/);
+  if (schemeMatch) {
+    const scheme = schemeMatch[1];
+    let filePart = schemeMatch[2].replace(/^[/\\]+/, "").replace(/[:/\\]+/g, "_");
+    filePart = filePart
+      .replace(/^(tmpl_asset_)+/, "tmpl_asset_")
+      .replace(/^(p_asset_)+/, "p_asset_")
+      .replace(/^(u_asset_)+/, "u_asset_")
+      .replace(/^u_asset_(user_asset_)/, "$1");
+    return `${scheme}://${filePart}`;
+  }
+
+  return rawSrc;
+}
+
+/**
  * Serializa y empaqueta un proyecto o plantilla CDC2 completo en un archivo ZIP (.cdc2 / .cdc2t).
  * Extraído de App.tsx como parte de SRS-056 para modularidad y testing aislado.
  */
@@ -107,42 +173,17 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     }
   }
 
-  // Procesar recursos de la galería de usuario (SRS-045) - Se omiten si se exporta como plantilla (SRS-067)
-  if (!isTemplate) {
-    for (const asset of userAssets) {
-      if (asset.src && !asset.src.startsWith("user_asset://")) {
-        try {
-          const res = await fetch(asset.src);
-          const blob = await res.blob();
-
-          let extension = "png";
-          if (blob.type === "image/jpeg") extension = "jpg";
-          else if (blob.type === "image/webp") extension = "webp";
-          else if (blob.type === "image/gif") extension = "gif";
-
-          const filename = `${asset.id}.${extension}`;
-          userAssetsFolder!.file(filename, blob);
-
-          const assetPath = `user_asset://${filename}`;
-          userAssetMap.set(asset.src, assetPath);
-          processedUserAssets.push({
-            id: asset.id,
-            nombre: asset.nombre,
-            src: assetPath,
-          });
-        } catch (err) {
-          console.error("Error al procesar recurso de la galería de usuario:", asset, err);
-        }
-      } else if (asset.src && asset.src.startsWith("user_asset://")) {
-        userAssetMap.set(asset.src, asset.src);
-        processedUserAssets.push(asset);
-      }
-    }
-  }
-
-  // Procesar recursos de la galería de plantilla (SRS-094)
+  // Procesar recursos de la galería de plantilla primero (SRS-094 / TKT-066)
   for (const asset of templateAssets) {
-    if (asset.src && !asset.src.startsWith("asset://")) {
+    if (!asset || !asset.src) continue;
+    const cleanId = limpiarIdRecurso(asset.id || `tmpl_asset_${processedTemplateAssets.length}`);
+    if (processedTemplateAssets.some((a) => a.id === cleanId)) {
+      const existing = processedTemplateAssets.find((a) => a.id === cleanId);
+      if (existing) imagenMap.set(asset.src, existing.src);
+      continue;
+    }
+
+    if (!asset.src.startsWith("asset://")) {
       try {
         const res = await fetch(asset.src);
         const blob = await res.blob();
@@ -153,60 +194,128 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
         else if (blob.type === "image/gif") extension = "gif";
         else if (blob.type === "image/svg+xml") extension = "svg";
 
-        const filename = `${asset.id}.${extension}`;
+        const filename = `${cleanId}.${extension}`;
         assetsFolder.file(filename, blob);
 
         const assetPath = `asset://${filename}`;
         imagenMap.set(asset.src, assetPath);
         processedTemplateAssets.push({
-          id: asset.id,
+          id: cleanId,
           nombre: asset.nombre,
           src: assetPath,
         });
       } catch (err) {
         console.error("Error al procesar recurso de la galería de plantilla:", asset, err);
       }
-    } else if (asset.src && asset.src.startsWith("asset://")) {
-      imagenMap.set(asset.src, asset.src);
-      processedTemplateAssets.push(asset);
+    } else {
+      const normalizedSrc = normalizarEsquemaRecurso(asset.src);
+      imagenMap.set(asset.src, normalizedSrc);
+      processedTemplateAssets.push({
+        ...asset,
+        id: cleanId,
+        src: normalizedSrc,
+      });
+    }
+  }
+
+  // Procesar recursos de la galería de usuario (SRS-045) - Se omiten si se exporta como plantilla (SRS-067)
+  if (!isTemplate) {
+    for (const asset of userAssets) {
+      if (!asset || !asset.src) continue;
+      if (esRecursoPlantillaCorruptoEnGaleria(asset)) continue;
+      if (imagenMap.has(asset.src)) continue;
+
+      const cleanId = limpiarIdRecurso(asset.id || `u_asset_${processedUserAssets.length}`);
+      if (processedUserAssets.some((a) => a.id === cleanId)) {
+        const existing = processedUserAssets.find((a) => a.id === cleanId);
+        if (existing) userAssetMap.set(asset.src, existing.src);
+        continue;
+      }
+
+      if (!asset.src.startsWith("user_asset://")) {
+        try {
+          const res = await fetch(asset.src);
+          const blob = await res.blob();
+
+          let extension = "png";
+          if (blob.type === "image/jpeg") extension = "jpg";
+          else if (blob.type === "image/webp") extension = "webp";
+          else if (blob.type === "image/gif") extension = "gif";
+
+          const filename = `${cleanId}.${extension}`;
+          userAssetsFolder!.file(filename, blob);
+
+          const assetPath = `user_asset://${filename}`;
+          userAssetMap.set(asset.src, assetPath);
+          processedUserAssets.push({
+            id: cleanId,
+            nombre: asset.nombre,
+            src: assetPath,
+          });
+        } catch (err) {
+          console.error("Error al procesar recurso de la galería de usuario:", asset, err);
+        }
+      } else {
+        const normalizedSrc = normalizarEsquemaRecurso(asset.src);
+        userAssetMap.set(asset.src, normalizedSrc);
+        processedUserAssets.push({
+          ...asset,
+          id: cleanId,
+          src: normalizedSrc,
+        });
+      }
     }
   }
 
   // Procesar recursos de la galería del proyecto (SRS-014 / SRS-094) - Se omiten si se exporta como plantilla
   if (!isTemplate) {
-  for (const asset of projectAssets) {
-    if (asset.src && !asset.src.startsWith("project_asset://")) {
-      try {
-        const res = await fetch(asset.src);
-        const blob = await res.blob();
+    for (const asset of projectAssets) {
+      if (!asset || !asset.src) continue;
+      if (esRecursoPlantillaCorruptoEnGaleria(asset)) continue;
+      if (imagenMap.has(asset.src)) continue;
 
-        let extension = "png";
-        if (blob.type === "image/jpeg") extension = "jpg";
-        else if (blob.type === "image/webp") extension = "webp";
-        else if (blob.type === "image/gif") extension = "gif";
+      const cleanId = limpiarIdRecurso(asset.id || `p_asset_${processedProjectAssets.length}`);
+      if (processedProjectAssets.some((a) => a.id === cleanId)) {
+        const existing = processedProjectAssets.find((a) => a.id === cleanId);
+        if (existing) projectAssetMap.set(asset.src, existing.src);
+        continue;
+      }
 
-        const filename = `${asset.id}.${extension}`;
-        projectAssetsFolder!.file(filename, blob);
+      if (!asset.src.startsWith("project_asset://")) {
+        try {
+          const res = await fetch(asset.src);
+          const blob = await res.blob();
 
-        const assetPath = `project_asset://${filename}`;
-        projectAssetMap.set(asset.src, assetPath);
+          let extension = "png";
+          if (blob.type === "image/jpeg") extension = "jpg";
+          else if (blob.type === "image/webp") extension = "webp";
+          else if (blob.type === "image/gif") extension = "gif";
+
+          const filename = `${cleanId}.${extension}`;
+          projectAssetsFolder!.file(filename, blob);
+
+          const assetPath = `project_asset://${filename}`;
+          projectAssetMap.set(asset.src, assetPath);
+          processedProjectAssets.push({
+            id: cleanId,
+            nombre: asset.nombre,
+            src: assetPath,
+            folder: asset.folder || "Por Defecto",
+          });
+        } catch (err) {
+          console.error("Error al procesar recurso de la galería del proyecto:", asset, err);
+        }
+      } else {
+        const normalizedSrc = normalizarEsquemaRecurso(asset.src);
+        projectAssetMap.set(asset.src, normalizedSrc);
         processedProjectAssets.push({
-          id: asset.id,
-          nombre: asset.nombre,
-          src: assetPath,
+          ...asset,
+          id: cleanId,
+          src: normalizedSrc,
           folder: asset.folder || "Por Defecto",
         });
-      } catch (err) {
-        console.error("Error al procesar recurso de la galería del proyecto:", asset, err);
       }
-    } else if (asset.src && asset.src.startsWith("project_asset://")) {
-      projectAssetMap.set(asset.src, asset.src);
-      processedProjectAssets.push({
-        ...asset,
-        folder: asset.folder || "Por Defecto",
-      });
     }
-  }
   }
 
   const addBlobToZip = async (blobUrl: string, baseName: string): Promise<string> => {
@@ -217,16 +326,16 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
       blobUrl.startsWith("project_asset://") ||
       blobUrl.startsWith("symbol_asset://")
     ) {
-      return blobUrl;
+      return normalizarEsquemaRecurso(blobUrl);
     }
-    if (userAssetMap.has(blobUrl)) {
-      return userAssetMap.get(blobUrl)!;
+    if (imagenMap.has(blobUrl)) {
+      return imagenMap.get(blobUrl)!;
     }
     if (projectAssetMap.has(blobUrl)) {
       return projectAssetMap.get(blobUrl)!;
     }
-    if (imagenMap.has(blobUrl)) {
-      return imagenMap.get(blobUrl)!;
+    if (userAssetMap.has(blobUrl)) {
+      return userAssetMap.get(blobUrl)!;
     }
 
     try {
@@ -238,7 +347,8 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
       else if (blob.type === "image/webp") extension = "webp";
       else if (blob.type === "image/gif") extension = "gif";
 
-      const filename = `${baseName}_${imagenMap.size}.${extension}`;
+      const cleanBaseName = limpiarIdRecurso(baseName) || "asset";
+      const filename = `${cleanBaseName}_${imagenMap.size}.${extension}`;
       assetsFolder.file(filename, blob);
 
       const assetPath = `asset://${filename}`;
@@ -270,7 +380,7 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
           for (const [capaId, overrideVal] of Object.entries(card.capasOverrides)) {
             if (overrideVal && typeof overrideVal === "object") {
               const nextOverride = { ...overrideVal };
-              if (nextOverride.src && (nextOverride.src.startsWith("blob:") || nextOverride.src.startsWith("data:"))) {
+              if (nextOverride.src) {
                 nextOverride.src = await addBlobToZip(nextOverride.src, `override_${capaId}`);
               }
               processedOverrides[capaId] = nextOverride;
@@ -284,7 +394,7 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
           for (const [capaId, overrideVal] of Object.entries(card.capasOverridesTrasera)) {
             if (overrideVal && typeof overrideVal === "object") {
               const nextOverride = { ...overrideVal };
-              if (nextOverride.src && (nextOverride.src.startsWith("blob:") || nextOverride.src.startsWith("data:"))) {
+              if (nextOverride.src) {
                 nextOverride.src = await addBlobToZip(nextOverride.src, `override_trasera_${capaId}`);
               }
               processedOverridesTrasera[capaId] = nextOverride;
@@ -298,13 +408,13 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
           if (clonedPlantilla.capas) {
             for (let i = 0; i < clonedPlantilla.capas.length; i++) {
               const capa = clonedPlantilla.capas[i];
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src) {
                 capa.src = await addBlobToZip(capa.src, `card_${card.id}_template_image_${i}`);
               }
               if (capa.tipo === "image-switch" && capa.options) {
                 for (let o = 0; o < capa.options.length; o++) {
                   const opt = capa.options[o];
-                  if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
+                  if (opt.src) {
                     opt.src = await addBlobToZip(opt.src, `card_${card.id}_template_image_switch_option_${i}_${o}`);
                   }
                 }
@@ -320,13 +430,13 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
           if (clonedPlantillaTrasera.capas) {
             for (let i = 0; i < clonedPlantillaTrasera.capas.length; i++) {
               const capa = clonedPlantillaTrasera.capas[i];
-              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
+              if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src) {
                 capa.src = await addBlobToZip(capa.src, `card_${card.id}_back_template_image_${i}`);
               }
               if (capa.tipo === "image-switch" && capa.options) {
                 for (let o = 0; o < clonedPlantillaTrasera.capas[i].options.length; o++) {
                   const opt = clonedPlantillaTrasera.capas[i].options[o];
-                  if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
+                  if (opt.src) {
                     opt.src = await addBlobToZip(opt.src, `card_${card.id}_back_template_image_switch_option_${i}_${o}`);
                   }
                 }
@@ -380,13 +490,13 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     if (clonedTemplate.capas) {
       for (let i = 0; i < clonedTemplate.capas.length; i++) {
         const capa = clonedTemplate.capas[i];
-        if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
+        if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src) {
           capa.src = await addBlobToZip(capa.src, `template_${template.id}_image_${i}`);
         }
         if (capa.tipo === "image-switch" && capa.options) {
           for (let o = 0; o < capa.options.length; o++) {
             const opt = capa.options[o];
-            if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
+            if (opt.src) {
               opt.src = await addBlobToZip(opt.src, `template_${template.id}_image_switch_option_${i}_${o}`);
             }
           }
@@ -417,13 +527,13 @@ export async function generarProyectoZip(params: GenerarProyectoZipParams): Prom
     if (clonedTemplate.capas) {
       for (let i = 0; i < clonedTemplate.capas.length; i++) {
         const capa = clonedTemplate.capas[i];
-        if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src && (capa.src.startsWith("blob:") || capa.src.startsWith("data:"))) {
+        if ((capa.tipo === "image" || capa.tipo === "image-switch") && capa.src) {
           capa.src = await addBlobToZip(capa.src, `template_${id}_image_${i}`);
         }
         if (capa.tipo === "image-switch" && capa.options) {
           for (let o = 0; o < clonedTemplate.capas[i].options.length; o++) {
             const opt = clonedTemplate.capas[i].options[o];
-            if (opt.src && (opt.src.startsWith("blob:") || opt.src.startsWith("data:"))) {
+            if (opt.src) {
               opt.src = await addBlobToZip(opt.src, `template_${id}_image_switch_option_${i}_${o}`);
             }
           }

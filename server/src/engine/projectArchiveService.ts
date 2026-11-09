@@ -29,7 +29,7 @@ import type {
 } from "shared";
 import type { UserStorageService } from "../storage/userStorageService.js";
 import type { PublicTemplateService } from "../storage/publicTemplateService.js";
-import { generarHtmlExportacionPng } from "./cardRenderer.js";
+import { generarHtmlExportacionPng, extractZipSafely } from "./cardRenderer.js";
 
 const DEFAULT_CANVAS_CONFIG: CanvasConfig = {
   tipo: "A4",
@@ -611,12 +611,70 @@ export class ProjectArchiveService {
       }
     }
 
+    // Si contiene un asset:// embebido por corrupción previa, reconducir a asset://
+    const embeddedAssetMatch = imageInput.match(/asset:\/\/?([^/\\:]+)$/);
+    if (embeddedAssetMatch && !imageInput.startsWith("asset://")) {
+      return `asset://${embeddedAssetMatch[1]}`;
+    }
+
     // Si ya es un esquema interno
     if (imageInput.startsWith("user_asset://") || imageInput.startsWith("asset://") || imageInput.startsWith("project_asset://")) {
       return imageInput;
     }
 
     return imageInput;
+  }
+
+  /**
+   * Registra de forma segura un recurso de imagen en projectAssets y userAssets
+   * evitando inyectar recursos de plantilla (asset://) y previniendo prefijos duplicados o caracteres inválidos.
+   */
+  private registerProjectAndUserAsset(project: ProyectoCDC2, assetUri: string, displayName?: string): void {
+    if (!assetUri || typeof assetUri !== "string") return;
+    // Los recursos de plantilla (asset://) o símbolos (symbol_asset://) no deben duplicarse en projectAssets/userAssets
+    if (
+      assetUri.startsWith("asset://") ||
+      assetUri.startsWith("symbol_asset://") ||
+      assetUri.includes("asset://") ||
+      assetUri.includes("asset:/")
+    ) {
+      return;
+    }
+
+    const rawFilename = assetUri
+      .replace(/^(?:user_asset|project_asset|asset|symbol_asset):\/\//, "")
+      .replace(/^[/\\]+/, "");
+    const withoutExt = rawFilename.replace(/\.[^/.]+$/, "");
+    const cleanBase = withoutExt
+      .replace(/^(?:p_asset_|u_asset_|user_asset_|tmpl_asset_)+/, "")
+      .replace(/[:/\\]+/g, "_")
+      .trim();
+
+    if (!cleanBase) return;
+
+    const pId = `p_asset_${cleanBase}`;
+    const uId = `u_asset_${cleanBase}`;
+    const finalName = displayName && displayName.trim() ? displayName.trim() : rawFilename;
+
+    project.projectAssets = project.projectAssets || [];
+    project.assetFolders = project.assetFolders || ["Por Defecto"];
+    if (!project.projectAssets.some((pa: any) => pa.src === assetUri || pa.id === pId)) {
+      project.projectAssets.push({
+        id: pId,
+        nombre: finalName,
+        src: assetUri,
+        folder: "Por Defecto",
+      });
+    }
+
+    project.userAssets = project.userAssets || [];
+    if (!project.userAssets.some((ua: any) => ua.src === assetUri || ua.id === uId)) {
+      project.userAssets.push({
+        id: uId,
+        nombre: finalName,
+        src: assetUri,
+      });
+    }
   }
 
   /**
@@ -688,26 +746,8 @@ export class ProjectArchiveService {
           if (assetUri) {
             valoresCampos[imgKey] = assetUri;
 
-            // Registrar en galerías de project.json (SRS-094)
-            const filename = assetUri.replace(/^user_asset:\/\//, "").replace(/^project_asset:\/\//, "");
-            project.projectAssets = project.projectAssets || [];
-            project.assetFolders = project.assetFolders || ["Por Defecto"];
-            if (!project.projectAssets.some((pa: any) => pa.src === assetUri)) {
-              project.projectAssets.push({
-                id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
-                nombre: cardInput.name ? `${cardInput.name}` : filename,
-                src: assetUri,
-                folder: "Por Defecto",
-              });
-            }
-            project.userAssets = project.userAssets || [];
-            if (!project.userAssets.some((ua: any) => ua.src === assetUri)) {
-              project.userAssets.push({
-                id: `u_asset_${filename.replace(/\.[^/.]+$/, "")}`,
-                nombre: cardInput.name ? `${cardInput.name}` : filename,
-                src: assetUri,
-              });
-            }
+            // Registrar en galerías de project.json (SRS-094 / TKT-066)
+            this.registerProjectAndUserAsset(project, assetUri, cardInput.name);
 
             let matchedLayer = design.capas?.find(c => c.id === imgKey || c.nombre === imgKey);
             const matchedExposed = design.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
@@ -771,26 +811,8 @@ export class ProjectArchiveService {
           if (assetUri) {
             valoresCamposTrasera[imgKey] = assetUri;
 
-            // Registrar en galerías de project.json (SRS-094)
-            const filename = assetUri.replace(/^user_asset:\/\//, "").replace(/^project_asset:\/\//, "");
-            project.projectAssets = project.projectAssets || [];
-            project.assetFolders = project.assetFolders || ["Por Defecto"];
-            if (!project.projectAssets.some((pa: any) => pa.src === assetUri)) {
-              project.projectAssets.push({
-                id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
-                nombre: cardInput.name ? `${cardInput.name} (Reverso)` : filename,
-                src: assetUri,
-                folder: "Por Defecto",
-              });
-            }
-            project.userAssets = project.userAssets || [];
-            if (!project.userAssets.some((ua: any) => ua.src === assetUri)) {
-              project.userAssets.push({
-                id: `u_asset_${filename.replace(/\.[^/.]+$/, "")}`,
-                nombre: cardInput.name ? `${cardInput.name} (Reverso)` : filename,
-                src: assetUri,
-              });
-            }
+            // Registrar en galerías de project.json (SRS-094 / TKT-066)
+            this.registerProjectAndUserAsset(project, assetUri, cardInput.name ? `${cardInput.name} (Reverso)` : undefined);
 
             let matchedLayer = backDesign?.capas?.find((c: any) => c.id === imgKey || c.nombre === imgKey);
             const matchedExposed = backDesign?.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
@@ -838,24 +860,7 @@ export class ProjectArchiveService {
       if (cardInput.backImage) {
         imagenTrasera = await this.processImageToAsset(zip, cardInput.backImage);
         if (imagenTrasera) {
-          const filename = imagenTrasera.replace(/^user_asset:\/\//, "").replace(/^project_asset:\/\//, "");
-          project.projectAssets = project.projectAssets || [];
-          if (!project.projectAssets.some((pa: any) => pa.src === imagenTrasera)) {
-            project.projectAssets.push({
-              id: `p_asset_${filename.replace(/\.[^/.]+$/, "")}`,
-              nombre: cardInput.name ? `${cardInput.name} (Trasera)` : filename,
-              src: imagenTrasera,
-              folder: "Por Defecto",
-            });
-          }
-          project.userAssets = project.userAssets || [];
-          if (!project.userAssets.some((ua: any) => ua.src === imagenTrasera)) {
-            project.userAssets.push({
-              id: `u_asset_${filename.replace(/\.[^/.]+$/, "")}`,
-              nombre: cardInput.name ? `${cardInput.name} (Trasera)` : filename,
-              src: imagenTrasera,
-            });
-          }
+          this.registerProjectAndUserAsset(project, imagenTrasera, cardInput.name ? `${cardInput.name} (Trasera)` : undefined);
         }
       }
 
@@ -972,6 +977,7 @@ export class ProjectArchiveService {
       for (const [imgKey, imgVal] of Object.entries(params.images)) {
         const assetUri = await this.processImageToAsset(zip, imgVal);
         if (assetUri) {
+          this.registerProjectAndUserAsset(project, assetUri, foundCard.nombre);
           foundCard.valoresCampos[imgKey] = assetUri;
           let matchedLayer = design?.capas?.find((c: any) => c.id === imgKey || c.nombre === imgKey);
           const matchedExposed = design?.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
@@ -1029,6 +1035,9 @@ export class ProjectArchiveService {
     if (params.backImage !== undefined) {
       if (params.backImage) {
         foundCard.imagenTrasera = await this.processImageToAsset(zip, params.backImage);
+        if (foundCard.imagenTrasera) {
+          this.registerProjectAndUserAsset(project, foundCard.imagenTrasera, `${foundCard.nombre} (Trasera)`);
+        }
       } else {
         foundCard.imagenTrasera = null;
       }
@@ -1049,6 +1058,7 @@ export class ProjectArchiveService {
       for (const [imgKey, imgVal] of Object.entries(params.backImages)) {
         const assetUri = await this.processImageToAsset(zip, imgVal);
         if (assetUri) {
+          this.registerProjectAndUserAsset(project, assetUri, `${foundCard.nombre} (Reverso)`);
           foundCard.valoresCamposTrasera[imgKey] = assetUri;
           let matchedLayer = backDesign?.capas?.find((c: any) => c.id === imgKey || c.nombre === imgKey);
           const matchedExposed = backDesign?.exposedProperties?.find((ep: any) => ep.label === imgKey || ep.layerId === imgKey);
@@ -1239,8 +1249,8 @@ export class ProjectArchiveService {
     let browser: any = null;
 
     try {
-      // Extraer entradas del ZIP al directorio temporal
-      zip.extractAllTo(tempDir, true);
+      // Extraer entradas del ZIP al directorio temporal de forma segura (TKT-066)
+      extractZipSafely(zip, tempDir);
 
       let anchoMm = design.anchoMm || parentDoc?.cardConfig?.anchoMm || 63.5;
       let altoMm = design.altoMm || parentDoc?.cardConfig?.altoMm || 88.9;
